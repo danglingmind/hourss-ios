@@ -1,0 +1,164 @@
+import XCTest
+
+/// Drives the shell end to end.
+///
+/// Two jobs at once: prove the core loop works (start a session, stop it, rate it,
+/// find it again in the record), and capture every screen along the way for the
+/// demo. Elements are addressed by accessibility identifier rather than by visible
+/// text, so copy edits do not break the walkthrough.
+@MainActor
+final class DemoWalkthroughTests: XCTestCase {
+
+    private var app: XCUIApplication!
+    private var shotIndex = 0
+
+    private func launch() {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launch()
+    }
+
+    // MARK: - Helpers
+
+    private func capture(_ name: String) {
+        shotIndex += 1
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = String(format: "%02d-%@", shotIndex, name)
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @discardableResult
+    private func tapID(_ identifier: String, timeout: TimeInterval = 8) -> XCUIElement {
+        let element = app.descendants(matching: .any)[identifier].firstMatch
+        XCTAssertTrue(element.waitForExistence(timeout: timeout), "Could not find '\(identifier)'")
+        element.tap()
+        return element
+    }
+
+    private func exists(_ identifier: String, timeout: TimeInterval = 8) -> Bool {
+        app.descendants(matching: .any)[identifier].firstMatch.waitForExistence(timeout: timeout)
+    }
+
+    // MARK: - The walkthrough
+
+    func testFullDemoWalkthrough() throws {
+        launch()
+        // O1 — Welcome
+        XCTAssertTrue(app.staticTexts["Your hours, have a pattern."].waitForExistence(timeout: 8))
+        capture("onboarding-welcome")
+        tapID("Start")
+
+        // O2 — What Hourss notices
+        XCTAssertTrue(app.staticTexts["Timing"].waitForExistence(timeout: 5))
+        capture("onboarding-notices")
+        tapID("Continue")
+
+        // O3 — Intent
+        XCTAssertTrue(app.staticTexts["Focus"].waitForExistence(timeout: 5))
+        capture("onboarding-intent")
+        app.staticTexts["Balance"].firstMatch.tap()
+        capture("onboarding-intent-selected")
+        tapID("Continue")
+
+        // O5 — Activities
+        XCTAssertTrue(exists("Deep work"))
+        capture("onboarding-activities")
+        tapID("Continue")
+
+        // O9 — First log
+        capture("onboarding-first-log")
+        app.buttons["Skip for now"].firstMatch.tap()
+
+        // Today. Which of T1/T3 renders depends on the hour: the seeded moments sit
+        // at fixed clock times, so early in the day the record is legitimately
+        // empty and T1 is the correct screen.
+        XCTAssertTrue(exists("tab-log"), "Did not reach the main app")
+        let rows = app.descendants(matching: .any).matching(identifier: "timeline-row")
+        let sessionsBefore = rows.count
+        capture(sessionsBefore == 0 ? "today-empty" : "today-record")
+
+        // Tapping a timeline row updates the reading beside it.
+        if sessionsBefore > 0 {
+            rows.element(boundBy: 0).tap()
+            capture("today-timeline-selection")
+        }
+
+        // --- Core loop: start → stop → rate → lands in the record ---
+
+        // L1 — Start a session
+        tapID("tab-log")
+        XCTAssertTrue(app.staticTexts["START A SESSION"].waitForExistence(timeout: 5))
+        capture("logging-start")
+        tapID("Learning")
+        tapID("Start")
+
+        // T2 — a session is now running
+        XCTAssertTrue(app.staticTexts["NOW"].waitForExistence(timeout: 5), "Active session panel did not appear")
+        sleep(3)
+        capture("today-active-session")
+
+        // Stopping raises the reflection sheet.
+        tapID("stop-session")
+
+        // L3 — Reflection
+        XCTAssertTrue(app.staticTexts["REFLECTION"].waitForExistence(timeout: 5))
+        capture("logging-reflection")
+        tapID("feeling-4")
+        // Performance is visible without disclosure, and still optional.
+        XCTAssertTrue(app.staticTexts["How well did it go?"].exists, "The performance scale should be visible without tapping anything")
+        tapID("performance-5")
+        capture("logging-reflection-rated")
+        tapID("Save")
+
+        // Back on Today with one more session than we started with.
+        XCTAssertTrue(exists("tab-log"))
+        let sessionsAfter = app.descendants(matching: .any).matching(identifier: "timeline-row").count
+        XCTAssertEqual(sessionsAfter, sessionsBefore + 1, "The rated session did not land in Today's timeline")
+        capture("today-after-logging")
+
+        // The reading beside the timeline reflects the rating we just gave.
+        XCTAssertTrue(app.staticTexts["Learning"].firstMatch.exists, "The logged activity is missing from the record")
+
+        // Patterns — P2 then P3
+        tapID("tab-patterns")
+        XCTAssertTrue(exists("lead-insight"), "Patterns should have observations from the seeded history")
+        capture("patterns-list")
+        app.swipeUp()
+        capture("patterns-list-feed")
+        app.swipeDown()
+
+        tapID("lead-insight")
+        XCTAssertTrue(app.staticTexts["An observation, not a rule."].waitForExistence(timeout: 5))
+        capture("patterns-detail")
+        app.swipeUp()
+        capture("patterns-detail-evidence")
+        app.swipeUp()
+        capture("patterns-detail-sessions")
+        tapID("back")
+
+        // Journal — J1 then J2
+        tapID("tab-journal")
+        XCTAssertTrue(app.staticTexts["JOURNAL"].waitForExistence(timeout: 5))
+        capture("journal-list")
+
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'day-'"))
+            .element(boundBy: 0).tap()
+        capture("journal-day-detail")
+        tapID("back")
+
+        // You — Y1, Y3, Y6
+        tapID("tab-you")
+        XCTAssertTrue(app.staticTexts["NOT IN THIS BUILD"].waitForExistence(timeout: 5))
+        capture("you-profile")
+
+        tapID("row-preferences")
+        XCTAssertTrue(app.staticTexts["Quiet mode"].waitForExistence(timeout: 5))
+        capture("you-preferences")
+        tapID("back")
+
+        tapID("row-privacy")
+        XCTAssertTrue(app.staticTexts["Export everything"].waitForExistence(timeout: 5))
+        capture("you-privacy")
+    }
+}
