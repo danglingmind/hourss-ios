@@ -19,6 +19,10 @@ final class HourssStore {
     /// Set when a session ends, to hand it straight to the reflection sheet.
     var pendingReflectionSessionId: UUID?
 
+    /// Mirrors the running session into the Dynamic Island. Optional so tests and
+    /// previews can run the store without ActivityKit.
+    var live: LiveSessionController?
+
     init(seeded: Bool = true) {
         if seeded { MockData.seed(into: self) }
     }
@@ -54,6 +58,20 @@ final class HourssStore {
         return days.sorted(by: >)
     }
 
+    /// Mean feeling per day, for the heat calendar. Days with sessions but no
+    /// ratings are absent rather than zero — unrated stays unknown.
+    var meanFeelingByDay: [Date: Double] {
+        let calendar = Calendar.current
+        var totals: [Date: (sum: Int, count: Int)] = [:]
+        for session in sessions where !session.isRunning {
+            guard let rating = feeling(for: session.id) else { continue }
+            let day = calendar.startOfDay(for: session.startAt)
+            let current = totals[day] ?? (0, 0)
+            totals[day] = (current.sum + rating, current.count + 1)
+        }
+        return totals.mapValues { Double($0.sum) / Double($0.count) }
+    }
+
     /// Sessions that ended without a feeling rating. Drives the "complete a missing
     /// reflection" prompt on Today.
     func unratedSessions(on day: Date) -> [Session] {
@@ -87,7 +105,41 @@ final class HourssStore {
         if let running = runningSession { stopSession(running.id) }
         let session = Session(activityId: activityId, startAt: Date(), intention: intention)
         sessions.append(session)
+        live?.start(session: session, activityName: activityName(activityId))
         return session
+    }
+
+    /// Records an hour that already happened, for when someone was too busy to log
+    /// it at the time.
+    ///
+    /// Unlike `startSession` this does not touch a running session — backdating an
+    /// earlier block should not stop the thing you are doing right now. The spec
+    /// asks for the reflection immediately, so it is queued the same way stopping
+    /// a live session does.
+    @discardableResult
+    func logPastSession(activityId: UUID, startAt: Date, endAt: Date, intention: String? = nil) -> Session {
+        let session = Session(
+            activityId: activityId,
+            startAt: startAt,
+            endAt: max(endAt, startAt.addingTimeInterval(60)),
+            intention: intention
+        )
+        sessions.append(session)
+        sessions.sort { $0.startAt < $1.startAt }
+        pendingReflectionSessionId = session.id
+        return session
+    }
+
+    /// Completed sessions that overlap a proposed slot.
+    ///
+    /// Overlapping sessions are dropped from pattern computation, so it is worth
+    /// telling someone before they create one rather than silently discounting it
+    /// later.
+    func sessionsOverlapping(start: Date, end: Date) -> [Session] {
+        sessions.filter { session in
+            guard let sessionEnd = session.endAt else { return false }
+            return session.startAt < end && start < sessionEnd
+        }
     }
 
     /// Ends a session and queues its reflection.
@@ -95,6 +147,7 @@ final class HourssStore {
         guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions[index].endAt = Date()
         pendingReflectionSessionId = id
+        live?.markStopped(at: sessions[index].endAt ?? Date())
     }
 
     /// Saves a reflection. A nil feeling is preserved as "unanswered" rather than
@@ -107,7 +160,9 @@ final class HourssStore {
             note: note?.isEmpty == true ? nil : note,
             submittedAt: Date()
         )
-        if pendingReflectionSessionId == sessionId { pendingReflectionSessionId = nil }
+        if pendingReflectionSessionId == sessionId {
+            pendingReflectionSessionId = nil
+        }
     }
 
     func deleteSession(_ id: UUID) {
@@ -128,6 +183,20 @@ final class HourssStore {
         insights
             .filter { $0.status != .hidden && $0.status != .expired && $0.band != .internalOnly }
             .sorted { $0.confidence > $1.confidence }
+    }
+
+    /// Recomputes observations with Health context folded in.
+    ///
+    /// Insights are derived, not authored, so connecting or disconnecting Health
+    /// simply rebuilds them — which is also how a sleep-context observation
+    /// disappears again on disconnect, rather than lingering as a stale claim.
+    func applyHealthContext(_ healthByDay: [HealthMetric: [Date: Double]]) {
+        insights = InsightBuilder.build(
+            sessions: sessions,
+            reflections: reflections,
+            activities: activities,
+            healthByDay: healthByDay
+        )
     }
 
     func setStatus(_ status: InsightStatus, for id: UUID) {
@@ -152,5 +221,29 @@ final class HourssStore {
 
     var warmUpProgress: Double {
         min(1, Double(eligibleSessionCount) / Double(Self.sessionsNeededForPatterns))
+    }
+
+    /// Which times of day you have actually logged in. A pattern needs contrast,
+    /// so logging only mornings tells the engine less than it looks like.
+    var timeBucketsCovered: [Bool] {
+        let logged = Set(sessions.filter(\.isEligibleForPatterns).map(\.timeBucket))
+        return TimeBucket.allCases.map { logged.contains($0) }
+    }
+
+    /// Share of finished sessions that carry a feeling. Unrated sessions are
+    /// dropped from every comparison, so this is the number that gates insights.
+    var ratedShare: Double {
+        let finished = sessions.filter { !$0.isRunning }
+        guard !finished.isEmpty else { return 0 }
+        let rated = finished.filter { feeling(for: $0.id) != nil }.count
+        return Double(rated) / Double(finished.count)
+    }
+
+    /// Weeks between the first and most recent logged session, capped at six —
+    /// the window every observation is computed over.
+    var weeksOfHistory: Double {
+        guard let first = sessions.map(\.startAt).min(),
+              let last = sessions.map(\.startAt).max() else { return 0 }
+        return min(6, last.timeIntervalSince(first) / (7 * 24 * 3600))
     }
 }

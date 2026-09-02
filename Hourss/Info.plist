@@ -42,6 +42,23 @@
 	</array>
 	<key>UIUserInterfaceStyle</key>
 	<string>Light</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.hourss.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>hourss</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Hourss reads sleep, workouts and mindful minutes to notice what repeats around your better hours. Nothing is written back, and Hourss works fully without it.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>DMSans-Regular.ttf</string>

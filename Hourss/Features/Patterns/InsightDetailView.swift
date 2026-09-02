@@ -27,13 +27,12 @@ struct InsightDetailView: View {
                 }
                 .padding(.top, Space.md)
 
-                evidence
                 comparison
                 sessionList
 
                 VStack(alignment: .leading, spacing: Space.xs) {
                     HRule()
-                    Eyebrow("Worth keeping in mind")
+                    Eyebrow("Bear in mind")
                     Text(current.caveat)
                         .textStyle(.body)
                         .foregroundStyle(Color.muted)
@@ -43,7 +42,7 @@ struct InsightDetailView: View {
                 if let experiment = current.experiment {
                     VStack(alignment: .leading, spacing: Space.xs) {
                         HRule()
-                        Eyebrow("If you want to test it")
+                        Eyebrow("Try this")
                         Text(experiment)
                             .textStyle(.body)
                             .fixedSize(horizontal: false, vertical: true)
@@ -81,58 +80,31 @@ struct InsightDetailView: View {
         }
     }
 
-    private var evidence: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            HRule()
-            Eyebrow("The evidence")
-            Text(current.evidence.summary)
-                .textStyle(.body)
-                .foregroundStyle(Color.muted)
-        }
-    }
-
-    /// The small chart: two bars on the 1–5 feeling scale, labelled with their
-    /// values so the comparison never depends on reading bar lengths.
+    /// The evidence: two bars on the 1–5 feeling scale.
+    ///
+    /// This used to sit under a sentence spelling out the same four numbers.
+    /// The sentence is gone; `ComparisonMark` carries them, and its chart
+    /// descriptor keeps them in the VoiceOver path.
     private var comparison: some View {
         let e = current.evidence
         return VStack(alignment: .leading, spacing: Space.sm) {
             HRule()
-            Eyebrow("Average feeling")
-            bar(label: e.comparisonLabel, value: e.comparisonValue, count: e.comparisonCount, highlighted: true)
-            bar(label: e.baselineLabel, value: e.baselineValue, count: e.baselineCount, highlighted: false)
-            Text("Rated 1 (draining) to 5 (energizing). Unrated sessions are left out.")
+            Eyebrow("Average feeling · \(e.windowDescription)")
+            ComparisonMark(rows: [
+                .init(label: e.comparisonLabel, value: e.comparisonValue, count: e.comparisonCount, highlighted: true),
+                .init(label: e.baselineLabel, value: e.baselineValue, count: e.baselineCount, highlighted: false),
+            ])
+            Text("1 draining → 5 energizing. Unrated sessions left out.")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
         }
-    }
-
-    private func bar(label: String, value: Double, count: Int, highlighted: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label).textStyle(.body)
-                Spacer()
-                Text(String(format: "%.1f", value)).textStyle(.label)
-                Text("· \(count) sessions").textStyle(.label).foregroundStyle(Color.muted)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(Color.ink.opacity(0.08))
-                    Rectangle()
-                        .fill(highlighted ? Color.lime : Color.rule)
-                        .frame(width: geo.size.width * min(1, value / 5))
-                }
-            }
-            .frame(height: 22)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label): average \(String(format: "%.1f", value)) out of 5, from \(count) sessions")
     }
 
     private var sessionList: some View {
         let sessions = store.sessions(for: current).prefix(12)
         return VStack(alignment: .leading, spacing: 0) {
             HRule()
-            Eyebrow("The sessions behind this")
+            Eyebrow("Behind this")
                 .padding(.bottom, Space.xs)
             ForEach(Array(sessions), id: \.id) { session in
                 HStack {
@@ -167,7 +139,7 @@ struct InsightDetailView: View {
                 .foregroundStyle(current.status == .saved ? Color.orange : Color.ink)
                 .frame(minHeight: Space.tapTarget)
 
-                Button("That doesn't sound like me") {
+                Button("Not me") {
                     store.setStatus(.hidden, for: current.id)
                     dismiss()
                 }

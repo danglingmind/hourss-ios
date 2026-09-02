@@ -110,16 +110,6 @@ enum Intent: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String { rawValue.capitalized }
-
-    var blurb: String {
-        switch self {
-        case .focus: "Understand when focused work holds up."
-        case .energy: "See what gives energy back and what takes it."
-        case .balance: "Notice how work and the rest of life trade off."
-        case .recovery: "Find what actually restores you."
-        case .curiosity: "Just build a record and see what shows up."
-        }
-    }
 }
 
 enum InsightStatus: String, Codable {
@@ -131,12 +121,16 @@ enum InsightType: String, Codable {
     case bestTimeWindow, drainingTimeWindow, activityEnergizer, activityDrain
     case performanceFeelingSplit, durationSweetSpot, fragmentation
     case workdayContrast, sleepContext, emergingChange
+    /// Beyond the PRD's ten: the same association shape as sleepContext, over the
+    /// other body signals.
+    case bodyContext
 
     var group: String {
         switch self {
         case .bestTimeWindow, .drainingTimeWindow: "Timing"
         case .activityEnergizer, .activityDrain, .durationSweetSpot: "Activities"
         case .performanceFeelingSplit, .fragmentation, .workdayContrast, .sleepContext, .emergingChange: "Energy"
+        case .bodyContext: "Body"
         }
     }
 }

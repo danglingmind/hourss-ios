@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum YouRoute: Hashable {
-    case preferences, privacy
+    case preferences, privacy, health
 }
 
 /// Y1 — a settings list, not a dashboard.
@@ -12,6 +12,13 @@ enum YouRoute: Hashable {
 /// would imply working auth and health integration.
 struct YouView: View {
     @Environment(HourssStore.self) private var store
+    @Environment(HealthService.self) private var health
+
+    private var healthDetail: String {
+        guard health.isConnected else { return "Not connected" }
+        let names = health.connectedGroups.map(\.title).joined(separator: ", ")
+        return names.isEmpty ? "Connected" : names
+    }
 
     var body: some View {
         ScrollView {
@@ -21,10 +28,16 @@ struct YouView: View {
                 VStack(spacing: 0) {
                     HRule()
                     NavigationLink(value: YouRoute.preferences) {
-                        SettingsRow(title: "Preferences", detail: "Prompts, reflection time, quiet mode")
+                        SettingsRow(title: "Preferences", detail: "Prompts, timing, quiet mode")
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("row-preferences")
+                    HRule()
+                    NavigationLink(value: YouRoute.health) {
+                        SettingsRow(title: "Health connection", detail: healthDetail)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("row-health")
                     HRule()
                     NavigationLink(value: YouRoute.privacy) {
                         SettingsRow(title: "Privacy & data", detail: "Export, delete, what's stored")
@@ -39,8 +52,6 @@ struct YouView: View {
                         .padding(.bottom, Space.xs)
                     HRule()
                     SettingsRow(title: "Profile", detail: "Needs an account", enabled: false)
-                    HRule()
-                    SettingsRow(title: "Health connection", detail: "Needs HealthKit", enabled: false)
                     HRule()
                     SettingsRow(title: "Membership", detail: "Needs StoreKit", enabled: false)
                     HRule()
@@ -60,6 +71,7 @@ struct YouView: View {
             switch route {
             case .preferences: PreferencesView()
             case .privacy: PrivacyView()
+            case .health: HealthConnectionView()
             }
         }
     }
@@ -127,19 +139,19 @@ struct PreferencesView: View {
                     HRule()
                     EditorialToggle(
                         title: "Log prompts",
-                        detail: "One close-out nudge, at most three times a week.",
+                        detail: "Max 3 a week.",
                         isOn: $store.profile.logPrompts
                     )
                     HRule()
                     EditorialToggle(
                         title: "Weekly reflection",
-                        detail: "A digest once a week, if you logged at least three sessions.",
+                        detail: "Weekly, after 3+ sessions.",
                         isOn: $store.profile.weeklyReflection
                     )
                     HRule()
                     EditorialToggle(
                         title: "Quiet mode",
-                        detail: "Suppresses everything except what you ask for.",
+                        detail: "Only what you ask for.",
                         isOn: $store.profile.quietMode
                     )
                     HRule()
@@ -273,5 +285,108 @@ struct BackHeader: View {
             HRule()
         }
         .background(Color.canvas)
+    }
+}
+
+/// Y4 — the Health connection.
+///
+/// Shows what was consented to, when it last read, and how to change it. Two
+/// things are deliberate: disconnecting stops reading but deletes nothing ("no
+/// data removed unless the user chooses"), and narrowing scope hands off to
+/// Settings, because iOS only lets Health permissions be reduced there.
+struct HealthConnectionView: View {
+    @Environment(HealthService.self) private var health
+    @Environment(HourssStore.self) private var store
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                DisplayHeadline([
+                    Text("Apple").styled(.sectionTitle),
+                    Text("Health.").styled(.emphasis(42)),
+                ], style: .sectionTitle)
+                .padding(.top, Space.md)
+
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Eyebrow(health.isConnected ? "Connected" : "Not connected")
+                    if let synced = health.lastSyncedAt {
+                        Text("Last read \(synced.formatted(.dateTime.hour().minute()))")
+                            .textStyle(.label)
+                            .foregroundStyle(Color.muted)
+                    }
+                }
+
+                VStack(spacing: 0) {
+                    HRule()
+                    ForEach(HealthGroup.allCases) { group in
+                        let on = health.isConnected && health.selectedGroups.contains(group)
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(group.title).textStyle(.stepName)
+                                Text(group.scopeDescription)
+                                    .textStyle(.label)
+                                    .foregroundStyle(Color.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: Space.sm)
+                            Text(on ? "●" : "○")
+                                .font(.custom("DMSans-Medium", fixedSize: 14))
+                                .foregroundStyle(on ? Color.orange : Color.rule)
+                                .padding(.top, 6)
+                        }
+                        .padding(.vertical, Space.sm)
+                        .frame(minHeight: Space.tapTarget)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(group.title): \(on ? "on" : "off"). Reads \(group.scopeDescription)")
+                        HRule()
+                    }
+                }
+
+                VStack(spacing: 0) {
+                    if health.isConnected {
+                        Button {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            SettingsRow(title: "Change what Hourss reads", detail: "Opens Settings")
+                        }
+                        .buttonStyle(.plain)
+                        HRule()
+
+                        Button {
+                            health.disconnect()
+                            store.applyHealthContext([:])
+                        } label: {
+                            SettingsRow(title: "Disconnect", detail: "Stops reading. Nothing is deleted.")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("health-disconnect")
+                        HRule()
+                    } else {
+                        Button {
+                            Task {
+                                await health.connect()
+                                store.applyHealthContext(health.dailyValues)
+                            }
+                        } label: {
+                            SettingsRow(title: "Connect Health", detail: "Sleep, recovery, movement, daylight")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("health-connect")
+                        HRule()
+                    }
+                }
+
+                Text("Read only. Nothing is written back to Health.")
+                    .textStyle(.label)
+                    .foregroundStyle(Color.muted)
+            }
+            .pageGutter()
+            .padding(.bottom, Space.xl)
+        }
+        .background(Color.canvas)
+        .safeAreaInset(edge: .top, spacing: 0) { BackHeader(title: "You") }
+        .navigationBarBackButtonHidden()
     }
 }

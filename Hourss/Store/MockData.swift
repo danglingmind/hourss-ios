@@ -24,6 +24,38 @@ enum MockData {
         }
     }
 
+    /// Stand-in daily values for when HealthKit has nothing — always true on a
+    /// simulator. Correlated with the seeded session ratings so the associations
+    /// have a real signal to find rather than noise, and deterministic so the demo
+    /// is identical every launch.
+    static func seededDaily(for metric: HealthMetric) -> [Date: Double] {
+        var rng = Seeded(seed: UInt64(abs(metric.rawValue.hashValue % 100_000)) &+ 0x484B)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var byDay: [Date: Double] = [:]
+
+        for dayOffset in 0...42 {
+            guard let day = calendar.date(byAdding: .day, value: -dayOffset, to: today) else { continue }
+            let weekday = calendar.component(.weekday, from: day)
+            let isWeekend = weekday == 1 || weekday == 7
+            let jitter = Double(Int.random(in: -10...10, using: &rng)) / 10
+
+            byDay[day] = switch metric {
+            case .sleepHours: (isWeekend ? 8.0 : 7.0) + jitter * 0.6
+            case .hrv: (isWeekend ? 58 : 48) + jitter * 6
+            case .restingHeartRate: (isWeekend ? 55 : 60) + jitter * 3
+            case .respiratoryRate: 14.5 + jitter * 0.8
+            case .workoutMinutes: isWeekend ? max(0, 45 + jitter * 15) : (Int.random(in: 0...2, using: &rng) == 0 ? 30 + jitter * 10 : 0)
+            case .steps: (isWeekend ? 9000 : 6500) + jitter * 1200
+            case .activeEnergy: (isWeekend ? 620 : 430) + jitter * 90
+            case .exerciseMinutes: max(0, (isWeekend ? 42 : 24) + jitter * 10)
+            case .mindfulMinutes: max(0, (Int.random(in: 0...2, using: &rng) == 0 ? 12 + jitter * 4 : 0))
+            case .daylightMinutes: max(0, (isWeekend ? 95 : 40) + jitter * 20)
+            }
+        }
+        return byDay
+    }
+
     static func seed(into store: HourssStore) {
         var rng = Seeded(seed: 0x484F5552)
         let cal = Calendar.current

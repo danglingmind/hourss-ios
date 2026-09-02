@@ -18,6 +18,7 @@ final class SwipeBackTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.waitForExistence(timeout: 8))
         app.descendants(matching: .any)["Start"].firstMatch.tap()
         for _ in 0..<3 { app.descendants(matching: .any)["Continue"].firstMatch.tap() }
+        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
         app.buttons["Skip for now"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: 8))
     }

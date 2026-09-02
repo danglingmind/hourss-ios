@@ -73,9 +73,20 @@ extension EnvironmentValues {
 extension View {
     /// Paints the surface edge-to-edge and publishes it to descendants.
     func surface(_ surface: Surface) -> some View {
+        surfaceContent(surface)
+            .background(surface.background.ignoresSafeArea())
+    }
+
+    /// Publishes the surface and sets the matching text colour, without painting a
+    /// background — for an inset panel that draws its own.
+    ///
+    /// This exists because publishing the surface alone is not enough and fails
+    /// quietly: descendants keep inheriting the *parent* surface's foreground, so a
+    /// forest panel inside a canvas screen renders ink on dark green, which is very
+    /// nearly invisible. Anything that sets `\.surface` must set the foreground too.
+    func surfaceContent(_ surface: Surface) -> some View {
         self
             .environment(\.surface, surface)
             .foregroundStyle(surface.foreground)
-            .background(surface.background.ignoresSafeArea())
     }
 }

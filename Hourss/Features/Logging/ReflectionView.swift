@@ -44,7 +44,7 @@ struct ReflectionView: View {
                         RatingScale(
                             value: $performance,
                             kind: .performance,
-                            caption: "Optional — how it went and how it felt aren't the same thing."
+                            caption: "Optional — a different question."
                         )
                         .padding(.top, Space.xs)
                     }
@@ -65,7 +65,10 @@ struct ReflectionView: View {
             VStack(spacing: 0) {
                 HRule()
                 HStack {
-                    Button("Skip") { dismiss() }
+                    Button("Skip") {
+                        store.live?.endAll()
+                        dismiss()
+                    }
                         .buttonStyle(.plain)
                         .textStyle(.action)
                         .foregroundStyle(Color.muted)
@@ -88,5 +91,6 @@ struct ReflectionView: View {
 
     private func save() {
         store.saveReflection(sessionId: sessionId, feeling: feeling, performance: performance, note: note)
+        store.live?.endAll()
     }
 }

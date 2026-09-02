@@ -9,22 +9,14 @@ import SwiftUI
 struct EnergyBar: View {
     /// 0–100. Nil renders an empty track, meaning "not rated" — never a middle value.
     let score: Int?
-    var height: CGFloat = 30
-
-    @Environment(\.surface) private var surface
+    var height: CGFloat = DataBar.reading
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Rectangle().fill(surface.track)
-                if let score {
-                    Rectangle()
-                        .fill(Feeling.fillColor(forScore: score))
-                        .frame(width: geo.size.width * CGFloat(score) / 100)
-                }
-            }
-        }
-        .frame(height: height)
+        DataBar(
+            fraction: score.map { Double($0) / 100 },
+            fill: score.map(Feeling.fillColor(forScore:)) ?? .lime,
+            height: height
+        )
     }
 }
 
@@ -194,13 +186,32 @@ struct RatingScale: View {
 struct SelectableChip: View {
     let title: String
     let isSelected: Bool
+    /// Optional activity mark, shown ahead of the name so a list of eight is
+    /// scannable by shape as well as by reading.
+    var glyph: ActivityGlyph.Kind?
     let action: () -> Void
+
+    init(title: String, isSelected: Bool, glyph: ActivityGlyph.Kind? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.isSelected = isSelected
+        self.glyph = glyph
+        self.action = action
+    }
 
     @Environment(\.surface) private var surface
 
     var body: some View {
         Button(action: action) {
-            Text(title)
+            HStack(spacing: Space.sm) {
+                if let glyph {
+                    ActivityGlyph(
+                        kind: glyph,
+                        size: 14,
+                        color: isSelected ? .ink : surface.secondary
+                    )
+                }
+                Text(title)
+            }
                 .textStyle(.action)
                 .foregroundStyle(isSelected ? Color.ink : surface.foreground)
                 .padding(.horizontal, Space.sm)

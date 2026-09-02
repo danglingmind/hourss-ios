@@ -63,13 +63,14 @@ final class ActivitySelectionTests: XCTestCase {
         app.descendants(matching: .any)["Exercise"].firstMatch.tap()
 
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
+        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
 
         XCTAssertTrue(
-            app.staticTexts["Exercise"].waitForExistence(timeout: 5),
+            app.descendants(matching: .any)["Exercise"].firstMatch.waitForExistence(timeout: 5),
             "The kept activity is missing from the first-log step"
         )
         XCTAssertFalse(
-            app.staticTexts["Deep work"].exists,
+            app.descendants(matching: .any)["Deep work"].firstMatch.exists,
             "A discarded activity is still being offered"
         )
     }
@@ -81,13 +82,17 @@ final class ActivitySelectionTests: XCTestCase {
         deselectAll()
         app.descendants(matching: .any)["Social"].firstMatch.tap()
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
+        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
         app.buttons["Skip for now"].firstMatch.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: 8))
         app.descendants(matching: .any)["tab-log"].firstMatch.tap()
 
         XCTAssertTrue(app.staticTexts["START A SESSION"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Social"].exists, "The picker has no rows to choose from")
+        // Match by identifier: a simple SwiftUI button absorbs its label, so the
+        // row is a button named "Social", not a separate static text.
+        XCTAssertTrue(app.descendants(matching: .any)["Social"].firstMatch.exists,
+                      "The picker has no rows to choose from")
 
         // And Start actually works from here.
         app.descendants(matching: .any)["Social"].firstMatch.tap()

@@ -84,7 +84,7 @@ struct TodayView: View {
             ], style: .sectionTitle)
             .padding(.top, Space.sm)
 
-            Text("Start with whatever you're doing right now. One log is enough to begin.")
+            Text("Whatever you're doing right now is enough.")
                 .textStyle(.body)
                 .foregroundStyle(Color.muted)
                 .frame(maxWidth: 320, alignment: .leading)
@@ -143,9 +143,14 @@ struct TodayView: View {
                     .textStyle(.label)
                     .foregroundStyle(Color.muted)
             } else {
-                Eyebrow("Keep going")
-                Text("A few more logged hours and patterns start to show.")
+                // The bar says "a few more hours and patterns start to show"
+                // without spending a sentence on it, and says how many.
+                Eyebrow("Warming up")
+                Text("\(store.eligibleSessionCount) of \(HourssStore.sessionsNeededForPatterns) sessions")
                     .textStyle(.sectionLead)
+                DataBar(fraction: store.warmUpProgress, height: DataBar.progress)
+                    .padding(.top, Space.xs)
+                    .accessibilityLabel("\(store.eligibleSessionCount) of \(HourssStore.sessionsNeededForPatterns) sessions logged toward the first observation")
             }
         }
         .padding(.top, Space.md)
@@ -158,9 +163,6 @@ private struct ActiveSessionPanel: View {
     @Environment(HourssStore.self) private var store
     let session: Session
 
-    @State private var now = Date()
-    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             Eyebrow("Now", color: .subtleOnDark)
@@ -170,12 +172,14 @@ private struct ActiveSessionPanel: View {
                 Text(intention).textStyle(.body).foregroundStyle(Color.mutedOnDark)
             }
 
-            Text(elapsed)
-                .font(.custom("DMMono-Medium", fixedSize: 34))
-                .monospacedDigit()
-                .foregroundStyle(Color.lime)
-                .padding(.top, Space.xs)
-                .accessibilityLabel("Running for \(elapsedSpoken)")
+            TimelineView(.periodic(from: session.startAt, by: 1)) { context in
+                Text(elapsed(at: context.date))
+                    .font(.custom("DMMono-Medium", fixedSize: 34))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.lime)
+                    .accessibilityLabel("Running for \(elapsedSpoken(at: context.date))")
+            }
+            .padding(.top, Space.xs)
 
             HRule(color: .forestRule)
 
@@ -186,7 +190,6 @@ private struct ActiveSessionPanel: View {
                     Text("Stop and reflect").textStyle(.action)
                     Text("→").font(.custom("DMSans-Bold", fixedSize: 18)).foregroundStyle(Color.orange)
                 }
-                .foregroundStyle(Color.paperOnDark)
                 .frame(minHeight: Space.tapTarget)
                 .contentShape(.rect)
             }
@@ -196,18 +199,20 @@ private struct ActiveSessionPanel: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Space.md)
         .background(Color.forest)
-        .environment(\.surface, .forest)
-        .onReceive(tick) { now = $0 }
+        .surfaceContent(.forest)
     }
 
-    private var elapsedSeconds: Int { max(0, Int(now.timeIntervalSince(session.startAt))) }
-
-    private var elapsed: String {
-        String(format: "%02d:%02d:%02d", elapsedSeconds / 3600, (elapsedSeconds % 3600) / 60, elapsedSeconds % 60)
+    private func elapsedSeconds(at date: Date) -> Int {
+        max(0, Int(date.timeIntervalSince(session.startAt)))
     }
 
-    private var elapsedSpoken: String {
-        let minutes = elapsedSeconds / 60
+    private func elapsed(at date: Date) -> String {
+        let total = elapsedSeconds(at: date)
+        return String(format: "%02d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
+    }
+
+    private func elapsedSpoken(at date: Date) -> String {
+        let minutes = elapsedSeconds(at: date) / 60
         return minutes < 1 ? "less than a minute" : "\(minutes) minutes"
     }
 }

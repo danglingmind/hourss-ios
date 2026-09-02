@@ -6,6 +6,7 @@ import SwiftUI
 struct JournalView: View {
     @Environment(HourssStore.self) private var store
     @State private var activityFilter: UUID?
+    @State private var selectedDay: Date?
 
     private var days: [Date] {
         store.loggedDays.filter { day in
@@ -43,6 +44,7 @@ struct JournalView: View {
             ScreenHeader(title: "Journal")
         }
         .navigationDestination(for: Date.self) { DayDetailView(day: $0) }
+        .navigationDestination(item: $selectedDay) { DayDetailView(day: $0) }
     }
 
     private var filters: some View {
@@ -50,13 +52,17 @@ struct JournalView: View {
             Eyebrow("\(store.loggedDays.count) days recorded")
                 .padding(.top, Space.md)
 
+            HeatCalendar(feelingByDay: store.meanFeelingByDay) { day in
+                selectedDay = day
+            }
+            .padding(.vertical, Space.sm)
+
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Space.md) {
-                    filterButton(title: "All", id: nil)
-                    ForEach(store.pickableActivities) { activity in
-                        filterButton(title: activity.name, id: activity.id)
-                    }
-                }
+                UnderlinePicker(
+                    options: [(nil, "All")] + store.pickableActivities.map { (Optional($0.id), $0.name) },
+                    selection: $activityFilter,
+                    identifierPrefix: "filter"
+                )
                 .padding(.vertical, Space.xs)
             }
             .scrollClipDisabled()
@@ -65,26 +71,6 @@ struct JournalView: View {
         }
     }
 
-    private func filterButton(title: String, id: UUID?) -> some View {
-        let isSelected = activityFilter == id
-        return Button {
-            activityFilter = id
-        } label: {
-            Text(title)
-                .textStyle(.action)
-                .foregroundStyle(isSelected ? Color.ink : Color.muted)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(isSelected ? Color.orange : .clear)
-                        .frame(height: 2)
-                        .offset(y: 6)
-                }
-                .frame(minHeight: Space.tapTarget)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-    }
 }
 
 /// One day, summarised: the date, the total, and a compact strip of the day's
@@ -110,19 +96,14 @@ private struct DayRow: View {
             .frame(width: 92, alignment: .leading)
 
             VStack(alignment: .leading, spacing: Space.xs) {
-                GeometryReader { geo in
-                    let gaps = CGFloat(max(0, sessions.count - 1)) * 2
-                    let available = max(0, geo.size.width - gaps)
-                    let total = max(1, sessions.reduce(0) { $0 + max(1, $1.durationMinutes) })
-                    HStack(spacing: 2) {
-                        ForEach(sessions) { session in
-                            Rectangle()
-                                .fill(store.feeling(for: session.id).map(Feeling.fillColor(forRating:)) ?? Color.ink.opacity(0.1))
-                                .frame(width: available * CGFloat(max(1, session.durationMinutes)) / CGFloat(total))
-                        }
-                    }
-                }
-                .frame(height: 18)
+                SegmentStrip(segments: sessions.map { session in
+                    SegmentStrip.Segment(
+                        id: session.id,
+                        weight: Double(max(1, session.durationMinutes)),
+                        color: store.feeling(for: session.id).map(Feeling.fillColor(forRating:))
+                            ?? Color.ink.opacity(0.1)
+                    )
+                })
                 Text(summary)
                     .textStyle(.label)
                     .foregroundStyle(Color.muted)

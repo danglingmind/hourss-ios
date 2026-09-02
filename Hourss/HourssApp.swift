@@ -4,6 +4,8 @@ import UIKit
 @main
 struct HourssApp: App {
     @State private var store = HourssStore()
+    @State private var health = HealthService()
+    @State private var live = LiveSessionController()
 
     init() { FontAudit.run() }
 
@@ -11,7 +13,12 @@ struct HourssApp: App {
         WindowGroup {
             RootView()
                 .environment(store)
+                .environment(health)
                 .tint(.orange)
+                .task {
+                    store.live = live
+                    live.attach(to: store)
+                }
         }
     }
 }

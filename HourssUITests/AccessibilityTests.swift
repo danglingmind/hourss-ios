@@ -35,6 +35,7 @@ final class AccessibilityTests: XCTestCase {
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
+        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
         app.buttons["Skip for now"].firstMatch.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: 8))
@@ -62,6 +63,7 @@ final class AccessibilityTests: XCTestCase {
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
         app.descendants(matching: .any)["Continue"].firstMatch.tap()
+        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
         app.buttons["Skip for now"].firstMatch.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["tab-journal"].firstMatch.waitForExistence(timeout: 8))

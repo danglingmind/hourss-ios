@@ -38,6 +38,11 @@ struct RootView: View {
             EditorialTabBar(selection: $selection, onLog: startLogging)
         }
         .background(Color.canvas)
+        .onOpenURL { url in
+            // Opened from the Live Activity. Today is where a session that just
+            // ended actually shows up.
+            if url.scheme == "hourss" { selection = .today }
+        }
         .sheet(isPresented: $isStartingSession) {
             StartSessionView()
                 .presentationCornerRadius(0)
@@ -52,12 +57,14 @@ struct RootView: View {
         }
     }
 
+    /// The tab bar's `+` is the log action, nothing else.
+    ///
+    /// It used to double as a stop button while a session ran, which made
+    /// backdating impossible mid-session — the one time you are most likely to be
+    /// catching up on a forgotten hour. Stopping already has a home on Today's
+    /// active-session panel, where it reads unambiguously.
     private func startLogging() {
-        if let running = store.runningSession {
-            store.stopSession(running.id)
-        } else {
-            isStartingSession = true
-        }
+        isStartingSession = true
     }
 }
 

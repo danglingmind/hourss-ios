@@ -55,9 +55,9 @@ final class DemoWalkthroughTests: XCTestCase {
         tapID("Continue")
 
         // O3 — Intent
-        XCTAssertTrue(app.staticTexts["Focus"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["Focus"].firstMatch.waitForExistence(timeout: 5))
         capture("onboarding-intent")
-        app.staticTexts["Balance"].firstMatch.tap()
+        app.descendants(matching: .any)["Balance"].firstMatch.tap()
         capture("onboarding-intent-selected")
         tapID("Continue")
 
@@ -65,6 +65,11 @@ final class DemoWalkthroughTests: XCTestCase {
         XCTAssertTrue(exists("Deep work"))
         capture("onboarding-activities")
         tapID("Continue")
+
+        // O6 — Health permission. Skipping proves the no-Health path is not a dead end.
+        XCTAssertTrue(app.descendants(matching: .any)["health-sleep"].firstMatch.waitForExistence(timeout: 5))
+        capture("onboarding-health")
+        tapID("health-skip")
 
         // O9 — First log
         capture("onboarding-first-log")
