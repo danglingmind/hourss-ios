@@ -17,7 +17,11 @@ final class LiveSessionController {
 
     private var activity: ActivityKit.Activity<HourssActivityAttributes>?
     private weak var store: HourssStore?
-    private var dismissTask: Task<Void, Never>?
+
+    /// Why the Island is not showing, when it is not showing. `Activity.request`
+    /// used to be wrapped in `try?`, which meant a refusal on device looked
+    /// identical to everything working — nothing appeared and nothing said why.
+    private(set) var unavailableReason: String?
 
     /// Live Activities are off in a simulator's Settings by default and unavailable
     /// entirely on some devices; nothing here should fail loudly when that is so.
@@ -63,7 +67,11 @@ final class LiveSessionController {
     // MARK: - Lifecycle
 
     func start(session: Session, activityName: String) {
-        guard isSupported else { return }
+        guard isSupported else {
+            unavailableReason = "Live Activities are turned off for Hourss in Settings."
+            return
+        }
+        unavailableReason = nil
 
         let attributes = HourssActivityAttributes(
             activityName: activityName,
@@ -75,12 +83,18 @@ final class LiveSessionController {
         // races: the teardown is async, so it can land after the new request and
         // dismiss the activity that was just created — which shows up as no Island
         // at all rather than as an error.
-        let started = try? ActivityKit.Activity.request(
-            attributes: attributes,
-            content: .init(state: .init(), staleDate: nil)
-        )
+        let started: ActivityKit.Activity<HourssActivityAttributes>?
+        do {
+            started = try ActivityKit.Activity.request(
+                attributes: attributes,
+                content: .init(state: .init(), staleDate: nil)
+            )
+        } catch {
+            started = nil
+            unavailableReason = "Couldn't start the Live Activity: \(error.localizedDescription)"
+            print("[Hourss] Live Activity request failed: \(error)")
+        }
         activity = started
-        dismissTask?.cancel()
         Task { await Self.endActivities(except: started?.id) }
     }
 
@@ -140,22 +154,10 @@ final class LiveSessionController {
             performance: latest.performance,
             note: nil
         )
-        scheduleDismiss()
-    }
 
-    /// Clears the Island a moment after the last rating.
-    ///
-    /// The grace period restarts on every tap, so answering the optional second
-    /// question extends it rather than racing it. Once a session is rated the
-    /// activity has nothing left to say, and leaving it parked on the lock screen
-    /// would be clutter.
-    private func scheduleDismiss() {
-        dismissTask?.cancel()
-        dismissTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else { return }
-            self?.endAll()
-        }
+        // Dismissal is the intent's job (`LiveActivityMutation.endIfBothAnswered`).
+        // Doing it here as well would only work when the app happened to be
+        // running, which is exactly the case that does not need help.
     }
 
     private func stopFromIsland() {

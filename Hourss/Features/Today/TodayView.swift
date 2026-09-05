@@ -183,6 +183,14 @@ private struct ActiveSessionPanel: View {
 
             HRule(color: .forestRule)
 
+            if let reason = store.live?.unavailableReason {
+                Text(reason)
+                    .textStyle(.label)
+                    .foregroundStyle(Color.mutedOnDark)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("live-activity-unavailable")
+            }
+
             Button {
                 store.stopSession(session.id)
             } label: {
