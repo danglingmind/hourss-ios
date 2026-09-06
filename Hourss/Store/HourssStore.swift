@@ -222,6 +222,33 @@ final class HourssStore {
         rebuildInsights()
     }
 
+    /// Score every eligible session against a movement curve fitted from the feed.
+    ///
+    /// One place, so the three screens that connect Health cannot drift into
+    /// applying daily context and forgetting physiology — which is exactly what
+    /// happened while `applyPhysiology` had no caller and the layer sat built,
+    /// tested, and unreachable.
+    ///
+    /// A session with no reading stays absent rather than arriving as zero. Zero
+    /// is a real value here — a heart rate exactly where movement predicts — and
+    /// must not be how "we could not tell" is spelled.
+    func applyPhysiology(feed: Physiology.Feed) {
+        guard !feed.isEmpty else {
+            applyPhysiology([:])
+            return
+        }
+        let analyzer = Physiology.Analyzer(
+            feed: feed, sessions: sessions, workdays: profile.workdays
+        )
+        var readings: [UUID: Physiology.Reading] = [:]
+        for session in sessions where session.isEligibleForPatterns {
+            if let reading = analyzer.reading(for: session) {
+                readings[session.id] = reading
+            }
+        }
+        applyPhysiology(readings)
+    }
+
     /// Rebuild every observation from the current records.
     ///
     /// The status of an insight belongs to the person, not to the computation, so

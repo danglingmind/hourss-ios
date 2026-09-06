@@ -316,14 +316,14 @@ enum Engine {
 
     // MARK: - Ordering
 
-    /// Feed order: confidence, nudged by what the person said they wanted to work
-    /// on. Priorities move a claim up the feed; they never decide whether it is
-    /// true, and nothing is filtered out for failing to match one.
+    /// Feed order: confidence alone.
+    ///
+    /// Priority weighting lives in `HourssStore.visibleInsights`, which is what a
+    /// person actually sees. There was briefly a second weighting here, on a
+    /// different scale, and both applied — the engine nudged by up to 6 and the
+    /// store by up to 12, so a stated priority counted twice and by an amount
+    /// neither copy described. One weighting, in the layer that owns presentation.
     private static func rank(_ insight: Insight, priorities: [Priority]) -> Double {
-        var score = Double(insight.confidence)
-        if let position = priorities.firstIndex(where: { $0.insightTypes.contains(insight.type) }) {
-            score += Double(max(0, 6 - position))
-        }
-        return score
+        Double(insight.confidence)
     }
 }

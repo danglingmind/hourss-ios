@@ -248,7 +248,7 @@ enum Surprise {
     // BOUNDARY — read before touching this table.
     //
     // These numbers encode what is *ordinarily* true of people. They exist to
-    // decide what to say first and nothing else. BR-07 forbids showing a person
+    // decide what to say first and nothing else. The "No population comparison" rule forbids showing a person
     // any comparison against other people, so no value here, and no quantity
     // derived from one, may reach a statement, a caveat, an evidence line, or any
     // other string a person reads. It is legitimate to rank "your meetings are

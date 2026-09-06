@@ -138,6 +138,7 @@ struct OnboardingFlow: View {
             // Only now, once values actually exist. Doing this straight after
             // `connect()` used to run against an empty dictionary.
             store.applyHealthContext(health.dailyValues)
+            store.applyPhysiology(feed: await health.readPhysiology())
         }
     }
 

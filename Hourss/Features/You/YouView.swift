@@ -348,6 +348,7 @@ struct HealthConnectionView: View {
                         Button {
                             health.disconnect()
                             store.applyHealthContext([:])
+                            store.applyPhysiology([:])
                         } label: {
                             SettingsRow(title: "Disconnect", detail: "Stops reading. Nothing is deleted.")
                         }
@@ -359,6 +360,7 @@ struct HealthConnectionView: View {
                             Task {
                                 await health.connect()
                                 store.applyHealthContext(health.dailyValues)
+                                store.applyPhysiology(feed: await health.readPhysiology())
                             }
                         } label: {
                             SettingsRow(title: "Connect Health", detail: "Sleep, recovery, movement, daylight")
