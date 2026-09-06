@@ -1,33 +1,55 @@
 import SwiftUI
 
-/// O1 → O9, minus the screens that need a real backend.
+/// Onboarding, as a six-beat argument.
 ///
-/// Notifications (O7) and account (O8) depend on the system notification sheet
-/// and Clerk, so they are out of the shell rather than faked. Health (O6) is real:
-/// it raises the genuine iOS sheet, and only after an explicit in-app tap.
+/// Problem → promise → key → mechanism → proof → promo. The proof beat is the
+/// point of the whole sequence: real statistics computed from the person's own
+/// Apple Health history, shown before they have logged a single thing.
+///
+/// That is also why the Health request sits at beat two rather than later. Reading
+/// a year of history takes real seconds, so it starts there and runs behind the
+/// key and mechanism screens — by the time the proof beat appears, it is already
+/// computed. The narrative pays for the latency.
+///
+/// Notifications (O7) and account (O8) remain out of the shell: they need the
+/// system notification sheet and Clerk, and a faked permission screen would teach
+/// the wrong thing.
 struct OnboardingFlow: View {
     @Environment(HourssStore.self) private var store
-    @State private var step = 0
+    @Environment(HealthService.self) private var health
 
-    private let stepCount = 6
+    @State private var step = 0
+    @State private var digest = DigestState.idle
+    @State private var isConnecting = false
+
+    /// Where the proof beat's data has got to.
+    ///
+    /// A plain optional could not tell "still reading" from "read, and there was
+    /// nothing" — so anyone who reached beat five before the read finished was
+    /// shown the honest empty state for data that was still on its way.
+    enum DigestState {
+        case idle
+        case computing
+        case ready(HealthDigest)
+    }
+
+    private let stepCount = 7
 
     var body: some View {
         VStack(spacing: 0) {
             header
 
-            // Scrollable, but only when it needs to be. At large Dynamic Type the
-            // steps outgrow the screen and would otherwise push the footer — and
-            // the Continue button with it — out of reach.
             GeometryReader { geo in
                 ScrollView {
                     Group {
                         switch step {
-                        case 0: WelcomeStep()
-                        case 1: NoticeStep()
-                        case 2: IntentStep()
-                        case 3: ActivitiesStep()
-                        case 4: HealthStep(onDone: { step += 1 })
-                        default: FirstLogStep(onFinish: finish)
+                        case 0: ProblemStep()
+                        case 1: PromiseStep()
+                        case 2: PriorityStep()
+                        case 3: KeyStep()
+                        case 4: MechanismStep()
+                        case 5: ProofStep(state: digest)
+                        default: StartStep(onFinish: finish)
                         }
                     }
                     .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .topLeading)
@@ -58,31 +80,65 @@ struct OnboardingFlow: View {
         VStack(spacing: 0) {
             HRule()
             HStack {
-                if step > 0 {
+                if step > 0 && step != 1 {
                     Button("Back") { step -= 1 }
                         .buttonStyle(.plain)
                         .textStyle(.action)
                         .frame(minHeight: Space.tapTarget)
                 }
                 Spacer()
-                if step < stepCount - 1 && step != 4 {
-                    DirectionalLink(title: step == 0 ? "Start" : "Continue", arrow: "→") {
-                        guard canContinue else { return }
-                        step += 1
-                    }
-                    .disabled(!canContinue)
-                }
+                primaryAction
             }
             .pageGutter()
             .padding(.bottom, Space.xs)
         }
     }
 
-    /// The activities step is the one place a choice is required. Everything else
-    /// is optional by design, but leaving with nothing kept would mean no activity
-    /// to log against — an app that cannot do the one thing it is for.
-    private var canContinue: Bool {
-        step == 3 ? store.favoriteCount > 0 : true
+    /// Every beat's action lives here, pinned, including the Health ask.
+    ///
+    /// The ask used to carry its own button inside the scroll view, which meant
+    /// shrinking its type until the button fitted on screen. Pinning it to the
+    /// footer is what the rest of the flow already does, and it lets the content
+    /// keep its proper size and scroll if it needs to.
+    @ViewBuilder
+    private var primaryAction: some View {
+        switch step {
+        case 1:
+            DirectionalLink(title: isConnecting ? "Reading…" : "Connect Health", arrow: "→") {
+                isConnecting = true
+                Task {
+                    await health.connect()
+                    isConnecting = false
+                    connected()
+                }
+            }
+            .disabled(health.selectedGroups.isEmpty || isConnecting)
+            .accessibilityIdentifier("health-connect")
+
+        case 2:
+            DirectionalLink(title: "Continue", arrow: "→") { step += 1 }
+                .disabled(store.profile.priorities.isEmpty)
+
+        case stepCount - 1:
+            EmptyView()   // the last beat owns its own exits
+
+        default:
+            DirectionalLink(title: step == 0 ? "Start" : "Continue", arrow: "→") { step += 1 }
+        }
+    }
+
+    /// Health has been asked for. Move on immediately and let the read finish
+    /// behind the next two screens; the proof beat waits on `digest`.
+    private func connected() {
+        step += 1
+        digest = .computing
+        Task {
+            await health.refresh()
+            digest = .ready(HealthDigest.build(from: health.dailyValues))
+            // Only now, once values actually exist. Doing this straight after
+            // `connect()` used to run against an empty dictionary.
+            store.applyHealthContext(health.dailyValues)
+        }
     }
 
     private func finish() {
@@ -90,20 +146,22 @@ struct OnboardingFlow: View {
     }
 }
 
-/// O1 — the value statement, on the forest surface so it lands as a moment rather
-/// than a settings page.
-private struct WelcomeStep: View {
+// MARK: - 1 · The human problem
+
+/// The one dark screen, and the app's own landing-page headline — so Hourss opens
+/// in the voice it already speaks in.
+private struct ProblemStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
             Spacer()
-            Eyebrow("Know your good hours")
+            Eyebrow("Where the hours go")
             DisplayHeadline([
-                Text("Your hours").styled(.display),
-                Text("have a ").styled(.display).then(Text("pattern.").styled(.emphasis(58))),
+                Text("Your calendar").styled(.display),
+                Text("knows where").styled(.display),
+                Text("time ").styled(.display).then(Text("went.").styled(.emphasis(58))),
             ])
-            // A day, drawn. It says "keeps a quiet record of how your time feels"
-            // faster than the sentence that used to sit here.
-            VStack(alignment: .leading, spacing: Space.xs) {
+
+            VStack(alignment: .leading, spacing: Space.sm) {
                 SegmentStrip(segments: [
                     .init(weight: 3, color: .lime),
                     .init(weight: 1, color: .restorativeFill),
@@ -111,12 +169,13 @@ private struct WelcomeStep: View {
                     .init(weight: 2, color: .lime),
                 ])
                 .frame(maxWidth: 300)
-                .accessibilityLabel("An example day: energizing, then mixed, then draining, then energizing again")
+                .accessibilityLabel("A day: energizing, then mixed, then draining, then energizing again")
 
-                Text("Nothing to optimise. Nothing to score.")
+                Text("Nothing knows what it did to you.")
                     .textStyle(.body)
                     .foregroundStyle(Color.mutedOnDark)
             }
+
             Spacer()
             Text("Your data stays yours.")
                 .textStyle(.label)
@@ -127,173 +186,26 @@ private struct WelcomeStep: View {
     }
 }
 
-/// O2 — three illustrative examples, drawn rather than described.
-///
-/// Each row used to carry a sentence explaining a kind of noticing. The marks say
-/// it faster, and this screen is the one place in the app where drawn examples are
-/// honest — the disclaimer underneath is doing that work, and must stay adjacent.
-/// Patterns screens never draw anything the data has not earned.
-private struct NoticeStep: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.lg) {
-            Eyebrow("What Hourss notices")
-            DisplayHeadline([
-                Text("Three kinds").styled(.sectionTitle),
-                Text("of ").styled(.sectionTitle).then(Text("noticing.").styled(.emphasis(42))),
-            ], style: .sectionTitle)
+// MARK: - 2 · The promise, and the ask
 
-            VStack(spacing: 0) {
-                HRule()
-
-                exampleRow("Timing", example: "Deep work before 11am") {
-                    // Deliberately unlabelled with numbers. These are illustrations,
-                    // and a printed "4.4" would read as a finding.
-                    VStack(alignment: .leading, spacing: 3) {
-                        DataBar(fraction: 0.85, height: 12)
-                        DataBar(fraction: 0.45, fill: .rule, height: 12)
-                    }
-                    .accessibilityElement()
-                    .accessibilityLabel("Example: one time of day rating higher than another")
-                }
-
-                exampleRow("Energy", example: "A walk without a podcast") {
-                    SegmentStrip(segments: [
-                        .init(weight: 3, color: .lime),
-                        .init(weight: 2, color: .drainingFill),
-                        .init(weight: 1, color: .restorativeFill),
-                        .init(weight: 3, color: .lime),
-                    ], height: 12)
-                    .accessibilityLabel("Example: some activities give energy back, others take it")
-                }
-
-                exampleRow("Conditions", example: "After a longer night's sleep") {
-                    CoverageMark(segments: [true, false, true, true, false, true, true], height: 12)
-                        .accessibilityLabel("Example: the days a condition repeated on")
-                }
-            }
-
-            Text("Examples only — Hourss has not met you yet.")
-                .textStyle(.label)
-                .foregroundStyle(Color.muted)
-        }
-        .pageGutter()
-        .padding(.top, Space.md)
-    }
-
-    private func exampleRow<Mark: View>(
-        _ name: String,
-        example: String,
-        @ViewBuilder mark: () -> Mark
-    ) -> some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Text(name).textStyle(.body)
-                mark()
-                Text(example).textStyle(.label).foregroundStyle(Color.orange)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, Space.sm)
-            HRule()
-        }
-    }
-}
-
-/// O3 — pick 1–3 intents.
-///
-/// Each option used to carry a sentence restating its own one-word title. The
-/// spec asks for chips, and chips are what a five-way choice needs.
-private struct IntentStep: View {
-    @Environment(HourssStore.self) private var store
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.lg) {
-            Eyebrow("What brings you here")
-            DisplayHeadline([
-                Text("Pick up to").styled(.sectionTitle),
-                Text("three.").styled(.emphasis(42)),
-            ], style: .sectionTitle)
-
-            VStack(spacing: 0) {
-                HRule()
-                ForEach(Intent.allCases) { intent in
-                    let selected = store.profile.goals.contains(intent)
-                    SelectableChip(title: intent.title, isSelected: selected) {
-                        if selected {
-                            store.profile.goals.remove(intent)
-                        } else if store.profile.goals.count < 3 {
-                            store.profile.goals.insert(intent)
-                        }
-                    }
-                }
-            }
-
-            Text("Shapes the language, not the record.")
-                .textStyle(.label)
-                .foregroundStyle(Color.muted)
-        }
-        .pageGutter()
-        .padding(.top, Space.md)
-    }
-}
-
-/// O5 — the starter activity set.
-private struct ActivitiesStep: View {
-    @Environment(HourssStore.self) private var store
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.lg) {
-            Eyebrow("What fills your days")
-            DisplayHeadline([
-                Text("Keep what").styled(.sectionTitle),
-                Text("you ").styled(.sectionTitle).then(Text("recognise.").styled(.emphasis(42))),
-            ], style: .sectionTitle)
-
-            VStack(spacing: 0) {
-                HRule()
-                ForEach(store.activities) { activity in
-                    SelectableChip(
-                        title: activity.name,
-                        isSelected: activity.isFavorite,
-                        glyph: .forActivity(named: activity.name)
-                    ) {
-                        store.toggleFavorite(activity.id)
-                    }
-                }
-            }
-
-            Text(
-                store.favoriteCount == 0
-                    ? "Keep at least one — you can change these later."
-                    : "You can add your own once you're in."
-            )
-            .textStyle(.label)
-            .foregroundStyle(store.favoriteCount == 0 ? Color.orange : Color.muted)
-        }
-        .pageGutter()
-        .padding(.top, Space.md)
-    }
-}
-
-/// O6 — Apple Health, optional and granular.
-///
-/// The categories are individually selectable and each says what it unlocks,
-/// because the spec requires the read scopes be explained *before* the OS dialog,
-/// not after it. Declining is not a failure state and leads nowhere different —
-/// "the app remains fully usable without Health."
-private struct HealthStep: View {
+/// The ask is the promise. Hourss can only start with what you have lived if it is
+/// allowed to read what your body already recorded — so the two arrive together,
+/// and there is no way past this screen but through it.
+private struct PromiseStep: View {
     @Environment(HealthService.self) private var health
-    @Environment(HourssStore.self) private var store
-    let onDone: () -> Void
-
-    @State private var isConnecting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
-            Eyebrow("Context, if you want it")
+            Eyebrow("What Hourss does")
             DisplayHeadline([
-                Text("What was going").styled(.sectionTitle),
-                Text("on ").styled(.sectionTitle).then(Text("around it.").styled(.emphasis(42))),
+                Text("Learn which hours").styled(.sectionTitle),
+                Text("are worth ").styled(.sectionTitle).then(Text("keeping.").styled(.emphasis(42))),
             ], style: .sectionTitle)
+
+            Text("Hourss starts with what you've already lived, not a blank page.")
+                .textStyle(.body)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 0) {
                 HRule()
@@ -302,39 +214,19 @@ private struct HealthStep: View {
                 }
             }
 
-            Text("Read only. Hourss works fully without this.")
+            Text("Read only. Nothing is ever written back.")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
-
-            HStack {
-                Button("Not now") { onDone() }
-                    .buttonStyle(.plain)
-                    .textStyle(.action)
-                    .foregroundStyle(Color.muted)
-                    .frame(minHeight: Space.tapTarget)
-                    .accessibilityIdentifier("health-skip")
-
-                Spacer()
-
-                DirectionalLink(title: "Connect Health", arrow: "→") {
-                    isConnecting = true
-                    Task {
-                        await health.connect()
-                        store.applyHealthContext(health.dailyValues)
-                        isConnecting = false
-                        onDone()
-                    }
-                }
-                .disabled(health.selectedGroups.isEmpty || isConnecting)
-                .accessibilityIdentifier("health-connect")
-            }
         }
         .pageGutter()
         .padding(.top, Space.md)
     }
 
-    /// Each group names the exact types it reads, so nothing is consented to
-    /// blind — the acceptance test on granular access is that scope is displayed.
+    /// Full size again. Shrinking the type to squeeze a button on screen was the
+    /// wrong trade — the action belongs in the footer, and the content can breathe.
+    /// The group name drops to body size and the row loses its generous padding —
+    /// four rows at `stepName` plus their scope lines is what pushed the button
+    /// off the screen.
     private func groupRow(_ group: HealthGroup) -> some View {
         @Bindable var health = health
         let selected = health.selectedGroups.contains(group)
@@ -348,19 +240,15 @@ private struct HealthStep: View {
         } label: {
             HStack(alignment: .top, spacing: Space.sm) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(group.title).textStyle(.stepName)
-                    Text(group.benefit)
-                        .textStyle(.label)
-                        .foregroundStyle(Color.muted)
+                    Text(group.title)
+                        .textStyle(.stepName)
                     Text(group.scopeDescription)
                         .textStyle(.label)
-                        .foregroundStyle(Color.tertiaryOnCanvas)
+                        .foregroundStyle(Color.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Space.sm)
-                Text(selected ? "●" : "○")
-                    .font(.custom("DMSans-Medium", fixedSize: 14))
-                    .foregroundStyle(selected ? Color.orange : Color.rule)
+                SelectionDot(isSelected: selected)
                     .padding(.top, 6)
             }
             .padding(.vertical, Space.sm)
@@ -369,41 +257,335 @@ private struct HealthStep: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("health-\(group.rawValue)")
+        .accessibilityLabel("\(group.title). Reads \(group.scopeDescription)")
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .overlay(alignment: .bottom) { HRule() }
     }
 }
 
-/// O9 — the shortest possible first log, or a way past it.
-private struct FirstLogStep: View {
+// MARK: - 3 · Priorities
+
+/// What you want to improve, in your own order.
+///
+/// Ranked by tapping in sequence rather than by dragging: reordering needs a
+/// `List`, which brings the rounded, inset chrome this system exists without, and
+/// a drag handle is a poor target on a first run. Tapping in order says the same
+/// thing and can be undone by tapping again.
+///
+/// The order is not decoration. It weights which observations surface first, so a
+/// stated priority changes the product rather than sitting in a profile.
+private struct PriorityStep: View {
+    @Environment(HourssStore.self) private var store
+
+    private let maximum = 3
+
+    var body: some View {
+        @Bindable var store = store
+
+        return VStack(alignment: .leading, spacing: Space.lg) {
+            Eyebrow("What matters most")
+            DisplayHeadline([
+                Text("What would you").styled(.sectionTitle),
+                Text("most like to ").styled(.sectionTitle).then(Text("change?").styled(.emphasis(42))),
+            ], style: .sectionTitle)
+
+            Text("Tap up to three, in order. Hourss will lead with what you put first.")
+                .textStyle(.body)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 0) {
+                HRule()
+                ForEach(Priority.allCases) { priority in
+                    row(priority)
+                }
+            }
+
+            Text(store.profile.priorities.isEmpty
+                 ? "Pick at least one — you can change this later."
+                 : "You can change this later.")
+                .textStyle(.label)
+                .foregroundStyle(store.profile.priorities.isEmpty ? Color.orange : Color.muted)
+        }
+        .pageGutter()
+        .padding(.top, Space.md)
+    }
+
+    private func row(_ priority: Priority) -> some View {
+        @Bindable var store = store
+        let rank = store.profile.priorities.firstIndex(of: priority)
+
+        return Button {
+            toggle(priority)
+        } label: {
+            HStack(alignment: .top, spacing: Space.sm) {
+                // The rank number is the whole interaction, so it carries the
+                // accent and holds its column whether filled or not.
+                Text(rank.map { "\($0 + 1)" } ?? "—")
+                    .textStyle(.stepName)
+                    .foregroundStyle(rank == nil ? Color.rule : Color.orange)
+                    .frame(width: 28, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(priority.title).textStyle(.stepName)
+                    Text(priority.basis)
+                        .textStyle(.label)
+                        .foregroundStyle(Color.muted)
+                }
+                Spacer(minLength: Space.sm)
+            }
+            .padding(.vertical, Space.sm)
+            .frame(minHeight: Space.tapTarget)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("priority-\(priority.rawValue)")
+        .accessibilityLabel(rank.map { "\(priority.title), ranked \($0 + 1). \(priority.basis)" }
+                            ?? "\(priority.title), not ranked. \(priority.basis)")
+        .accessibilityAddTraits(rank != nil ? [.isSelected] : [])
+        .overlay(alignment: .bottom) { HRule() }
+    }
+
+    /// Tapping a ranked item removes it and closes the gap, so the numbers stay
+    /// 1, 2, 3 rather than leaving a hole.
+    private func toggle(_ priority: Priority) {
+        if let index = store.profile.priorities.firstIndex(of: priority) {
+            store.profile.priorities.remove(at: index)
+        } else if store.profile.priorities.count < maximum {
+            store.profile.priorities.append(priority)
+        }
+    }
+}
+
+// MARK: - 4 · The key
+
+/// What actually makes this different from every other tracker: there is no third
+/// bar. Both bars are you.
+private struct KeyStep: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.lg) {
+            Eyebrow("The difference")
+            DisplayHeadline([
+                Text("Compared").styled(.sectionTitle),
+                Text("only ").styled(.sectionTitle).then(Text("to you.").styled(.emphasis(42))),
+            ], style: .sectionTitle)
+
+            Text("No targets. No averages from strangers. Every observation measures you against your own history.")
+                .textStyle(.body)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: Space.sm) {
+                HRule()
+                Eyebrow("Your own baseline")
+                ComparisonMark(
+                    rows: [
+                        .init(label: "Your better weeks", value: 4.3, count: nil, highlighted: true),
+                        .init(label: "Your usual", value: 3.4, count: nil, highlighted: false),
+                    ],
+                    title: "Comparison against your own history"
+                )
+                Text("There is no third bar. Hourss never compares you to anyone else.")
+                    .textStyle(.label)
+                    .foregroundStyle(Color.muted)
+            }
+        }
+        .pageGutter()
+        .padding(.top, Space.md)
+    }
+}
+
+// MARK: - 5 · The mechanism
+
+private struct MechanismStep: View {
+    private let steps: [(ActivityGlyph.Kind, String, String)] = [
+        (.deepWork, "Start", "One tap when you begin."),
+        (.rest, "Stop", "One tap when you're done."),
+        (.creative, "How did that feel?", "One answer, one to five."),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.lg) {
+            Eyebrow("How it works")
+            DisplayHeadline([
+                Text("One tap.").styled(.sectionTitle),
+                Text("One ").styled(.sectionTitle).then(Text("question.").styled(.emphasis(42))),
+            ], style: .sectionTitle)
+
+            VStack(spacing: 0) {
+                HRule()
+                ForEach(Array(steps.enumerated()), id: \.offset) { _, item in
+                    HStack(spacing: Space.sm) {
+                        ActivityGlyph(kind: item.0, size: 16, color: .ink)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.1).textStyle(.stepName)
+                            Text(item.2).textStyle(.label).foregroundStyle(Color.muted)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, Space.sm)
+                    .frame(minHeight: Space.tapTarget)
+                    HRule()
+                }
+            }
+
+            Text("A log takes under five seconds. Everything else, Hourss works out.")
+                .textStyle(.label)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .pageGutter()
+        .padding(.top, Space.md)
+    }
+}
+
+// MARK: - 6 · The proof
+
+/// The payoff: three things already true about this person, computed from their
+/// own Health history.
+///
+/// When there is nothing to read — no history, or a permission we were never told
+/// about, which are indistinguishable — this says so plainly. Inventing numbers
+/// here would make the one honest moment in onboarding the dishonest one.
+private struct ProofStep: View {
+    let state: OnboardingFlow.DigestState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.lg) {
+            Eyebrow("Already true about you")
+
+            if case .ready(let digest) = state, !digest.isEmpty {
+                DisplayHeadline([
+                    Text("\(digest.daysOfHistory) days,").styled(.sectionTitle),
+                    Text("already ").styled(.sectionTitle).then(Text("read.").styled(.emphasis(42))),
+                ], style: .sectionTitle)
+
+                VStack(spacing: 0) {
+                    HRule()
+                    ForEach(Array(digest.facts.enumerated()), id: \.element.id) { index, fact in
+                        factRow(fact, index: index)
+                    }
+                }
+
+                Text("From your Health history. You haven't logged anything yet.")
+                    .textStyle(.label)
+                    .foregroundStyle(Color.muted)
+            } else if case .ready = state {
+                DisplayHeadline([
+                    Text("Nothing to").styled(.sectionTitle),
+                    Text("read ").styled(.sectionTitle).then(Text("yet.").styled(.emphasis(42))),
+                ], style: .sectionTitle)
+
+                Text("There isn't enough in Apple Health for Hourss to find anything worth showing. That changes as your watch records more — and none of it is needed for logging.")
+                    .textStyle(.body)
+                    .foregroundStyle(Color.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("proof-empty")
+            } else {
+                DisplayHeadline([
+                    Text("Reading your").styled(.sectionTitle),
+                    Text("history…").styled(.emphasis(42)),
+                ], style: .sectionTitle)
+                .accessibilityIdentifier("proof-loading")
+            }
+        }
+        .pageGutter()
+        .padding(.top, Space.md)
+    }
+
+    private func factRow(_ fact: HealthDigest.Fact, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(fact.figure)
+                    .textStyle(.dayNumeral)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(fact.sentence)
+                    .textStyle(.body)
+                    .foregroundStyle(Color.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Only the mark draws in. Wiping the sentence too would make the
+            // screen feel like it was loading rather than like it was showing you
+            // something.
+            mark(for: fact)
+                .revealsOnAppear(index: index)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Space.md)
+        .overlay(alignment: .bottom) { HRule() }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(fact.sentence)
+        .accessibilityIdentifier("proof-fact")
+    }
+
+    /// Lime at this person's high end, rule at their low end.
+    private func rhythmColor(_ normalised: Double) -> Color {
+        switch normalised {
+        case ..<0.34: .rule
+        case ..<0.67: .restorativeFill
+        default: .lime
+        }
+    }
+
+    @ViewBuilder
+    private func mark(for fact: HealthDigest.Fact) -> some View {
+        switch fact.mark {
+        case .weekdayRhythm(let values):
+            // Equal widths, varying colour. Weighting the widths compressed the
+            // week into seven near-identical blocks; the extremes carry it better.
+            HStack(spacing: 3) {
+                ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                    Rectangle()
+                        .fill(rhythmColor(value))
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 16)
+        case .comparison(let highLabel, let high, let lowLabel, let low):
+            ComparisonMark(
+                rows: [
+                    .init(label: highLabel, value: high, count: nil, highlighted: true),
+                    .init(label: lowLabel, value: low, count: nil, highlighted: false),
+                ],
+                scaleMax: max(high, low) * 1.15,
+                unit: "",
+                title: "Comparison"
+            )
+        case .none:
+            EmptyView()
+        }
+    }
+}
+
+// MARK: - 7 · The promo
+
+/// Start. The activity starter set folds in here, because picking what you are
+/// doing right now is the same gesture as choosing which activities you keep.
+private struct StartStep: View {
     @Environment(HourssStore.self) private var store
     let onFinish: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
-            Eyebrow("One log to start")
+            Eyebrow("Start")
             DisplayHeadline([
-                Text("What are you").styled(.sectionTitle),
-                Text("doing ").styled(.sectionTitle).then(Text("now?").styled(.emphasis(42))),
+                Text("Pick what").styled(.sectionTitle),
+                Text("you're ").styled(.sectionTitle).then(Text("doing now.").styled(.emphasis(42))),
             ], style: .sectionTitle)
 
             VStack(spacing: 0) {
                 HRule()
-                ForEach(store.pickableActivities.prefix(4)) { activity in
-                    Button {
+                ForEach(store.pickableActivities) { activity in
+                    SelectableChip(
+                        title: activity.name,
+                        isSelected: false,
+                        glyph: .forActivity(named: activity.name)
+                    ) {
                         store.startSession(activityId: activity.id)
                         onFinish()
-                    } label: {
-                        HStack {
-                            Text(activity.name).textStyle(.stepName)
-                            Spacer()
-                            Text("Start now").textStyle(.label).foregroundStyle(Color.orange)
-                        }
-                        .padding(.vertical, Space.sm)
-                        .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
-                    HRule()
                 }
             }
 

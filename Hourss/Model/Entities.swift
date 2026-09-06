@@ -136,9 +136,10 @@ struct Insight: Identifiable, Hashable {
 struct Profile {
     var displayName: String = ""
     var timezone: String = TimeZone.current.identifier
+    /// In the person's own order, most important first.
+    var priorities: [Priority] = []
     var weekStart: Int = 2
     var workdays: Set<Int> = [2, 3, 4, 5, 6]
-    var goals: Set<Intent> = []
     var reflectionHour: Int = 20
     var quietMode: Bool = false
     var logPrompts: Bool = true

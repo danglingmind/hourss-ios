@@ -36,9 +36,7 @@ final class LiveSessionController {
             // matches a session still running, and clear the rest.
             await reconcileOrphans(store: store)
             await LiveSessionBridge.shared.install(
-                rate: { [weak self] scale, score in await self?.rate(scale: scale, score: score) },
-                stop: { [weak self] in await self?.stopFromIsland() },
-                save: { [weak self] in await self?.saveFromIsland() }
+                stop: { [weak self] in await self?.stopFromIsland() }
             )
         }
     }
@@ -48,7 +46,7 @@ final class LiveSessionController {
     private func reconcileOrphans(store: HourssStore) async {
         let runningStart = store.runningSession?.startAt
         activity = ActivityKit.Activity<HourssActivityAttributes>.activities.first { candidate in
-            guard candidate.content.state.isRunning, let runningStart else { return false }
+            guard candidate.content.state.endedAt == nil, let runningStart else { return false }
             return abs(runningStart.timeIntervalSince(candidate.attributes.startedAt)) < 1
         }
         await Self.endActivities(except: activity?.id)
@@ -98,11 +96,6 @@ final class LiveSessionController {
         Task { await Self.endActivities(except: started?.id) }
     }
 
-    /// Moves the Island into its stopped state, where the two scales appear.
-    func markStopped(at date: Date) {
-        update { state in state.endedAt = date }
-    }
-
     /// Ends everything this app has running, including activities left by an
     /// earlier launch that `activity` knows nothing about.
     func endAll() {
@@ -110,77 +103,8 @@ final class LiveSessionController {
         Task { await Self.endActivities(except: nil) }
     }
 
-    /// Ends the Live Activity. Called once the reflection is saved, or when the
-    /// session goes away.
-    func end() {
-        guard let activity else { return }
-        let final = activity.content.state
-        Task {
-            await activity.end(.init(state: final, staleDate: nil), dismissalPolicy: .immediate)
-        }
-        self.activity = nil
-    }
-
-    private func update(_ change: (inout HourssActivityAttributes.ContentState) -> Void) {
-        guard let activity else { return }
-        var state = activity.content.state
-        change(&state)
-        Task { await activity.update(.init(state: state, staleDate: nil)) }
-    }
-
-    // MARK: - Coming back from the Island
-
-    private func rate(scale: String, score: Int) {
-        var latest: HourssActivityAttributes.ContentState?
-        update { state in
-            // Tapping the selected score clears it, matching the app's scales —
-            // a rating given by accident can be taken back.
-            if scale == "feeling" {
-                state.feeling = (state.feeling == score) ? nil : score
-            } else {
-                state.performance = (state.performance == score) ? nil : score
-            }
-            latest = state
-        }
-
-        // There is no Save step in the Island — the spec has a tapped score save
-        // immediately — so write it through as it is tapped.
-        guard let latest, let store,
-              let sessionId = store.pendingReflectionSessionId ?? store.sessions.last?.id
-        else { return }
-        store.saveReflection(
-            sessionId: sessionId,
-            feeling: latest.feeling,
-            performance: latest.performance,
-            note: nil
-        )
-
-        // Dismissal is the intent's job (`LiveActivityMutation.endIfBothAnswered`).
-        // Doing it here as well would only work when the app happened to be
-        // running, which is exactly the case that does not need help.
-    }
-
     private func stopFromIsland() {
         guard let store, let running = store.runningSession else { return }
         store.stopSession(running.id)
-    }
-
-    private func saveFromIsland() {
-        guard let store, let activity else { return }
-        let state = activity.content.state
-        guard let sessionId = store.pendingReflectionSessionId ?? store.sessions.last?.id else { return }
-
-        store.saveReflection(
-            sessionId: sessionId,
-            feeling: state.feeling,
-            performance: state.performance,
-            note: nil
-        )
-        update { $0.isSaved = true }
-        // Leave the confirmation up briefly so the tap has a visible result.
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            end()
-        }
     }
 }

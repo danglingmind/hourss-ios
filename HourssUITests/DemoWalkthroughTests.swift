@@ -44,35 +44,46 @@ final class DemoWalkthroughTests: XCTestCase {
 
     func testFullDemoWalkthrough() throws {
         launch()
-        // O1 — Welcome
-        XCTAssertTrue(app.staticTexts["Your hours, have a pattern."].waitForExistence(timeout: 8))
-        capture("onboarding-welcome")
+        // 1 — the human problem
+        XCTAssertTrue(app.staticTexts["Your calendar, knows where, time went."].waitForExistence(timeout: 8))
+        capture("onboarding-1-problem")
         tapID("Start")
 
-        // O2 — What Hourss notices
-        XCTAssertTrue(app.staticTexts["Timing"].waitForExistence(timeout: 5))
-        capture("onboarding-notices")
-        tapID("Continue")
-
-        // O3 — Intent
-        XCTAssertTrue(app.descendants(matching: .any)["Focus"].firstMatch.waitForExistence(timeout: 5))
-        capture("onboarding-intent")
-        app.descendants(matching: .any)["Balance"].firstMatch.tap()
-        capture("onboarding-intent-selected")
-        tapID("Continue")
-
-        // O5 — Activities
-        XCTAssertTrue(exists("Deep work"))
-        capture("onboarding-activities")
-        tapID("Continue")
-
-        // O6 — Health permission. Skipping proves the no-Health path is not a dead end.
+        // 2 — the promise, and the Health ask. No skip: Connect is the only exit.
         XCTAssertTrue(app.descendants(matching: .any)["health-sleep"].firstMatch.waitForExistence(timeout: 5))
-        capture("onboarding-health")
-        tapID("health-skip")
+        XCTAssertFalse(app.descendants(matching: .any)["health-skip"].firstMatch.exists,
+                       "The ask must not offer a way past it")
+        capture("onboarding-2-promise")
+        tapID("health-connect")
 
-        // O9 — First log
-        capture("onboarding-first-log")
+        // 3 — priorities, in the person's own order
+        XCTAssertTrue(app.descendants(matching: .any)["priority-focus"].firstMatch.waitForExistence(timeout: 10))
+        capture("onboarding-3-priorities")
+        tapID("priority-sleep")
+        tapID("priority-focus")
+        capture("onboarding-3-priorities-ranked")
+        tapID("Continue")
+
+        // 4 — the key
+        XCTAssertTrue(app.staticTexts["Compared, only to you."].waitForExistence(timeout: 10))
+        capture("onboarding-4-key")
+        tapID("Continue")
+
+        // 5 — the mechanism
+        XCTAssertTrue(app.staticTexts["One tap., One question."].waitForExistence(timeout: 5))
+        capture("onboarding-5-mechanism")
+        tapID("Continue")
+
+        // 6 — the proof: real facts from Health, or an honest empty state
+        capture("onboarding-6-proof")
+        let hasFacts = app.descendants(matching: .any).matching(identifier: "proof-fact").count > 0
+        let admitsEmpty = app.descendants(matching: .any)["proof-empty"].firstMatch.exists
+        XCTAssertTrue(hasFacts || admitsEmpty,
+                      "The proof beat must either show facts or say it has none")
+        tapID("Continue")
+
+        // 7 — start
+        capture("onboarding-7-start")
         app.buttons["Skip for now"].firstMatch.tap()
 
         // Today. Which of T1/T3 renders depends on the hour: the seeded moments sit

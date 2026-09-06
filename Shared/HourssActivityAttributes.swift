@@ -3,9 +3,9 @@ import Foundation
 
 /// What the Live Activity carries between the app and the Dynamic Island.
 ///
-/// Kept deliberately small: ActivityKit budgets these payloads tightly, and every
-/// field here has to survive being encoded, sent to a separate process, and
-/// rendered without the app running.
+/// Deliberately almost empty. The Island now exists only while a session is
+/// running — stopping ends it and hands off to the app for the reflection — so
+/// there is no rating, no stopped state, and nothing to keep in sync.
 struct HourssActivityAttributes: ActivityAttributes {
 
     /// Fixed for the life of the session.
@@ -16,13 +16,8 @@ struct HourssActivityAttributes: ActivityAttributes {
     let startedAt: Date
 
     struct ContentState: Codable, Hashable {
-        /// Nil while running. Set when stopped, which is what turns the expanded
-        /// view into the two rating scales.
+        /// Set only in the instant between stopping and the activity ending, so
+        /// the timer freezes rather than ticking on during the handoff.
         var endedAt: Date?
-        var feeling: Int?
-        var performance: Int?
-        var isSaved: Bool = false
-
-        var isRunning: Bool { endedAt == nil }
     }
 }

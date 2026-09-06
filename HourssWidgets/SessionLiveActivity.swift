@@ -5,10 +5,15 @@ import WidgetKit
 
 /// The running session, on the lock screen and in the Dynamic Island.
 ///
+/// One state: running. Stopping ends the activity and opens the app, where the
+/// reflection belongs — so there is nothing here to keep in sync with the store,
+/// and nothing that can be half-answered.
+///
 /// The Island is Apple's surface, not ours, so its shape and placement are not
-/// negotiable — but everything inside it is Hourss: the activity's own rectangle
-/// glyph, DM Mono for the count, lime for the running state, and no borrowed
-/// symbols. The one concession is the rounded container, which the system draws.
+/// negotiable. Everything inside it is Hourss: the activity's own rectangle glyph,
+/// DM Mono for the count, lime for the running state, no borrowed symbols. The one
+/// concession is rounding on the controls, which the container's own curve makes
+/// necessary.
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: HourssActivityAttributes.self) { context in
@@ -37,13 +42,13 @@ struct SessionLiveActivity: Widget {
                         .padding(.trailing, 8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    ExpandedControls(context: context)
+                    StopButton()
                         // Inset well clear of the container's corner radius. A
                         // square element near the bottom edge loses its corners to
-                        // the curve, and `radius.default` is 0 so it cannot be
-                        // rounded to match — the margin is the only lever.
+                        // the curve.
                         .padding(.horizontal, 14)
                         .padding(.bottom, 10)
+                        .padding(.top, 4)
                 }
             } compactLeading: {
                 ActivityGlyph(kind: context.glyph, size: 14, color: .lime)
@@ -57,17 +62,17 @@ struct SessionLiveActivity: Widget {
                 ActivityGlyph(kind: context.glyph, size: 14, color: .lime)
             }
             .keylineTint(Color.lime)
-            .widgetURL(URL(string: "hourss://today"))
         }
     }
 }
 
 // MARK: - Pieces
 
-/// Counts up while running, and holds the final length once stopped.
+/// Counts up while running, and freezes for the instant between stopping and the
+/// activity ending.
 ///
-/// `Text(timerInterval:)` is what keeps this ticking without the app running —
-/// the system advances it, so no background execution is needed.
+/// `Text(timerInterval:)` is what keeps this ticking without the app running — the
+/// system advances it, so no background execution is needed.
 private struct Counter: View {
     let context: ActivityViewContext<HourssActivityAttributes>
     var size: CGFloat
@@ -97,9 +102,9 @@ private struct Counter: View {
         context.attributes.startedAt.addingTimeInterval(60 * 60 * 24)
     }
 
-    /// The stopped value in the same shape as the running one, so the clock simply
-    /// freezes rather than switching units. Rounding to whole minutes rendered
-    /// anything under a minute as "0m", which read as a broken timer.
+    /// The same shape as the running clock, so it freezes rather than switching
+    /// units. Rounding to whole minutes rendered a short session as "0m", which
+    /// read as a dead timer.
     private func elapsed(to end: Date) -> String {
         let total = max(0, Int(end.timeIntervalSince(context.attributes.startedAt)))
         let hours = total / 3600
@@ -109,7 +114,6 @@ private struct Counter: View {
         func pad(_ value: Int) -> String { value < 10 ? "0\(value)" : "\(value)" }
 
         if compact {
-            // The compact pill has no room for hours; minutes carry over instead.
             return "\(hours * 60 + minutes):\(pad(seconds))"
         }
         return hours > 0
@@ -118,122 +122,28 @@ private struct Counter: View {
     }
 }
 
-/// What the bottom of the expanded Island shows: a stop control while running,
-/// and both rating scales once stopped.
-private struct ExpandedControls: View {
-    let context: ActivityViewContext<HourssActivityAttributes>
-
-    var body: some View {
-        if context.state.isRunning {
-            IslandButton(title: "Stop and reflect", intent: StopSessionIntent(), height: 36)
-                .padding(.top, 4)
-        } else {
-            // No Save button. The spec is explicit that a tapped score saves
-            // immediately, and a confirm step here would also have overflowed the
-            // expanded region — the button was being clipped by the container.
-            VStack(alignment: .leading, spacing: 5) {
-                RatingRow(label: "FELT", scale: "feeling", value: context.state.feeling)
-                RatingRow(label: "WENT", scale: "performance", value: context.state.performance)
-                Text(context.state.feeling == nil ? "Saves as you tap" : "Saved")
-                    .font(.custom("DMMono-Regular", size: 10))
-                    .foregroundStyle(context.state.feeling == nil ? Color.subtleOnDark : Color.lime)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 42)
-            }
-            .padding(.top, 2)
-        }
-    }
-}
-
-/// A filled action.
+/// Orange rather than lime: lime is the running state everywhere else in this
+/// view, and an action in the same colour reads as more of the same.
 ///
-/// Orange rather than lime: lime is the energy fill on every rating segment above
-/// it, and an action in the same colour as the data reads as another segment.
-///
-/// **The rounded corners are a deliberate, scoped exception.** `radius.default` is
-/// 0 everywhere in Hourss, and it stays 0 — but this control lives inside Apple's
-/// container, not ours, and a square rectangle set into a heavily rounded pill
-/// reads as a mistake rather than as a principle. The exception ends at the edge
-/// of the Island; nothing in the app rounds.
-private struct IslandButton<I: AppIntent>: View {
-    let title: String
-    let intent: I
-    var enabled: Bool = true
-    var height: CGFloat = 36
-
+/// The rounded corners are a deliberate, scoped exception. `radius.default` is 0
+/// everywhere in Hourss and stays 0 — but this sits inside Apple's container,
+/// where a square rectangle set into a heavily rounded pill reads as a mistake
+/// rather than a principle. The exception ends at the edge of the Island.
+private struct StopButton: View {
     var body: some View {
-        Button(intent: intent) {
-            Text(title)
+        Button(intent: StopSessionIntent()) {
+            Text("Stop and reflect")
                 .font(.custom("DMSans-Bold", size: 14))
-                .foregroundStyle(enabled ? Color.ink : Color.mutedOnDark)
+                .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .background(
-                    (enabled ? Color.orange : Color.forestRaised),
-                    in: .rect(cornerRadius: 12)
-                )
+                .frame(height: 36)
+                .background(Color.orange, in: .rect(cornerRadius: 12))
         }
         .buttonStyle(.plain)
-        .disabled(!enabled)
     }
 }
 
-/// One scale, laid out inline: a short mono label, then five flat segments.
-///
-/// Both questions have to be answerable without leaving the Island, and stacking
-/// label-above-segments twice over does not fit the expanded region's height. The
-/// label moves beside the segments instead. VoiceOver still gets the full question.
-private struct RatingRow: View {
-    let label: String
-    let scale: String
-    let value: Int?
-
-    private var question: String {
-        scale == "feeling" ? "How did that feel?" : "How well did it go?"
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.custom("DMMono-Medium", size: 10))
-                .kerning(0.5)
-                .foregroundStyle(Color.subtleOnDark)
-                .frame(width: 34, alignment: .leading)
-                .accessibilityLabel(question)
-
-            HStack(spacing: 3) {
-                ForEach(1...5, id: \.self) { score in
-                    Button(intent: RateSessionIntent(scale: scale, score: score)) {
-                        Text("\(score)")
-                            .font(.custom("DMMono-Medium", size: 13))
-                            .foregroundStyle(value == score ? Color.ink : Color.mutedOnDark)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 30)
-                            .background(
-                                value == score ? fill(score) : Color.forestRaised,
-                                // Softer than the button so the action still leads,
-                                // but square segments beside a rounded button would
-                                // look unfinished.
-                                in: .rect(cornerRadius: 7)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(question) \(score) out of 5")
-                }
-            }
-        }
-    }
-
-    private func fill(_ score: Int) -> Color {
-        switch score {
-        case 1, 2: .drainingFill
-        case 3: .restorativeFill
-        default: .lime
-        }
-    }
-}
-
-/// The lock-screen presentation, which is the same information with room to breathe.
+/// The lock-screen presentation — the same information with room to breathe.
 private struct LockScreenView: View {
     let context: ActivityViewContext<HourssActivityAttributes>
 
@@ -252,7 +162,7 @@ private struct LockScreenView: View {
                 .fill(Color.forestRule)
                 .frame(height: 1)
 
-            ExpandedControls(context: context)
+            StopButton()
         }
         .padding(16)
     }

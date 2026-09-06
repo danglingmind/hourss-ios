@@ -147,7 +147,9 @@ final class HourssStore {
         guard let index = sessions.firstIndex(where: { $0.id == id }) else { return }
         sessions[index].endAt = Date()
         pendingReflectionSessionId = id
-        live?.markStopped(at: sessions[index].endAt ?? Date())
+        // The Island's whole job was the running session. Reflection happens in
+        // the app, so there is nothing left for it to show.
+        live?.endAll()
     }
 
     /// Saves a reflection. A nil feeling is preserved as "unanswered" rather than
@@ -182,7 +184,23 @@ final class HourssStore {
     var visibleInsights: [Insight] {
         insights
             .filter { $0.status != .hidden && $0.status != .expired && $0.band != .internalOnly }
-            .sorted { $0.confidence > $1.confidence }
+            .sorted { lhs, rhs in
+                // Confidence still decides, but a stated priority breaks toward
+                // what the person said they cared about. Weighting rather than
+                // filtering: an observation is not less true for being about
+                // something they did not rank.
+                let lhsWeight = Double(lhs.confidence) + priorityBoost(for: lhs.type)
+                let rhsWeight = Double(rhs.confidence) + priorityBoost(for: rhs.type)
+                return lhsWeight > rhsWeight
+            }
+    }
+
+    /// Up to 12 points for a first priority, tapering to 4 for a third — enough to
+    /// reorder observations of similar strength, never enough to float a weak one
+    /// above a strong one.
+    func priorityBoost(for type: InsightType) -> Double {
+        guard let rank = profile.priorities.firstIndex(where: { $0.insightTypes.contains(type) }) else { return 0 }
+        return max(0, 12 - Double(rank) * 4)
     }
 
     /// Recomputes observations with Health context folded in.

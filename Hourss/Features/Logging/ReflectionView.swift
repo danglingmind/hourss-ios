@@ -65,10 +65,7 @@ struct ReflectionView: View {
             VStack(spacing: 0) {
                 HRule()
                 HStack {
-                    Button("Skip") {
-                        store.live?.endAll()
-                        dismiss()
-                    }
+                    Button("Skip") { dismiss() }
                         .buttonStyle(.plain)
                         .textStyle(.action)
                         .foregroundStyle(Color.muted)
@@ -91,6 +88,5 @@ struct ReflectionView: View {
 
     private func save() {
         store.saveReflection(sessionId: sessionId, feeling: feeling, performance: performance, note: note)
-        store.live?.endAll()
     }
 }

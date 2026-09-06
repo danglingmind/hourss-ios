@@ -86,13 +86,6 @@ struct YouView: View {
             Text("\(store.sessions.filter { !$0.isRunning }.count) sessions logged · \(store.loggedDays.count) days")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
-
-            if !store.profile.goals.isEmpty {
-                Text("Here for \(store.profile.goals.map(\.title).sorted().joined(separator: ", ").lowercased())")
-                    .textStyle(.body)
-                    .foregroundStyle(Color.muted)
-                    .padding(.top, Space.xs)
-            }
         }
     }
 }
@@ -329,10 +322,8 @@ struct HealthConnectionView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             Spacer(minLength: Space.sm)
-                            Text(on ? "●" : "○")
-                                .font(.custom("DMSans-Medium", fixedSize: 14))
-                                .foregroundStyle(on ? Color.orange : Color.rule)
-                                .padding(.top, 6)
+                            SelectionDot(isSelected: on)
+                                .padding(.top, 4)
                         }
                         .padding(.vertical, Space.sm)
                         .frame(minHeight: Space.tapTarget)

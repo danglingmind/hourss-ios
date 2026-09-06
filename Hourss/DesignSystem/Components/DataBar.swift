@@ -179,3 +179,50 @@ extension ComparisonMark: AXChartDescriptorRepresentable {
         )
     }
 }
+
+/// Draws a mark in, once, the first time it appears.
+///
+/// A left-to-right wipe rather than a fade or a scale: it is the same gesture the
+/// bar itself describes, so the motion reads as the data arriving rather than as
+/// decoration. Works on any mark without the mark knowing about it, which is why
+/// it is a mask and not a parameter threaded through `DataBar`.
+///
+/// The design system asks for motion that clarifies direction and for anything
+/// non-essential to disappear under Reduce Motion — both hold here: with the
+/// setting on, the mark is simply already drawn.
+struct RevealOnAppear: ViewModifier {
+    /// Position in the sequence, so several marks arrive one after another.
+    var index: Int = 0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progress: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .mask(alignment: .leading) {
+                GeometryReader { geo in
+                    Rectangle()
+                        .frame(width: geo.size.width * progress)
+                }
+            }
+            .onAppear {
+                guard progress == 0 else { return }   // once, not on every redraw
+                if reduceMotion {
+                    progress = 1
+                } else {
+                    withAnimation(
+                        .easeOut(duration: Motion.reveal)
+                        .delay(Double(index) * Motion.revealStagger)
+                    ) {
+                        progress = 1
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    func revealsOnAppear(index: Int = 0) -> some View {
+        modifier(RevealOnAppear(index: index))
+    }
+}

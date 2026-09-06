@@ -102,14 +102,52 @@ enum DurationBucket: String, CaseIterable, Identifiable {
     }
 }
 
-/// Goals a person can pick during onboarding. 1–3 selections personalise the
-/// language and ranking weights.
-enum Intent: String, CaseIterable, Identifiable {
-    case focus, energy, balance, recovery, curiosity
+/// What someone wants to improve, in their own order.
+///
+/// Ordered, not just selected — the position carries meaning, so the engine can
+/// weight what it surfaces rather than only what it computes. Each case maps to
+/// signals Hourss can actually observe; a priority the app has no way to see would
+/// be a promise it cannot keep.
+enum Priority: String, CaseIterable, Identifiable, Codable {
+    case focus, energy, sleep, movement, calm, balance
 
     var id: String { rawValue }
 
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .focus: "Focus"
+        case .energy: "Energy"
+        case .sleep: "Sleep"
+        case .movement: "Movement"
+        case .calm: "Calm"
+        case .balance: "Balance"
+        }
+    }
+
+    /// What Hourss watches for this — kept concrete so the choice is informed.
+    var basis: String {
+        switch self {
+        case .focus: "When deep work holds up"
+        case .energy: "What gives energy back"
+        case .sleep: "How mornings follow nights"
+        case .movement: "What moving changes"
+        case .calm: "What quiet time sits next to"
+        case .balance: "Workdays against the rest"
+        }
+    }
+
+    /// Observation types this priority cares about. Used to weight the feed, so a
+    /// stated priority changes what surfaces first rather than only being stored.
+    var insightTypes: Set<InsightType> {
+        switch self {
+        case .focus: [.bestTimeWindow, .durationSweetSpot, .fragmentation]
+        case .energy: [.activityEnergizer, .activityDrain, .performanceFeelingSplit]
+        case .sleep: [.sleepContext]
+        case .movement: [.bodyContext]
+        case .calm: [.bodyContext, .emergingChange]
+        case .balance: [.workdayContrast, .drainingTimeWindow]
+        }
+    }
 }
 
 enum InsightStatus: String, Codable {

@@ -2,6 +2,15 @@ import XCTest
 
 /// The Dynamic Island can only be seen from outside the app, so these tests start
 /// a session, send the app to the background, and photograph the device.
+///
+/// **Know what these prove.** SpringBoard exposes the Island as an unnamed region
+/// with no identifier, so there is nothing to assert against its contents. The
+/// tests that drive it by coordinate are screenshot harnesses: they confirm the
+/// app survives the interaction and capture what the Island looked like, and the
+/// screenshots are the actual evidence — a coordinate that misses lands on the
+/// home screen behind and the test still passes. The assertions that do mean
+/// something are the in-app ones: that a session starts, that stopping raises the
+/// reflection, that the app does not wedge.
 @MainActor
 final class LiveActivityTests: XCTestCase {
 
@@ -14,8 +23,13 @@ final class LiveActivityTests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.waitForExistence(timeout: 8))
         app.descendants(matching: .any)["Start"].firstMatch.tap()
-        for _ in 0..<3 { app.descendants(matching: .any)["Continue"].firstMatch.tap() }
-        app.descendants(matching: .any)["health-skip"].firstMatch.tap()
+        // Health is asked for at beat two and there is no way past it but through.
+        app.descendants(matching: .any)["health-connect"].firstMatch.tap()
+        // Beat 3 ranks priorities and gates Continue on at least one.
+        let focus = app.descendants(matching: .any)["priority-focus"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 10))
+        focus.tap()
+        for _ in 0..<4 { app.descendants(matching: .any)["Continue"].firstMatch.tap() }
         app.buttons["Skip for now"].firstMatch.tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: 8))
@@ -102,48 +116,14 @@ final class LiveActivityTests: XCTestCase {
 
     /// A stopped session must show the time it actually ran, in the same shape as
     /// the running clock. Rounding to whole minutes made every short session read
-    /// "0m", which looked like a dead timer rather than a short session.
-    func testStoppedTimeShowsRealElapsed() {
-        launchAndStartASession(named: "Deep work")
-
-        // Long enough that a whole-minute rounding would still say "0m", but the
-        // seconds are unmistakable.
-        sleep(12)
-        app.descendants(matching: .any)["stop-session"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["REFLECTION"].waitForExistence(timeout: 5))
-
-        XCUIDevice.shared.press(.home)
-        sleep(2)
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.022)).press(forDuration: 1.2)
-        sleep(2)
-        attach("43-stopped-elapsed", springboard.screenshot())
-    }
-
-    /// Rating from the Island should clear it rather than leave it parked.
-    func testIslandClearsAfterRating() {
-        launchAndStartASession(named: "Admin")
-        app.descendants(matching: .any)["stop-session"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["REFLECTION"].waitForExistence(timeout: 5))
-
-        XCUIDevice.shared.press(.home)
-        sleep(2)
-        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let island = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.022))
-        island.press(forDuration: 1.2)
-        sleep(2)
-
-        // Tap "4" on the FELT row.
-        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.67, dy: 0.082)).tap()
-        sleep(8)   // past the 4s grace period
-        attach("44-island-cleared", springboard.screenshot())
-    }
-
-    /// Long-presses the Island to open the expanded view, and drives its buttons.
+    /// One answer must not dismiss the Island — the second question would become
+    /// Long-presses the Island to open the expanded view and photographs it, then
+    /// taps Stop.
     ///
-    /// The Island lives in SpringBoard, so everything here goes through coordinates
-    /// rather than the app's element tree.
-    func testExpandedIslandAndItsButtons() {
+    /// Stop now opens the app, so the assertion that means something is on this
+    /// side of the handoff: the session is no longer running and the reflection is
+    /// waiting.
+    func testExpandedIslandAndStopHandsOffToTheApp() {
         launchAndStartASession(named: "Deep work")
         XCUIDevice.shared.press(.home)
         sleep(2)
@@ -151,29 +131,18 @@ final class LiveActivityTests: XCTestCase {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         attach("35-island-compact", springboard.screenshot())
 
-        // The Island sits at the very top centre.
         let island = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.022))
         island.press(forDuration: 1.2)
         sleep(2)
-        attach("36-island-expanded-running", springboard.screenshot())
+        attach("36-island-expanded", springboard.screenshot())
 
-        // Stop, which should swap the expanded view for the two rating scales.
-        let stop = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.105))
-        stop.tap()
-        sleep(3)
-        attach("37-island-after-stop", springboard.screenshot())
+        // Stop, which should bring the app forward with the reflection up.
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.105)).tap()
+        sleep(4)
+        attach("37-after-stop", springboard.screenshot())
 
-        // Reopen and rate from the Island itself.
-        island.press(forDuration: 1.2)
-        sleep(2)
-        attach("38-island-rating", springboard.screenshot())
-
-        // Tap "4" on the feeling scale — the fourth of five segments.
-        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.67, dy: 0.102)).tap()
-        sleep(3)
-        island.press(forDuration: 1.2)
-        sleep(2)
-        attach("39-island-performance", springboard.screenshot())
+        XCTAssertTrue(app.staticTexts["REFLECTION"].waitForExistence(timeout: 10),
+                      "Stopping from the Island should open the app on the reflection")
     }
 
     /// Stopping from inside the app must move the Island into its rating state

@@ -86,6 +86,28 @@ struct DirectionalLink: View {
     }
 }
 
+/// A selection dot.
+///
+/// This was two glyphs — "●" and "○" — swapped in place, and they are different
+/// sizes in the typeface, so selecting one never actually filled the ring it
+/// replaced. One circle that fills is what the interaction was always describing.
+struct SelectionDot: View {
+    let isSelected: Bool
+    var size: CGFloat = 15
+
+    @Environment(\.surface) private var surface
+
+    var body: some View {
+        Circle()
+            .fill(isSelected ? Color.orange : .clear)
+            .overlay {
+                Circle().strokeBorder(isSelected ? Color.orange : surface.ruleColor, lineWidth: 1.5)
+            }
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Display type needs *negative* leading (line-height 0.91 and 0.90), which
 /// SwiftUI's `lineSpacing` cannot express — it clamps at zero. The landing page
 /// already hard-breaks these headlines, so each line becomes its own `Text` in a

@@ -29,12 +29,17 @@ enum MockData {
     /// have a real signal to find rather than noise, and deterministic so the demo
     /// is identical every launch.
     static func seededDaily(for metric: HealthMetric) -> [Date: Double] {
-        var rng = Seeded(seed: UInt64(abs(metric.rawValue.hashValue % 100_000)) &+ 0x484B)
+        // Seeded from a stable hash of the raw value. `String.hashValue` is
+        // randomly seeded per process, so the previous version changed the demo
+        // data on every launch while claiming to be deterministic.
+        var rng = Seeded(seed: metric.rawValue.unicodeScalars.reduce(UInt64(0x484B)) {
+            $0 &* 31 &+ UInt64($1.value)
+        })
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         var byDay: [Date: Double] = [:]
 
-        for dayOffset in 0...42 {
+        for dayOffset in 0...HealthService.historyDays {
             guard let day = calendar.date(byAdding: .day, value: -dayOffset, to: today) else { continue }
             let weekday = calendar.component(.weekday, from: day)
             let isWeekend = weekday == 1 || weekday == 7
@@ -62,7 +67,6 @@ enum MockData {
         let today = cal.startOfDay(for: Date())
 
         store.profile.displayName = "Ren"
-        store.profile.goals = [.focus, .energy]
 
         let byName = Dictionary(uniqueKeysWithValues: store.activities.map { ($0.name, $0.id) })
         var sessions: [Session] = []

@@ -20,15 +20,21 @@ final class HealthAndMarksTests: XCTestCase {
         launch()
         XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.waitForExistence(timeout: 8))
         app.descendants(matching: .any)["Start"].firstMatch.tap()
-        for _ in 0..<3 { app.descendants(matching: .any)["Continue"].firstMatch.tap() }
+        // Health is beat two now, immediately after the problem.
         XCTAssertTrue(app.descendants(matching: .any)["health-sleep"].firstMatch.waitForExistence(timeout: 5))
     }
 
-    private func finishOnboarding(skipHealth: Bool) {
-        if skipHealth {
-            app.descendants(matching: .any)["health-skip"].firstMatch.tap()
-        } else {
-            app.descendants(matching: .any)["health-connect"].firstMatch.tap()
+    /// There is no skip on the ask any more — Connect is the only way forward.
+    private func finishOnboarding() {
+        app.descendants(matching: .any)["health-connect"].firstMatch.tap()
+        // Beat 3 ranks priorities and gates Continue on at least one.
+        let focus = app.descendants(matching: .any)["priority-focus"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 10))
+        focus.tap()
+        for _ in 0..<4 {
+            let next = app.descendants(matching: .any)["Continue"].firstMatch
+            XCTAssertTrue(next.waitForExistence(timeout: 10))
+            next.tap()
         }
         XCTAssertTrue(app.buttons["Skip for now"].firstMatch.waitForExistence(timeout: 10))
         app.buttons["Skip for now"].firstMatch.tap()
@@ -52,28 +58,87 @@ final class HealthAndMarksTests: XCTestCase {
             XCTAssertTrue(app.descendants(matching: .any)[group].firstMatch.exists,
                           "\(group) is missing — consent must be granular")
         }
-        XCTAssertTrue(app.staticTexts["Read only. Hourss works fully without this."].exists,
-                      "The screen must say Health is optional")
+        XCTAssertTrue(app.staticTexts["Read only. Nothing is ever written back."].exists,
+                      "The screen must state the read-only scope")
         // Scope must be visible before the OS dialog, not just a group name.
         XCTAssertTrue(app.staticTexts["Heart rate variability · Resting heart rate · Respiratory rate"].exists,
                       "The recovery group does not name what it reads")
         attach("29-onboarding-health")
     }
 
-    /// Declining is not a dead end. "The app remains fully usable without Health."
-    func testSkippingHealthReachesTheApp() {
+    /// The proof marks draw themselves in once. A mask that never completes would
+    /// leave the charts blank and look exactly like having no data, so this waits
+    /// out the reveal and checks the facts are still there afterwards.
+    func testProofMarksSurviveTheirReveal() {
         walkToHealthStep()
-        finishOnboarding(skipHealth: true)
+        app.descendants(matching: .any)["health-connect"].firstMatch.tap()
+        // Beat 3 ranks priorities and gates Continue on at least one.
+        let focus = app.descendants(matching: .any)["priority-focus"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 10))
+        focus.tap()
+        // Priorities → key → mechanism → proof.
+        for _ in 0..<3 {
+            let next = app.descendants(matching: .any)["Continue"].firstMatch
+            XCTAssertTrue(next.waitForExistence(timeout: 10))
+            next.tap()
+        }
+        XCTAssertTrue(app.staticTexts["ALREADY TRUE ABOUT YOU"].waitForExistence(timeout: 5),
+                      "Did not land on the proof beat")
 
-        app.descendants(matching: .any)["tab-you"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["Not connected"].waitForExistence(timeout: 5),
-                      "You should report Health as not connected")
+        // Wait for the read to finish rather than assuming it has.
+        let facts = app.descendants(matching: .any).matching(identifier: "proof-fact")
+        let settled = NSPredicate(format: "count > 0")
+        let outcome = XCTWaiter().wait(for: [expectation(for: settled, evaluatedWith: facts)], timeout: 15)
+
+        if outcome == .timedOut {
+            // A data-less run is a legitimate outcome, but it must say so.
+            XCTAssertTrue(app.descendants(matching: .any)["proof-empty"].firstMatch.exists,
+                          "No facts and no empty state — the proof beat is showing nothing at all")
+            return
+        }
+
+        // Longer than reveal + stagger for three rows.
+        sleep(2)
+        XCTAssertGreaterThan(facts.count, 0, "The proof facts vanished after the reveal")
+        XCTAssertTrue(facts.element(boundBy: 0).isHittable,
+                      "The first fact is not visible once the reveal has finished")
+        attach("33-proof-after-reveal")
+    }
+
+    /// The one required action in the flow must be on screen when you arrive.
+    /// Having to scroll to find the only button you are allowed to press is the
+    /// worst place in onboarding to spend a gesture.
+    func testAskFitsWithoutScrolling() {
+        walkToHealthStep()
+
+        let connect = app.descendants(matching: .any)["health-connect"].firstMatch
+        XCTAssertTrue(connect.exists)
+        XCTAssertTrue(connect.isHittable, "Connect Health is off screen — the ask needs scrolling")
+
+        // And every consent row is visible too, since the scope has to be readable
+        // before the system sheet appears.
+        for group in ["health-sleep", "health-recovery", "health-movement", "health-mind"] {
+            let row = app.descendants(matching: .any)[group].firstMatch
+            XCTAssertTrue(row.isHittable, "\(group) is off screen")
+        }
+        attach("29-onboarding-health")
+    }
+
+    /// The ask offers no way forward but Connect. This is the enforceable half of
+    /// the gate — iOS never tells us whether the grant was actually given.
+    func testAskHasNoSkip() {
+        walkToHealthStep()
+        XCTAssertFalse(app.descendants(matching: .any)["health-skip"].firstMatch.exists,
+                       "The Health ask must not offer a way past it")
+        XCTAssertFalse(app.descendants(matching: .any)["Continue"].firstMatch.exists,
+                       "The footer Continue must be suppressed on the ask")
+        XCTAssertTrue(app.descendants(matching: .any)["health-connect"].firstMatch.exists)
     }
 
     /// Connecting reaches the app too, and the connection surfaces in settings.
     func testConnectingHealthReachesTheAppAndShowsInSettings() {
         walkToHealthStep()
-        finishOnboarding(skipHealth: false)
+        finishOnboarding()
 
         app.descendants(matching: .any)["tab-you"].firstMatch.tap()
         app.descendants(matching: .any)["row-health"].firstMatch.tap()
@@ -88,7 +153,7 @@ final class HealthAndMarksTests: XCTestCase {
     /// replaced it must still speak the numbers.
     func testEvidenceNumbersSurviveInAccessibility() {
         walkToHealthStep()
-        finishOnboarding(skipHealth: true)
+        finishOnboarding()
 
         app.descendants(matching: .any)["tab-patterns"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["lead-insight"].firstMatch.waitForExistence(timeout: 8))
@@ -109,7 +174,7 @@ final class HealthAndMarksTests: XCTestCase {
     /// which was nearly invisible — this pins the activity name to the panel.
     func testRunningSessionPanelRendersItsActivityName() {
         walkToHealthStep()
-        finishOnboarding(skipHealth: true)
+        finishOnboarding()
 
         app.descendants(matching: .any)["tab-log"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["START A SESSION"].waitForExistence(timeout: 5))
@@ -126,7 +191,7 @@ final class HealthAndMarksTests: XCTestCase {
     /// The heat calendar's cells must say their date and how the day felt.
     func testHeatCalendarSpeaksAndNavigates() {
         walkToHealthStep()
-        finishOnboarding(skipHealth: true)
+        finishOnboarding()
 
         app.descendants(matching: .any)["tab-journal"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["JOURNAL"].waitForExistence(timeout: 5))
@@ -144,7 +209,7 @@ final class HealthAndMarksTests: XCTestCase {
     /// Those figures must be spoken, not just drawn.
     func testWarmUpCoverageIsSpoken() {
         walkToHealthStep()
-        finishOnboarding(skipHealth: true)
+        finishOnboarding()
 
         app.descendants(matching: .any)["tab-patterns"].firstMatch.tap()
         // With six weeks seeded, Patterns is past warm-up; the marks live behind it.

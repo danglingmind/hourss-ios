@@ -15,6 +15,23 @@ final class AccessibilityTests: XCTestCase {
         return app
     }
 
+    /// Walks the six beats. Each control is waited for rather than assumed — at
+    /// accessibility type sizes the layout reflows and controls move.
+    private func walkOnboarding(_ app: XCUIApplication) {
+        func tap(_ identifier: String) {
+            let element = app.descendants(matching: .any)[identifier].firstMatch
+            XCTAssertTrue(element.waitForExistence(timeout: 12), "Could not find '\(identifier)'")
+            element.tap()
+        }
+        tap("Start")
+        tap("health-connect")
+        tap("priority-focus")          // beat 3 gates on at least one
+        for _ in 0..<4 { tap("Continue") }
+        let skip = app.buttons["Skip for now"].firstMatch
+        XCTAssertTrue(skip.waitForExistence(timeout: 12))
+        skip.tap()
+    }
+
     private func attach(_ app: XCUIApplication, _ name: String) {
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = name
@@ -28,15 +45,10 @@ final class AccessibilityTests: XCTestCase {
     func testLargeDynamicType() {
         let app = launch(contentSize: "UICTContentSizeCategoryAccessibilityL")
 
-        XCTAssertTrue(app.staticTexts["Your hours, have a pattern."].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Your calendar, knows where, time went."].waitForExistence(timeout: 8))
         attach(app, "a11y-onboarding-welcome")
 
-        app.descendants(matching: .any)["Start"].firstMatch.tap()
-        app.descendants(matching: .any)["Continue"].firstMatch.tap()
-        app.descendants(matching: .any)["Continue"].firstMatch.tap()
-        app.descendants(matching: .any)["Continue"].firstMatch.tap()
-        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
-        app.buttons["Skip for now"].firstMatch.tap()
+        walkOnboarding(app)
 
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: 8))
         attach(app, "a11y-today")
@@ -59,12 +71,7 @@ final class AccessibilityTests: XCTestCase {
     /// must also state the score or that it is unrated.
     func testEnergyBarsAreNotColourOnly() {
         let app = launch()
-        app.descendants(matching: .any)["Start"].firstMatch.tap()
-        app.descendants(matching: .any)["Continue"].firstMatch.tap()
-        app.descendants(matching: .any)["Continue"].firstMatch.tap()
-        app.descendants(matching: .any)["Continue"].firstMatch.tap()
-        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
-        app.buttons["Skip for now"].firstMatch.tap()
+        walkOnboarding(app)
 
         XCTAssertTrue(app.descendants(matching: .any)["tab-journal"].firstMatch.waitForExistence(timeout: 8))
         app.descendants(matching: .any)["tab-journal"].firstMatch.tap()

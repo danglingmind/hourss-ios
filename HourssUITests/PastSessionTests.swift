@@ -13,8 +13,13 @@ final class PastSessionTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.waitForExistence(timeout: 8))
         app.descendants(matching: .any)["Start"].firstMatch.tap()
-        for _ in 0..<3 { app.descendants(matching: .any)["Continue"].firstMatch.tap() }
-        app.descendants(matching: .any)["health-skip"].firstMatch.tap()   // O6
+        // Health is asked for at beat two and there is no way past it but through.
+        app.descendants(matching: .any)["health-connect"].firstMatch.tap()
+        // Beat 3 ranks priorities and gates Continue on at least one.
+        let focus = app.descendants(matching: .any)["priority-focus"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 10))
+        focus.tap()
+        for _ in 0..<4 { app.descendants(matching: .any)["Continue"].firstMatch.tap() }
         app.buttons["Skip for now"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: 8))
     }
