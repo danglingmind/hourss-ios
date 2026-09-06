@@ -278,23 +278,43 @@ struct PhysiologyTests {
     @Test("A curve is not fitted from too little history")
     func thinHistoryHasNoCurve() throws {
         let person = SyntheticCohort.stillMeetings
+
+        // Thin means thin *sensor* history. The curve describes how this person's
+        // heart answers movement, which is a fact about them rather than about
+        // their logging, so it is fitted from everything the watch recorded and
+        // not only from the stretches they happened to label. Three days of
+        // readings is below the bar however many of them are logged.
+        let calendar = Calendar.current
+        let days = Set(person.heartRate.map { calendar.startOfDay(for: $0.at) }).sorted()
+        let cutoff = try #require(days.dropFirst(3).first)
+
+        let thin = Physiology.Feed(
+            heartRate: person.heartRate.filter { $0.at < cutoff }
+                .map { Physiology.Sample(at: $0.at, value: $0.value) },
+            steps: (person.samples[.steps] ?? []).filter { $0.at < cutoff }
+                .map { Physiology.Sample(at: $0.at, value: $0.value) }
+        )
+        let starved = Physiology.Analyzer(feed: thin, sessions: person.sessions)
+        #expect(starved.curve == nil, "three days of readings is not a fitted curve")
+
+        let inRange = try #require(person.sessions.first { ($0.endAt ?? $0.startAt) < cutoff })
+        #expect(starved.residual(for: inRange) == nil,
+                "no curve means no residual, not a residual against nothing")
+    }
+
+    /// The improvement this replaced: the curve used to be fitted only on logged
+    /// sessions, so someone with a full year of readings who rarely logged had no
+    /// curve at all, and the layer refused to score anything. Safe, and useless.
+    @Test("A curve is fitted from readings even when little was logged")
+    func sparseLoggingStillFitsACurve() throws {
+        let person = SyntheticCohort.walksEverywhere
         let few = Array(person.sessions.filter(\.isEligibleForPatterns).prefix(5))
         let engine = Physiology.Analyzer(feed: feed(person), sessions: few)
 
-        #expect(engine.curve == nil, "five windows is not a fitted curve")
-        let session = try #require(few.first)
-        #expect(engine.residual(for: session) == nil,
-                "no curve means no residual, not a residual against nothing")
-
-        // The bar is days as well as windows: thirty sessions from three days is
-        // three days of evidence about this person.
-        let calendar = Calendar.current
-        let byDay = Dictionary(grouping: person.sessions.filter(\.isEligibleForPatterns)) {
-            calendar.startOfDay(for: $0.startAt)
-        }
-        let crammed = byDay.sorted { $0.key < $1.key }.prefix(4).flatMap(\.value)
-        let cramped = Physiology.Analyzer(feed: feed(person), sessions: crammed)
-        #expect(cramped.curve == nil, "windows from four days cannot fit a curve however many there are")
+        let curve = try #require(engine.curve,
+                                 "a full history of readings should fit a curve on five logged sessions")
+        #expect(curve.canExplain(cadence: 90),
+                "the curve should have learned a brisk pace from unlogged time")
     }
 
     // MARK: - What the curve is for

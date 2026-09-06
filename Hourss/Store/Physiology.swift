@@ -133,6 +133,37 @@ enum Physiology {
             self.init(id: session.id, start: session.startAt, end: end)
         }
 
+        /// Fixed slices covering everything the sensors recorded, logged or not.
+        ///
+        /// The curve describes how this person's heart responds to moving, which
+        /// is a fact about them rather than about their logging. Fitting it only
+        /// on logged sessions wastes the overwhelming majority of the day and
+        /// makes the curve hostage to a habit: someone who walks constantly but
+        /// rarely logs walks would have no brisk windows to learn from, and the
+        /// layer would then refuse to score anything — safe, and useless.
+        ///
+        /// Slices are aligned to the hour so two runs over the same history
+        /// produce the same windows; tiling from the first sample would shift
+        /// every boundary whenever the earliest reading changed.
+        static func tiling(_ feed: Feed, minutes: Int = 30) -> [Window] {
+            guard let first = feed.heartRate.min(by: { $0.at < $1.at })?.at,
+                  let last = feed.heartRate.max(by: { $0.at < $1.at })?.at,
+                  minutes > 0 else { return [] }
+
+            let step = TimeInterval(minutes * 60)
+            let origin = Date(timeIntervalSinceReferenceDate:
+                                (first.timeIntervalSinceReferenceDate / step).rounded(.down) * step)
+
+            var windows: [Window] = []
+            var start = origin
+            while start < last {
+                let end = start.addingTimeInterval(step)
+                windows.append(Window(start: start, end: end))
+                start = end
+            }
+            return windows
+        }
+
         /// Floored at one minute so cadence cannot divide by ~zero.
         var minutes: Double { max(end.timeIntervalSince(start) / 60, 1) }
     }
@@ -432,6 +463,20 @@ enum Physiology {
         /// probability.
         static let minimumHeartRateSamples = 5
 
+        /// A lower floor for windows that only contribute to the fit.
+        ///
+        /// The floor of five exists so that *one* session's residual is worth
+        /// showing to somebody. A fitting window is pooled with hundreds of others
+        /// and its noise averages out, so demanding the same of it discards
+        /// evidence for a standard that does not apply.
+        ///
+        /// It is not free: fewer samples make each window's heart rate and cadence
+        /// noisier, and noise in cadence attenuates the fitted lift toward zero.
+        /// Three is a floor rather than a target, and the effect runs in the
+        /// conservative direction — an attenuated curve under-explains movement
+        /// and so leaves residuals larger, never smaller.
+        static let minimumSamplesForFitting = 3
+
         /// How far back a session's baseline can be spoiled by exercise.
         ///
         /// Heart rate stays elevated for thirty to sixty minutes after vigorous
@@ -489,21 +534,31 @@ enum Physiology {
                     steps: steps,
                     vigorous: feed.vigorous,
                     calendar: calendar,
-                    workdays: workdays
+                    workdays: workdays,
+                    minimumSamples: Analyzer.minimumSamplesForFitting
                 )
             }
             self.curve = MovementCurve.fit(summaries)
         }
 
+        /// The ordinary entry point: fit on the whole recorded day, score the
+        /// sessions.
+        ///
+        /// Tiles rather than sessions, for the reason given on `Window.tiling`.
+        /// The sessions are included as well because a logged window is a real
+        /// observation of the same relationship, and dropping it to keep the input
+        /// tidy would discard evidence for no gain.
         init(
             feed: Feed,
             sessions: [Session],
+            tileMinutes: Int = 30,
             calendar: Calendar = .current,
             workdays: Set<Int> = [2, 3, 4, 5, 6]
         ) {
+            let logged = sessions.filter(\.isEligibleForPatterns).compactMap(Window.init(session:))
             self.init(
                 feed: feed,
-                fittingWindows: sessions.filter(\.isEligibleForPatterns).compactMap(Window.init(session:)),
+                fittingWindows: Window.tiling(feed, minutes: tileMinutes) + logged,
                 calendar: calendar,
                 workdays: workdays
             )
@@ -529,13 +584,14 @@ enum Physiology {
             steps: [Sample],
             vigorous: [DateInterval],
             calendar: Calendar,
-            workdays: Set<Int>
+            workdays: Set<Int>,
+            minimumSamples: Int = minimumHeartRateSamples
         ) -> WindowSummary? {
             guard window.end > window.start else { return nil }
             guard !isContaminated(before: window.start, steps: steps, vigorous: vigorous) else { return nil }
 
             let beats = slice(heartRate, from: window.start, to: window.end).map(\.value)
-            guard beats.count >= minimumHeartRateSamples, let centre = median(beats) else { return nil }
+            guard beats.count >= minimumSamples, let centre = median(beats) else { return nil }
 
             let stepTotal = slice(steps, from: window.start, to: window.end).reduce(0) { $0 + $1.value }
             let weekday = calendar.component(.weekday, from: window.start)
