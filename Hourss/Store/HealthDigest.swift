@@ -25,8 +25,14 @@ struct HealthDigest {
         /// Which generator produced this. Three facts of the same shape read as one
         /// fact repeated, however different their subjects.
         enum Kind { case rhythm, contrast, drift, scale }
-        /// Normalised effect size, used only for ranking.
+        /// Normalised effect size. Orders facts of the same kind; it no longer
+        /// decides which kind leads. See `surprise`.
         var strength: Double
+        /// Which signal this is about, for the prior lookup.
+        var metric: HealthMetric
+        /// Whether the fact went up. A pattern that runs against what is ordinary
+        /// is the interesting half of every prior in the table below.
+        var raised: Bool
 
         enum Mark {
             /// Seven weekday means, normalised 0–1, Monday first.
@@ -50,6 +56,91 @@ struct HealthDigest {
     /// a single Tuesday.
     private static let minimumDaysPerSide = 5
 
+    // MARK: - Surprise
+
+    // BOUNDARY — read before touching this table.
+    //
+    // These numbers encode what is *ordinarily* true of people, and they exist to
+    // decide what to show first. Nothing derived from them may reach a figure, a
+    // sentence, or any other string somebody reads: the "No population comparison"
+    // rule means a person is only ever measured against their own history. Ranking
+    // "your sleep is steadier at weekends than in the week" above the reverse is
+    // legitimate, because the reverse is what almost everyone has. Saying so is
+    // not.
+    //
+    // Separate from `Surprise.priors` on purpose. That table is about associations
+    // with how a session felt; this one is about whether a signal has a shape of
+    // its own. "More sleep goes with better days" and "sleep differs at weekends"
+    // are different claims and would need different numbers even where they name
+    // the same metric.
+    private struct Prior {
+        /// The direction it ordinarily runs in.
+        let raised: Bool
+        /// The share of people it holds for, in that direction.
+        let share: Double
+    }
+
+    /// Keyed by metric and kind, since the same signal is banal in one shape and
+    /// interesting in another: everyone knows they sleep in at weekends, and
+    /// almost nobody knows their sleep has drifted since spring.
+    private static let priors: [String: Prior] = [
+        // The single most predictable thing an app can tell somebody.
+        "sleepHours.contrast": Prior(raised: true, share: 0.88),
+        "steps.contrast": Prior(raised: true, share: 0.70),
+        "activeEnergy.contrast": Prior(raised: true, share: 0.68),
+        "exerciseMinutes.contrast": Prior(raised: true, share: 0.66),
+        "daylightMinutes.contrast": Prior(raised: true, share: 0.64),
+        "restingHeartRate.contrast": Prior(raised: false, share: 0.62),
+        "hrv.contrast": Prior(raised: true, share: 0.60),
+
+        // A week having a shape is genuinely not common knowledge, but sleep is
+        // the one people have noticed about themselves.
+        "sleepHours.rhythm": Prior(raised: true, share: 0.55),
+
+        // Totals are arithmetic, not discovery. Striking to read, and nobody is
+        // surprised that a year contains a lot of hours.
+        "sleepHours.scale": Prior(raised: true, share: 0.80),
+        "steps.scale": Prior(raised: true, share: 0.78),
+
+        // Drift is absent from this table on purpose. That a signal has moved
+        // over months is not something people track about themselves, in any
+        // direction, so every drift fact scores the neutral 0.5 and is carried by
+        // its effect size alone.
+    ]
+
+    /// How ordinary this fact is, 0…1. Unknown pairs are neutral, so a signal
+    /// nobody has folk expectations about is neither promoted nor punished.
+    private static func expectedness(of fact: Fact) -> Double {
+        guard let prior = priors["\(fact.metric.rawValue).\(kindKey(fact.kind))"] else { return 0.5 }
+        // A fact running the other way is the same prior read from its
+        // complement, so someone who sleeps *less* at weekends outranks the
+        // ordinary case by the ratio of their surprise rather than by a bonus.
+        return fact.raised == prior.raised ? prior.share : 1 - prior.share
+    }
+
+    private static func kindKey(_ kind: Fact.Kind) -> String {
+        switch kind {
+        case .rhythm: "rhythm"
+        case .contrast: "contrast"
+        case .drift: "drift"
+        case .scale: "scale"
+        }
+    }
+
+    /// Surprise in bits, modified by effect size within a bounded range.
+    ///
+    /// The effect term spans a factor of 1.5 while the prior spans about five, so
+    /// size still orders two facts of the same kind — which is what it is good
+    /// for — and can never lift a banal fact over a surprising one. That inversion
+    /// is the whole reason this replaced ranking on effect size: sorting by
+    /// magnitude guarantees leading with the most obvious true thing about
+    /// somebody, because the obvious things are obvious *for* being large.
+    static func surprise(of fact: Fact) -> Double {
+        let bits = -log2(max(0.05, expectedness(of: fact)))
+        let size = 1 + 0.5 * min(1, fact.strength / 0.35)
+        return bits * size
+    }
+
     static func build(from dailyValues: [HealthMetric: [Date: Double]]) -> HealthDigest {
         let allDays = Set(dailyValues.values.flatMap(\.keys))
         guard !allDays.isEmpty else { return HealthDigest(facts: [], daysOfHistory: 0) }
@@ -67,7 +158,14 @@ struct HealthDigest {
         // Strongest first, but never the same shape twice and never the same
         // topic twice: three weekday rhythms about three metrics still reads as
         // one idea, and the screen has to feel like three discoveries.
-        let ranked = candidates.sorted { $0.strength > $1.strength }
+        let ranked = candidates.sorted {
+            let left = surprise(of: $0), right = surprise(of: $1)
+            if left != right { return left > right }
+            // Ties fall back to size and then to the metric, so two runs over one
+            // history put the same fact first.
+            if $0.strength != $1.strength { return $0.strength > $1.strength }
+            return $0.metric.rawValue < $1.metric.rawValue
+        }
         var chosen: [Fact] = []
         var usedGroups: Set<HealthGroup> = []
         var usedKinds: Set<Fact.Kind> = []
@@ -112,9 +210,25 @@ struct HealthDigest {
         let strength = (high - low) / low
         guard strength > 0.08 else { return nil }
 
+        // Monday-first indices, so 5 and 6 are Saturday and Sunday.
+        let highIndex = means.firstIndex { $0 == high }!
+        let lowIndex = means.firstIndex { $0 == low }!
+
+        // If the two extremes sit on opposite sides of the weekend, this is the
+        // weekend contrast wearing a different hat — and the contrast generator
+        // describes it better, using every day rather than the two furthest apart.
+        //
+        // Letting it through would also be a way around the prior: "your sleep
+        // varies across the week" carries no folk expectation and would rank as a
+        // discovery, while the same effect stated as a weekend contrast is the
+        // most predictable thing this product can say.
+        let highIsWeekend = highIndex >= 5
+        let lowIsWeekend = lowIndex >= 5
+        guard highIsWeekend == lowIsWeekend else { return nil }
+
         let names = calendar.weekdaySymbols
-        let highDay = names[(means.firstIndex { $0 == high }! + 1) % 7]
-        let lowDay = names[(means.firstIndex { $0 == low }! + 1) % 7]
+        let highDay = names[(highIndex + 1) % 7]
+        let lowDay = names[(lowIndex + 1) % 7]
 
         return Fact(
             figure: difference(metric, high - low),
@@ -122,7 +236,11 @@ struct HealthDigest {
             group: metric.group,
             kind: .rhythm,
             mark: .weekdayRhythm(present.map { ($0 - low) / (high - low) }),
-            strength: strength
+            strength: strength,
+            metric: metric,
+            // A spread across seven days has no direction of its own; the prior
+            // for a rhythm turns on the metric alone.
+            raised: true
         )
     }
 
@@ -156,7 +274,9 @@ struct HealthDigest {
                 lowLabel: higherAtWeekends ? "Weekdays" : "Weekends",
                 low: min(weekendMean, weekdayMean)
             ),
-            strength: strength
+            strength: strength,
+            metric: metric,
+            raised: higherAtWeekends
         )
     }
 
@@ -186,9 +306,11 @@ struct HealthDigest {
                 lowLabel: "Earlier",
                 low: earlierMean
             ),
-            // Ranked below rhythm and contrast: a trend is the least surprising of
-            // the three, and the most likely to be measurement drift.
-            strength: strength * 0.7
+            // Damped a little: a trend is the most likely of the four to be
+            // measurement drift rather than the person changing.
+            strength: strength * 0.7,
+            metric: metric,
+            raised: recentMean > earlierMean
         )
     }
 
@@ -206,8 +328,10 @@ struct HealthDigest {
             group: metric.group,
             kind: .scale,
             mark: .none,
-            // Deliberately last: it is a number, not a discovery.
-            strength: 0.05
+            // A total is arithmetic rather than discovery, and its prior says so.
+            strength: 0.05,
+            metric: metric,
+            raised: true
         )
     }
 
