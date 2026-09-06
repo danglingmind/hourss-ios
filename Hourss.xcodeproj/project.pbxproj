@@ -25,6 +25,13 @@
 			remoteGlobalIDString = H0000000000000000000034;
 			remoteInfo = HourssWidgets;
 		};
+		H000000000000000000004A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = H000000000000000000000B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = H0000000000000000000003;
+			remoteInfo = Hourss;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -45,6 +52,7 @@
 		H0000000000000000000001 /* Hourss.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hourss.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		H0000000000000000000020 /* HourssUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HourssUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		H0000000000000000000030 /* HourssWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HourssWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		H0000000000000000000040 /* HourssTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HourssTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -91,6 +99,11 @@
 			path = HourssWidgets;
 			sourceTree = "<group>";
 		};
+		H0000000000000000000041 /* HourssTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HourssTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,6 +128,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		H0000000000000000000042 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -125,6 +145,7 @@
 				H0000000000000000000031 /* Shared */,
 				H0000000000000000000032 /* HourssWidgets */,
 				H0000000000000000000021 /* HourssUITests */,
+				H0000000000000000000041 /* HourssTests */,
 				H0000000000000000000007 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -135,6 +156,7 @@
 				H0000000000000000000001 /* Hourss.app */,
 				H0000000000000000000020 /* HourssUITests.xctest */,
 				H0000000000000000000030 /* HourssWidgets.appex */,
+				H0000000000000000000040 /* HourssTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -213,6 +235,29 @@
 			productReference = H0000000000000000000030 /* HourssWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		H0000000000000000000045 /* HourssTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = H0000000000000000000046 /* Build configuration list for PBXNativeTarget "HourssTests" */;
+			buildPhases = (
+				H0000000000000000000043 /* Sources */,
+				H0000000000000000000042 /* Frameworks */,
+				H0000000000000000000044 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				H0000000000000000000049 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				H0000000000000000000041 /* HourssTests */,
+			);
+			name = HourssTests;
+			packageProductDependencies = (
+			);
+			productName = HourssTests;
+			productReference = H0000000000000000000040 /* HourssTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -227,6 +272,10 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					H0000000000000000000025 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = H0000000000000000000003;
+					};
+					H0000000000000000000045 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = H0000000000000000000003;
 					};
@@ -249,6 +298,7 @@
 				H0000000000000000000003 /* Hourss */,
 				H0000000000000000000034 /* HourssWidgets */,
 				H0000000000000000000025 /* HourssUITests */,
+				H0000000000000000000045 /* HourssTests */,
 			);
 		};
 /* End PBXProject section */
@@ -269,6 +319,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		H0000000000000000000037 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		H0000000000000000000044 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -299,6 +356,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		H0000000000000000000043 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -311,6 +375,11 @@
 			isa = PBXTargetDependency;
 			target = H0000000000000000000034 /* HourssWidgets */;
 			targetProxy = H000000000000000000003C /* PBXContainerItemProxy */;
+		};
+		H0000000000000000000049 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = H0000000000000000000003 /* Hourss */;
+			targetProxy = H000000000000000000004A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -526,6 +595,48 @@
 			};
 			name = Release;
 		};
+		H0000000000000000000047 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NJ5P2B5WZJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hourss.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hourss.app/Hourss";
+			};
+			name = Debug;
+		};
+		H0000000000000000000048 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = NJ5P2B5WZJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hourss.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Hourss.app/Hourss";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -561,6 +672,15 @@
 			buildConfigurations = (
 				H000000000000000000003D /* Debug */,
 				H000000000000000000003E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		H0000000000000000000046 /* Build configuration list for PBXNativeTarget "HourssTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				H0000000000000000000047 /* Debug */,
+				H0000000000000000000048 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
