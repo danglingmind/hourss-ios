@@ -442,4 +442,57 @@ struct RegistryTests {
             }
         }
     }
+    // MARK: - Confidence has no cliff
+
+    private func comparison(edge: Double, width: Double) -> Statistics.Comparison {
+        Statistics.Comparison(delta: edge + width / 2, low: edge, high: edge + width,
+                              focusCount: 40, baselineCount: 60,
+                              focusDays: 30, baselineDays: 45, pValue: 0.004)
+    }
+
+    /// A real observation in the cohort sat at a near edge of exactly 0.147, the
+    /// negligible boundary, and the old formula refused below it and paid nine
+    /// points above it. A resampling change would have flipped it between hidden
+    /// and mid-strength.
+    @Test("Confidence never jumps at the negligible boundary")
+    func confidenceHasNoCliff() {
+        var previous = Engine.confidence(comparison(edge: 0.01, width: 0.30))
+        var step = 0.02
+        while step <= 0.60 {
+            let score = Engine.confidence(comparison(edge: step, width: 0.30))
+            #expect(score - previous <= 3, Comment(rawValue:
+                    "confidence jumped \(score - previous) points at a near edge of \(step)"))
+            #expect(score >= previous, Comment(rawValue:
+                    "confidence fell from \(previous) to \(score) as the effect grew"))
+            previous = score
+            step += 0.01
+        }
+    }
+
+    @Test("A near edge deep in the negligible band is not shown")
+    func negligibleEdgeStaysHidden() {
+        let barely = comparison(edge: 0.03, width: 0.20)
+        #expect(Confidence.band(Engine.confidence(barely)) == .internalOnly, Comment(rawValue:
+                "an interval reaching almost to zero scored \(Engine.confidence(barely))"))
+    }
+
+    @Test("A large, tightly pinned effect scores near the top")
+    func largeTightEffectScoresHigh() {
+        let strong = comparison(edge: 0.55, width: 0.15)
+        #expect(Engine.confidence(strong) >= 80, Comment(rawValue:
+                "a large effect with a tight interval scored \(Engine.confidence(strong))"))
+    }
+
+    @Test("Volume alone cannot buy confidence")
+    func volumeBuysNothing() {
+        let few = Statistics.Comparison(delta: 0.40, low: 0.25, high: 0.55,
+                                        focusCount: 8, baselineCount: 9,
+                                        focusDays: 7, baselineDays: 8, pValue: 0.004)
+        let many = Statistics.Comparison(delta: 0.40, low: 0.25, high: 0.55,
+                                         focusCount: 800, baselineCount: 900,
+                                         focusDays: 300, baselineDays: 350, pValue: 0.004)
+        #expect(Engine.confidence(few) == Engine.confidence(many),
+                "session count reached confidence other than by narrowing the interval")
+    }
+
 }

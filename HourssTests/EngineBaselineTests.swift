@@ -171,4 +171,76 @@ struct EngineBaselineTests {
         #expect(after?.status == .saved,
                 "saved state did not survive applying health context")
     }
+    // MARK: - Ratings that are missing for a reason
+
+    /// `skipsTheBadOnes` has a real 1.4-point drain on Admin and stops rating
+    /// sessions that go badly, so the observed ratings are biased upward exactly
+    /// where the effect lives. The engine used to attach a caveat and publish the
+    /// understated number anyway.
+    @Test("A claim resting on unevenly rated sides is stress-tested")
+    func unevenCoverageIsStressTested() {
+        let person = SyntheticCohort.skipsTheBadOnes
+        let findings = Engine.findings(for: EngineInput(observations: rows(for: person)))
+        let uneven = findings.filter(\.hasUnevenCoverage)
+
+        #expect(!uneven.isEmpty, "the fixture no longer produces uneven coverage to test")
+        for finding in uneven {
+            #expect(finding.survivesMissingness != nil, Comment(rawValue:
+                    "\(finding.hypothesis.id) has uneven coverage and was not stress-tested"))
+        }
+    }
+
+    @Test("Evenly rated claims are not stress-tested, and are not penalised for it")
+    func evenCoverageSkipsTheCheck() {
+        let findings = Engine.findings(for: EngineInput(observations: rows(for: SyntheticCohort.afternoonSlump)))
+        let even = findings.filter { !$0.hasUnevenCoverage }
+        #expect(!even.isEmpty)
+        for finding in even {
+            #expect(finding.survivesMissingness == nil,
+                    "a check ran where coverage was even")
+        }
+        // The real slump still gets through: a nil check must not read as failure.
+        #expect(visible(for: SyntheticCohort.afternoonSlump).contains {
+            $0.type == .bestTimeWindow || $0.type == .drainingTimeWindow
+        })
+    }
+
+    /// The check has to be capable of refusing, or it is decoration.
+    @Test("A claim that only holds because of who went unrated is refused")
+    func fragileClaimIsRefused() {
+        // The focus side is rated only when it went well, and its observed gap
+        // over the baseline is small enough that the sessions nobody rated could
+        // account for all of it.
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var rows: [EngineObservation] = []
+        for offset in 0..<20 {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+            // Focus: three sessions a day, one rated and only ever when it went well.
+            rows.append(observation(day: day, activity: "Deep work", feeling: 4))
+            rows.append(observation(day: day, activity: "Deep work", feeling: nil))
+            rows.append(observation(day: day, activity: "Deep work", feeling: nil))
+            // Baseline: rated throughout, and spanning the range the fill draws on.
+            rows.append(observation(day: day, activity: "Admin", feeling: offset % 3 == 0 ? 2 : 3))
+        }
+        let findings = Engine.findings(for: EngineInput(observations: rows))
+        let deepWork = findings.first { $0.hypothesis.id.contains("deep-work") }
+
+        if let deepWork, deepWork.hasUnevenCoverage {
+            #expect(deepWork.survivesMissingness == false, Comment(rawValue:
+                    "a claim built from half-reported sessions survived the stress test " +
+                    "at delta \(deepWork.comparison.delta)"))
+        }
+    }
+
+    private func observation(day: Date, activity: String, feeling: Double?) -> EngineObservation {
+        EngineObservation(
+            sessionId: UUID(), day: day, startAt: day.addingTimeInterval(10 * 3600),
+            durationMinutes: 50, activityName: activity, activityCategory: "work",
+            timeBucket: .morning, durationBucket: .medium, isWorkday: true,
+            feeling: feeling, performance: nil, dayHealth: [:],
+            heartRateResidual: nil, cadence: nil
+        )
+    }
+
 }

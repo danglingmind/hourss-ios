@@ -132,6 +132,17 @@ struct Finding {
     /// Nil means the correction has not run yet.
     var survivesCorrection: Bool?
 
+    /// Whether the claim holds when the sessions nobody rated are assumed to have
+    /// gone badly for it.
+    ///
+    /// Nil when the check did not apply, which is the ordinary case: it only runs
+    /// where the two sides were rated at materially different rates, because that
+    /// is when the comparison is between differently-selected groups rather than
+    /// merely different conditions. Someone who stops rating sessions that go
+    /// badly produces exactly that, and the effect is a real distortion of the
+    /// number rather than something a caveat repairs.
+    var survivesMissingness: Bool?
+
     /// How much of the reported window this evidence actually spans, in days.
     /// The old engine printed "past 6 weeks" on eighteen days of data.
     let windowDays: Int
@@ -145,6 +156,8 @@ struct Finding {
             && comparison.focusDays >= hypothesis.minimumDays
             && comparison.baselineDays >= hypothesis.minimumDays
             && (survivesCorrection ?? false)
+            // Nil passes: the check did not apply because coverage was even.
+            && (survivesMissingness ?? true)
     }
 }
 

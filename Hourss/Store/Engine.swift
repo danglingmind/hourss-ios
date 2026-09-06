@@ -61,6 +61,7 @@ enum Engine {
             )
 
             let days = focus.days.union(baseline.days)
+            let uneven = abs(focus.coverage - baseline.coverage) > 0.15
             return Finding(
                 hypothesis: hypothesis,
                 comparison: comparison,
@@ -69,6 +70,10 @@ enum Engine {
                 focusCoverage: focus.coverage,
                 baselineCoverage: baseline.coverage,
                 survivesCorrection: nil,
+                survivesMissingness: uneven
+                    ? survivesMissingness(focus: focus, baseline: baseline,
+                                          delta: comparison.delta, resamples: resamples)
+                    : nil,
                 windowDays: min(input.windowDays, span(of: days))
             )
         }
@@ -76,6 +81,10 @@ enum Engine {
 
     private struct Side {
         var rated: [Statistics.Observation] = []
+        /// Days of matching sessions that carried no rating. Kept so the
+        /// sensitivity check has somewhere to put them; the values themselves are
+        /// unknown and are never invented for the estimate itself.
+        var unratedDays: [Date] = []
         var sessionIds: [UUID] = []
         var days: Set<Date> = []
         var matched = 0
@@ -91,12 +100,73 @@ enum Engine {
         var side = Side()
         for observation in observations where predicate(observation) {
             side.matched += 1
-            guard let value = observation.value(of: hypothesis.outcome) else { continue }
+            guard let value = observation.value(of: hypothesis.outcome) else {
+                side.unratedDays.append(observation.day)
+                continue
+            }
             side.rated.append(.init(day: observation.day, value: value))
             side.sessionIds.append(observation.sessionId)
             side.days.insert(observation.day)
         }
         return side
+    }
+
+    /// Would this claim survive if the sessions nobody rated had gone against it?
+    ///
+    /// Ratings are missing for reasons, and one of those reasons is that the
+    /// session went badly. Someone who stops logging a feeling when a block of
+    /// admin has drained them leaves the observed ratings biased upward exactly
+    /// where the effect lives, so the measured gap understates the real one. No
+    /// amount of data fixes this, because the bias is in which data exists.
+    ///
+    /// Nothing here identifies the true effect — with informative missingness
+    /// that cannot be done without assumptions no dataset can check. What it does
+    /// is bound the question: if every session that went unrated had been as bad
+    /// for this claim as the worst that *was* rated on its own side, does the
+    /// claim still hold?
+    ///
+    /// Filling from the person's own observed extreme rather than the end of the
+    /// scale is deliberate. The scale's extreme is a number nobody recorded; the
+    /// observed extreme is something they actually reported feeling, which makes
+    /// the stress test both defensible and a sentence somebody could follow.
+    ///
+    /// The extreme is taken across both sides together, not from the side being
+    /// filled. A side whose ratings are missing selectively has already had its
+    /// own distribution trimmed by that selection — if someone rates a block only
+    /// when it went well, the lowest score they recorded for it is still a good
+    /// one, and filling from it asks whether the claim survives the assumption
+    /// that nothing was wrong. That is the assumption under test, so it cannot
+    /// also be the premise.
+    private static func survivesMissingness(
+        focus: Side,
+        baseline: Side,
+        delta: Double,
+        resamples: Int
+    ) -> Bool {
+        guard !focus.rated.isEmpty, !baseline.rated.isEmpty else { return false }
+        guard !focus.unratedDays.isEmpty || !baseline.unratedDays.isEmpty else { return true }
+
+        let pooled = focus.rated.map(\.value) + baseline.rated.map(\.value)
+        guard let lowest = pooled.min(), let highest = pooled.max() else { return false }
+
+        // Push each side toward the other. A claim that the focus sits above the
+        // baseline is weakened by the focus being lower and the baseline higher.
+        let focusFill = delta > 0 ? lowest : highest
+        let baselineFill = delta > 0 ? highest : lowest
+
+        let stressedFocus = focus.rated
+            + focus.unratedDays.map { Statistics.Observation(day: $0, value: focusFill) }
+        let stressedBaseline = baseline.rated
+            + baseline.unratedDays.map { Statistics.Observation(day: $0, value: baselineFill) }
+
+        // A full interval rather than a point estimate: the question is whether
+        // the claim still clears zero under the assumption, and a point estimate
+        // cannot answer that. Affordable because this runs only where coverage is
+        // uneven, which is a minority of hypotheses.
+        let stressed = Statistics.compare(focus: stressedFocus,
+                                          baseline: stressedBaseline,
+                                          resamples: resamples)
+        return stressed.isReportable && (stressed.delta > 0) == (delta > 0)
     }
 
     /// Calendar days from the first piece of evidence to the last, inclusive.
@@ -187,35 +257,60 @@ enum Engine {
     /// of 50. No choice of weights below them can make "the data is consistent
     /// with no difference" or "the smallest effect this data supports is one
     /// nobody would notice" render as a band.
+    /// Confidence, derived from the interval and nothing else.
+    ///
+    /// Not a probability, and never described as one. It is a presentation device
+    /// over two properties of the estimate: how far the interval sits from zero,
+    /// and how tightly it is pinned down. Session count reaches it only by
+    /// narrowing the interval, which is the point — the formula this replaced
+    /// added up to thirty points for volume alone, and so scored a real effect and
+    /// pure noise identically.
     static func confidence(_ comparison: Statistics.Comparison) -> Int {
-        // The data is consistent with no difference at all.
-        guard !comparison.spansZero else { return 40 }
+        // Straddling zero, the near edge is zero by definition, and the
+        // arithmetic below would say so. Stated as its own branch because it is a
+        // categorically different answer: not a weak claim, but no claim.
+        guard !comparison.spansZero else { return floor }
 
-        // Near edge of the interval. `spansZero` is already false, so both bounds
-        // sit on the same side of zero and the smaller magnitude is the near one:
-        // the smallest effect the data is still consistent with.
+        // The smallest effect the data is still consistent with. `spansZero` is
+        // false, so both bounds are on the same side and the smaller magnitude is
+        // the near one.
         let edge = min(abs(comparison.low), abs(comparison.high))
 
-        // The interval clears zero but reaches into the negligible band, so the
-        // smallest effect still consistent with this data is one nobody would
-        // notice. `Comparison.isReportable` asks the same question of the point
-        // estimate; asking it of the interval instead is the entire argument for
-        // carrying an interval, and it is what separates a real effect from a
-        // difference that merely happens to sit on one side of zero.
-        guard Statistics.Magnitude.of(edge) != .negligible else { return 45 }
-
-        // 0.474 is Cliff's threshold for a large effect: an interval whose *near*
-        // edge is already large has nothing left to earn.
+        // Separation is a ramp, not a step.
+        //
+        // This used to refuse outright when the near edge fell inside Cliff's
+        // negligible band, which put a hard cliff at 0.147: a claim one
+        // thousandth above it scored nine points higher than one below, and a real
+        // observation in the test cohort sat on exactly that boundary, passing by
+        // zero margin. A resampling change would have flipped it between hidden
+        // and mid-strength. A ramp keeps the same judgement — an interval reaching
+        // into the negligible band is worth little — while making the penalty
+        // proportionate to how far in it reaches, so nothing balances on a knife
+        // edge and a marginal call reads as marginal.
+        //
+        // 0.474 is Cliff's threshold for a large effect: a near edge already there
+        // has nothing left to earn.
         let separation = min(1, edge / 0.474)
+
         // A quarter of the −1…1 range is about as wide as an interval can be while
-        // still saying anything; anything wider scores zero here rather than
-        // negative. Note the ordering: precision is read only after both guards
-        // have passed, because the tightest interval `Statistics` can return is a
-        // zero-width one at zero — perfect precision about nothing at all.
+        // still saying anything.
         let precision = 1 - min(1, comparison.width / 0.5)
 
-        return 50 + Int(((0.65 * separation + 0.35 * precision) * 45).rounded())
+        // Multiplicative, so precision modifies separation rather than
+        // substituting for it. Added, the tightest interval `Statistics` can
+        // return — zero width at zero — would score well for perfect precision
+        // about nothing at all.
+        let quality = separation * (0.72 + 0.28 * precision)
+
+        // Calibrated so a near edge at the negligible boundary lands at the
+        // visible threshold: below it a claim is not shown, above it it is shown
+        // as weak, and the transition costs a point rather than nine.
+        return min(96, floor + Int((quality * 88).rounded()))
     }
+
+    /// What a refusal scores. Below `Confidence.band`'s visible threshold by
+    /// enough that no arithmetic above can drift back over it.
+    private static let floor = 28
 
     // MARK: - Phrasing
 
