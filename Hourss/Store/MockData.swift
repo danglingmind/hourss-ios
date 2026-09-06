@@ -49,6 +49,10 @@ enum MockData {
             case .sleepHours: (isWeekend ? 8.0 : 7.0) + jitter * 0.6
             case .hrv: (isWeekend ? 58 : 48) + jitter * 6
             case .restingHeartRate: (isWeekend ? 55 : 60) + jitter * 3
+            // Only for exhaustiveness. `HealthService` never asks for a daily
+            // heart rate; the simulator's per-sample stand-in is
+            // `Physiology.seededFeed`.
+            case .heartRate: (isWeekend ? 68 : 72) + jitter * 4
             case .respiratoryRate: 14.5 + jitter * 0.8
             case .workoutMinutes: isWeekend ? max(0, 45 + jitter * 15) : (Int.random(in: 0...2, using: &rng) == 0 ? 30 + jitter * 10 : 0)
             case .steps: (isWeekend ? 9000 : 6500) + jitter * 1200

@@ -89,15 +89,44 @@ enum Statistics {
 
     /// Cliff's delta: the probability a focus rating exceeds a baseline rating,
     /// minus the probability it falls short. Ties count for neither.
+    ///
+    /// Sorting the baseline once and binary-searching each focus rating into it
+    /// costs O((n + m) log m), where comparing every pair costs O(n·m). At three
+    /// hundred ratings a side that is the difference between a phone spending a
+    /// moment on the registry and spending a minute on it.
     static func cliffsDelta(focus: [Double], baseline: [Double]) -> Double {
         guard !focus.isEmpty, !baseline.isEmpty else { return 0 }
+        let sorted = baseline.sorted()
         var above = 0, below = 0
         for f in focus {
-            for b in baseline {
-                if f > b { above += 1 } else if f < b { below += 1 }
-            }
+            let lower = lowerBound(sorted, f)
+            above += lower
+            below += sorted.count - upperBound(sorted, f, from: lower)
         }
         return Double(above - below) / Double(focus.count * baseline.count)
+    }
+
+    /// First position at or after which every value is ≥ `target`; equivalently,
+    /// how many values sit strictly below it.
+    private static func lowerBound(_ sorted: [Double], _ target: Double) -> Int {
+        var low = 0, high = sorted.count
+        while low < high {
+            let mid = (low + high) / 2
+            if sorted[mid] < target { low = mid + 1 } else { high = mid }
+        }
+        return low
+    }
+
+    /// First position holding a value strictly greater than `target`. The gap
+    /// between this and the lower bound is the run of ties, which Cliff's delta
+    /// credits to neither side.
+    private static func upperBound(_ sorted: [Double], _ target: Double, from start: Int) -> Int {
+        var low = start, high = sorted.count
+        while low < high {
+            let mid = (low + high) / 2
+            if sorted[mid] <= target { low = mid + 1 } else { high = mid }
+        }
+        return low
     }
 
     /// Deterministic generator. A confidence interval that moves between runs is
@@ -139,7 +168,10 @@ enum Statistics {
             byDay[calendar.startOfDay(for: o.day), default: ([], [])].baseline.append(o.value)
         }
 
-        let days = Array(byDay.keys)
+        // Sorted rather than merely listed: dictionary order is not stable between
+        // launches, so drawing days in key order would hand the same history a
+        // different interval each time the app started.
+        let days = byDay.keys.sorted()
         let focusDays = byDay.values.filter { !$0.focus.isEmpty }.count
         let baselineDays = byDay.values.filter { !$0.baseline.isEmpty }.count
 
@@ -156,23 +188,96 @@ enum Statistics {
             return result(low: -1, high: 1)
         }
 
+        // The one sort the bootstrap needs, lifted clear of the loop. Every
+        // resampled baseline is drawn from these same values, so the order of the
+        // scale — and each focus rating's place on it — is settled once here
+        // rather than two thousand times below.
+        let scale = Array(Set(baselineValues)).sorted()
+        let dayCount = days.count
+
+        // Days flattened into one array per kind, each day owning a range. A day's
+        // ratings are visited four thousand times per comparison, and every visit
+        // to an array nested inside another is a retain and a release.
+        var baselineRank: [Int] = []    // where each baseline rating sits on the scale
+        var focusLow: [Int] = []        // scale positions strictly below a focus rating
+        var focusHigh: [Int] = []       // positions at or below it; the gap is the ties
+        var baselineStart: [Int] = [0]
+        var focusStart: [Int] = [0]
+        for day in days {
+            let bucket = byDay[day] ?? ([], [])
+            for value in bucket.baseline { baselineRank.append(lowerBound(scale, value)) }
+            for value in bucket.focus {
+                let low = lowerBound(scale, value)
+                focusLow.append(low)
+                focusHigh.append(upperBound(scale, value, from: low))
+            }
+            baselineStart.append(baselineRank.count)
+            focusStart.append(focusLow.count)
+        }
+
         var rng = Seeded(seed: seed)
         var deltas: [Double] = []
         deltas.reserveCapacity(resamples)
 
+        // Reused across resamples rather than reallocated. `fewerThan[j]` ends each
+        // pass holding how many drawn baseline ratings fall below scale position
+        // *j*; `times[d]` is how often day *d* came up in the draw.
+        var fewerThan = [Int](repeating: 0, count: scale.count + 1)
+        var times = [Int](repeating: 0, count: dayCount)
+
+        // The inner loops are written as `while` rather than `for i in a..<b`
+        // deliberately. A debug build does not optimise range iteration away, and
+        // this loop body runs tens of millions of times across a full registry.
         for _ in 0..<resamples {
-            var f: [Double] = [], b: [Double] = []
-            for _ in 0..<days.count {
-                let drawn = days[Int.random(in: 0..<days.count, using: &rng)]
-                if let bucket = byDay[drawn] {
-                    f.append(contentsOf: bucket.focus)
-                    b.append(contentsOf: bucket.baseline)
-                }
+            var i = 0
+            while i <= scale.count { fewerThan[i] = 0; i += 1 }
+            var d = 0
+            while d < dayCount { times[d] = 0; d += 1 }
+            d = 0
+            while d < dayCount {
+                // Multiply-and-take-the-high-word draws a day in one multiply.
+                // Its bias is on the order of one part in 2^64, which no bootstrap
+                // of two thousand resamples could notice.
+                times[Int(rng.next().multipliedFullWidth(by: UInt64(dayCount)).high)] += 1
+                d += 1
             }
+
+            d = 0
+            while d < dayCount {
+                let drawn = times[d]
+                if drawn > 0 {
+                    var i = baselineStart[d]
+                    let end = baselineStart[d + 1]
+                    while i < end { fewerThan[baselineRank[i] + 1] += drawn; i += 1 }
+                }
+                d += 1
+            }
+            var j = 1
+            while j <= scale.count { fewerThan[j] += fewerThan[j - 1]; j += 1 }
+            let baselineDrawn = fewerThan[scale.count]
+
             // A resample that empties one side carries no information about the
             // difference; dropping it is standard and does not bias the interval.
-            guard !f.isEmpty, !b.isEmpty else { continue }
-            deltas.append(cliffsDelta(focus: f, baseline: b))
+            guard baselineDrawn > 0 else { continue }
+
+            var exceeded = 0, fellShort = 0, focusDrawn = 0
+            d = 0
+            while d < dayCount {
+                let drawn = times[d]
+                if drawn > 0 {
+                    var i = focusStart[d]
+                    let end = focusStart[d + 1]
+                    while i < end {
+                        exceeded += drawn * fewerThan[focusLow[i]]
+                        fellShort += drawn * (baselineDrawn - fewerThan[focusHigh[i]])
+                        i += 1
+                    }
+                    focusDrawn += drawn * (end - focusStart[d])
+                }
+                d += 1
+            }
+            guard focusDrawn > 0 else { continue }
+            deltas.append(Double(exceeded - fellShort) / Double(focusDrawn * baselineDrawn))
         }
 
         guard deltas.count >= resamples / 4 else { return result(low: -1, high: 1) }

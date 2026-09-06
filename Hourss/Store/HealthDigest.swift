@@ -235,6 +235,9 @@ extension HealthMetric {
         case .sleepHours: "sleep"
         case .hrv: "heart rate variability"
         case .restingHeartRate: "resting heart rate"
+        // Never reached: heart rate is not a daily context metric and so never
+        // reaches a digest. Present because the switch is exhaustive.
+        case .heartRate: "heart rate"
         case .respiratoryRate: "breathing rate"
         case .workoutMinutes: "workout time"
         case .steps: "step count"
@@ -265,7 +268,7 @@ extension HealthMetric {
             "shorter"
         case .steps:
             "fewer"
-        case .hrv, .restingHeartRate, .respiratoryRate, .activeEnergy:
+        case .hrv, .restingHeartRate, .respiratoryRate, .activeEnergy, .heartRate:
             "lower"
         }
     }

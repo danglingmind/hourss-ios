@@ -61,7 +61,7 @@ final class HealthAndMarksTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Read only. Nothing is ever written back."].exists,
                       "The screen must state the read-only scope")
         // Scope must be visible before the OS dialog, not just a group name.
-        XCTAssertTrue(app.staticTexts["Heart rate variability · Resting heart rate · Respiratory rate"].exists,
+        XCTAssertTrue(app.staticTexts["Heart rate variability · Resting heart rate · Respiratory rate · Heart rate"].exists,
                       "The recovery group does not name what it reads")
         attach("29-onboarding-health")
     }

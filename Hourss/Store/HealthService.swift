@@ -33,6 +33,14 @@ final class HealthService {
     /// can use.
     private(set) var dailyValues: [HealthMetric: [Date: Double]] = [:]
 
+    /// Samples at their real timestamps, for layer 3.
+    ///
+    /// Deliberately separate from `dailyValues`, which is not a smaller version of
+    /// this — it is a different measurement. `intervalComponents: DateComponents(day: 1)`
+    /// collapses a day of heart rate to one number, and that collapse is our choice
+    /// rather than an API limit. Per-session physiology needs the timestamps back.
+    private(set) var physiology = Physiology.Feed()
+
     /// Whether anything read here came from HealthKit rather than being seeded.
     ///
     /// This is the only honest signal available about consent. iOS never reports a
@@ -90,6 +98,7 @@ final class HealthService {
         isConnected = false
         lastSyncedAt = nil
         dailyValues = [:]
+        physiology = Physiology.Feed()
         hasRealData = false
     }
 
@@ -131,11 +140,23 @@ final class HealthService {
         hasRealData = anythingReal
         #endif
 
+        let feed = await readPhysiology()
+        #if targetEnvironment(simulator)
+        physiology = feed.isEmpty ? Physiology.seededFeed(days: Self.physiologyDays) : feed
+        #else
+        physiology = feed
+        if !feed.isEmpty { hasRealData = true }
+        #endif
+
         lastSyncedAt = Date()
     }
 
     private func read(_ metric: HealthMetric) async -> [Date: Double] {
         guard isAvailable else { return [:] }
+        // Heart rate is authorized for and then never read daily: its daily mean
+        // measures how much somebody walked and how often the watch sampled. It
+        // arrives through `readPhysiology()` instead, with its timestamps intact.
+        guard metric.isDailyContext else { return [:] }
         switch metric {
         case .sleepHours: return await readSleep()
         case .workoutMinutes: return await readWorkouts()
@@ -223,5 +244,112 @@ final class HealthService {
             byDay[day, default: 0] += workout.duration / 60
         }
         return byDay
+    }
+
+    // MARK: - Sample-level reading
+
+    /// How far back layer 3 looks.
+    ///
+    /// Shorter than `historyDays` on purpose. The digest wants a year because it is
+    /// hunting for a weekday rhythm; the residual only ever compares a session
+    /// against the recent six weeks, and a year of heart rate at one sample every
+    /// few minutes is a hundred thousand values to hold in memory for nothing.
+    static let physiologyDays = 60
+
+    /// Heart rate and steps with their timestamps, plus workouts as lead-in
+    /// exclusions. The existing daily path is untouched — other code depends on it,
+    /// and this answers a different question.
+    func readPhysiology() async -> Physiology.Feed {
+        guard isConnected, isAvailable, selectedGroups.contains(.recovery) else {
+            return Physiology.Feed()
+        }
+        let end = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -Self.physiologyDays, to: end) ?? end
+
+        async let beats = heartRateSamples(from: start, to: end)
+        async let paces = stepSamples(from: start, to: end)
+        async let exercise = vigorousWindows(from: start, to: end)
+        return await Physiology.Feed(heartRate: beats, steps: paces, vigorous: exercise)
+    }
+
+    /// Heart rate as individual samples.
+    ///
+    /// `HKSampleQuery` rather than a statistics collection: heart rate is a
+    /// discrete type whose value is the reading, and bucketing it to a fixed grid
+    /// would average away the irregular sampling that is the whole reason it can be
+    /// attributed to a session at all.
+    private func heartRateSamples(from start: Date, to end: Date) async -> [Physiology.Sample] {
+        guard let type = HealthMetric.heartRate.quantityType,
+              let unit = HealthMetric.heartRate.unit else { return [] }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end)
+        let sortByTime = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+
+        let samples: [HKQuantitySample] = await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: type,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortByTime
+            ) { _, results, _ in
+                continuation.resume(returning: results as? [HKQuantitySample] ?? [])
+            }
+            store.execute(query)
+        }
+        return samples.map { Physiology.Sample(at: $0.startDate, value: $0.quantity.doubleValue(for: unit)) }
+    }
+
+    /// Steps in five-minute buckets.
+    ///
+    /// A statistics collection here, and for the opposite reason to heart rate:
+    /// summing raw step samples double-counts, because the iPhone and the Watch
+    /// both record the same walk and HealthKit stores both. `HKStatisticsCollectionQuery`
+    /// applies Apple's own source-merging, so the totals are the ones Health itself
+    /// shows. Five minutes is fine enough that a cadence over a forty-minute window
+    /// is a pace rather than a smear, and coarse enough to stay cheap.
+    private func stepSamples(from start: Date, to end: Date) async -> [Physiology.Sample] {
+        guard let type = HealthMetric.steps.quantityType else { return [] }
+        let anchor = Calendar.current.startOfDay(for: start)
+
+        let collection: HKStatisticsCollection? = await withCheckedContinuation { continuation in
+            let query = HKStatisticsCollectionQuery(
+                quantityType: type,
+                quantitySamplePredicate: HKQuery.predicateForSamples(withStart: start, end: end),
+                options: .cumulativeSum,
+                anchorDate: anchor,
+                intervalComponents: DateComponents(minute: 5)
+            )
+            query.initialResultsHandler = { _, results, _ in continuation.resume(returning: results) }
+            store.execute(query)
+        }
+
+        guard let collection else { return [] }
+        var out: [Physiology.Sample] = []
+        collection.enumerateStatistics(from: start, to: end) { statistics, _ in
+            guard let sum = statistics.sumQuantity() else { return }
+            out.append(Physiology.Sample(at: statistics.startDate, value: sum.doubleValue(for: .count())))
+        }
+        return out
+    }
+
+    /// Workouts, as windows a session's baseline must not sit downstream of.
+    ///
+    /// Every workout counts, not only the hard ones: HealthKit reports no intensity
+    /// worth trusting across activity types, and heart rate stays elevated after an
+    /// easy hour as well as a fast one. Under ten minutes is dropped as a mis-start.
+    private func vigorousWindows(from start: Date, to end: Date) async -> [DateInterval] {
+        let workouts: [HKWorkout] = await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: .workoutType(),
+                predicate: HKQuery.predicateForSamples(withStart: start, end: end),
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, results, _ in
+                continuation.resume(returning: results as? [HKWorkout] ?? [])
+            }
+            store.execute(query)
+        }
+        return workouts
+            .filter { $0.duration >= 600 }
+            .map { DateInterval(start: $0.startDate, end: $0.endDate) }
     }
 }
