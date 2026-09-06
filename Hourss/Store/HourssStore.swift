@@ -78,11 +78,13 @@ final class HourssStore {
         sessions(on: day).filter { feeling(for: $0.id) == nil }
     }
 
+    /// Activities the person has kept. Nothing sets `isFavorite` today: the
+    /// onboarding step that curated the list folded into the final beat, where
+    /// picking one starts a session instead. The distinction stays because
+    /// `pickableActivities` depends on it and a curation surface belongs in You.
     var favoriteActivities: [Activity] {
         activities.filter { $0.isFavorite && !$0.isArchived }.sorted { $0.sortOrder < $1.sortOrder }
     }
-
-    var favoriteCount: Int { favoriteActivities.count }
 
     /// What every activity picker renders.
     ///
@@ -172,10 +174,6 @@ final class HourssStore {
         reflections[id] = nil
     }
 
-    func toggleFavorite(_ id: UUID) {
-        guard let index = activities.firstIndex(where: { $0.id == id }) else { return }
-        activities[index].isFavorite.toggle()
-    }
 
     // MARK: - Insights
 
