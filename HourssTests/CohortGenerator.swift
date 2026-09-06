@@ -25,7 +25,31 @@ extension SyntheticCohort {
         /// When true, draining sessions are *less* likely to be rated — the
         /// informative-missingness case the BRD flags and the engine ignores.
         var skipsLowRatings: Bool = false
+        /// Walking the person does as a matter of habit rather than as part of any
+        /// one activity. Nil for everybody who does not have one, which keeps the
+        /// random stream — and so every existing person — byte-identical.
+        var walkingHabit: WalkingHabit? = nil
         var truth: Truth
+    }
+
+    /// A person who walks through a good part of their day.
+    ///
+    /// Modelled per *session* rather than per fifteen-minute window on purpose.
+    /// The curve bins a window by its average cadence, so a scatter of
+    /// half-walked sessions teaches it about strolling and nothing about walking.
+    /// Whole sessions at a pace are what put non-meeting windows in the same
+    /// cadence bin the meetings land in, which is the only way the lift fitted
+    /// there can be said to have been learned from anything else.
+    struct WalkingHabit {
+        /// Steps a minute while walking.
+        var cadence: ClosedRange<Int> = 85...110
+        /// Share of sessions walked through, and of idle stretches too.
+        var share: Double = 0.5
+        /// What that pace costs them, in beats a minute. One relationship,
+        /// applied everywhere the walking happens.
+        var bpm: Double = 11
+        /// Activities they always walk through, whatever `share` says.
+        var alwaysDuring: [String] = []
     }
 
     static func make(_ recipe: Recipe) -> Person {
@@ -127,7 +151,7 @@ extension SyntheticCohort {
             session.durationBucket == bucket ? delta : 0
         case let .sleepAssociation(delta):
             (sleepLastNight - sleepMean) * delta
-        case .heartRate:
+        case .heartRate, .movementHabit, .unexplainedRise:
             0   // physiological, not a rating effect
         }
     }

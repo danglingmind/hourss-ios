@@ -121,6 +121,116 @@ struct PhysiologyTests {
             "the residual is the only thing that separates them; \(stillResidual) vs \(walkingResidual)"))
     }
 
+    // MARK: - Learning the movement cost from somewhere other than the meetings
+
+    /// The fixture is what it claims before anything is concluded from it.
+    ///
+    /// `walkingMeetings` walks only in meetings; these two walk through half of
+    /// everything. If that were not true of the generated data, the out-of-sample
+    /// claim below would be a sentence rather than a fact.
+    @Test("The habitual walkers really do walk outside their meetings")
+    func walkersWalkOutsideMeetings() throws {
+        for person in [SyntheticCohort.walksEverywhere, SyntheticCohort.walksAndStrains] {
+            let steps = person.samples[.steps] ?? []
+            let brisk = otherSessions(person, than: "Meetings")
+                .map { SyntheticCohort.cadence(during: $0, steps: steps) }
+                .filter { $0 > 60 }
+            #expect(brisk.count >= 40, Comment(rawValue:
+                "\(person.name) has only \(brisk.count) brisk non-meeting sessions to learn walking from"))
+        }
+
+        // And the person the original result was measured on does not, which is
+        // exactly the gap these two exist to close.
+        let circular = SyntheticCohort.walkingMeetings
+        let steps = circular.samples[.steps] ?? []
+        let brisk = otherSessions(circular, than: "Meetings")
+            .map { SyntheticCohort.cadence(during: $0, steps: steps) }
+            .filter { $0 > 60 }
+        #expect(brisk.count < 10, Comment(rawValue:
+            "walkingMeetings is meant to walk only in meetings; found \(brisk.count) brisk sessions elsewhere"))
+    }
+
+    @Test("Walking learned from elsewhere still explains the meeting rise")
+    func walksEverywhereShowsNoResidual() throws {
+        let person = SyntheticCohort.walksEverywhere
+        let measured = residuals(person, named: "Meetings")
+        print("PHYS walksEverywhere: residual=\(measured.median) cadence=\(measured.medianCadence) n=\(measured.count)")
+
+        try #require(measured.count >= 5, "not enough scorable meeting windows to judge")
+        #expect(measured.medianCadence > 60, Comment(rawValue:
+            "this person is meant to be walking through meetings; cadence was \(measured.medianCadence)"))
+        #expect(abs(measured.median) < 4, Comment(rawValue:
+            "the walking cost is fitted mostly from non-meeting windows, so nothing should be left over; got \(measured.median)"))
+    }
+
+    @Test("A rise movement only partly explains is recovered, not swallowed")
+    func walksAndStrainsShowsThePartMovementDoesNotExplain() throws {
+        let person = SyntheticCohort.walksAndStrains
+        let measured = residuals(person, named: "Meetings")
+        print("PHYS walksAndStrains: residual=\(measured.median) cadence=\(measured.medianCadence) n=\(measured.count)")
+
+        try #require(measured.count >= 5, "not enough scorable meeting windows to judge")
+        #expect(measured.medianCadence > 60, Comment(rawValue:
+            "this person walks through meetings too; cadence was \(measured.medianCadence)"))
+        // Planted at 9 bpm on top of an 11 bpm walking cost. A binary movement
+        // gate scores this person zero by discarding him; the decomposition has
+        // to return the 9 and not the 20.
+        #expect(measured.median > 4, Comment(rawValue:
+            "the 9 bpm movement cannot explain must survive the adjustment; got \(measured.median)"))
+        #expect(measured.median < 15, Comment(rawValue:
+            "only the unexplained part belongs in the residual, not the walking as well; got \(measured.median)"))
+    }
+
+    /// The strongest form of the question: hold the meetings out of the fit.
+    ///
+    /// The residuals above are already dominated by non-meeting windows, but the
+    /// meetings are still in the bin. Refitting with them removed leaves no way at
+    /// all for the meeting effect to reach the curve, so what comes back is a
+    /// prediction in the ordinary sense — and the same procedure run on
+    /// `walkingMeetings` shows what the original setup could and could not support.
+    @Test("Held out of its own fit, the walking cost still lands")
+    func meetingsScoredAgainstACurveTheyDidNotTrain() throws {
+        func heldOut(_ person: SyntheticCohort.Person) -> (median: Double, count: Int) {
+            let others = otherSessions(person, than: "Meetings").compactMap(Physiology.Window.init(session:))
+            let engine = Physiology.Analyzer(feed: feed(person), fittingWindows: others)
+            let readings = sessions(person, named: "Meetings").compactMap { engine.reading(for: $0) }
+            return (Physiology.median(readings.map(\.residual)) ?? .nan, readings.count)
+        }
+
+        let clean = heldOut(SyntheticCohort.walksEverywhere)
+        let strained = heldOut(SyntheticCohort.walksAndStrains)
+        let circular = heldOut(SyntheticCohort.walkingMeetings)
+        print("PHYS held out: clean=\(clean) strained=\(strained) walkingMeetings=\(circular)")
+
+        try #require(clean.count >= 5, "no scorable meeting windows once the meetings left the fit")
+        try #require(strained.count >= 5, "no scorable meeting windows once the meetings left the fit")
+        #expect(abs(clean.median) < 4, Comment(rawValue:
+            "walking learned entirely elsewhere should still account for the rise; got \(clean.median)"))
+        #expect(strained.median > 4, Comment(rawValue:
+            "the part movement does not explain should survive a held-out fit; got \(strained.median)"))
+
+        // `walkingMeetings` walks nowhere else, so a curve fitted without their
+        // meetings has never seen that pace and refuses rather than guessing. The
+        // original near-zero number was therefore only ever available *because*
+        // the meetings were in their own fit — which is what made it worth
+        // checking against somebody who walks elsewhere.
+        #expect(circular.count == 0, Comment(rawValue:
+            "a curve with no brisk windows in it should refuse a brisk meeting, not score \(circular.count) of them"))
+    }
+
+    @Test("Two people who walk identically are separated by the residual alone")
+    func cadenceAloneCannotSeparateTheWalkers() {
+        let clean = residuals(SyntheticCohort.walksEverywhere, named: "Meetings")
+        let strained = residuals(SyntheticCohort.walksAndStrains, named: "Meetings")
+        print("PHYS walker split: clean=\(clean.median)@\(clean.medianCadence) strained=\(strained.median)@\(strained.medianCadence)")
+
+        // Same habit, same pace: movement has nothing to say about which is which.
+        #expect(abs(clean.medianCadence - strained.medianCadence) < 20, Comment(rawValue:
+            "the two walkers should move alike; \(clean.medianCadence) vs \(strained.medianCadence)"))
+        #expect(strained.median - clean.median > 4, Comment(rawValue:
+            "only the residual separates them; \(strained.median) vs \(clean.median)"))
+    }
+
     // MARK: - Refusals
 
     @Test("A session in the shadow of exercise returns nil rather than a correction")

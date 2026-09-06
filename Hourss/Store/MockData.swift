@@ -183,6 +183,6 @@ enum MockData {
 
         store.sessions = sessions.sorted { $0.startAt < $1.startAt }
         store.reflections = reflections
-        store.insights = InsightBuilder.build(sessions: store.sessions, reflections: reflections, activities: store.activities)
+        store.rebuildInsights()
     }
 }

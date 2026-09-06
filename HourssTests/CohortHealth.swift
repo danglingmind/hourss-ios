@@ -45,6 +45,33 @@ extension SyntheticCohort {
                 return nil
             }
 
+        // The part of an activity's rise that movement does not buy, for people
+        // who walk through everything and whose meetings still cost them
+        // something extra on top. Kept apart from `.heartRate` because for those
+        // people "the rise" and "the rise movement cannot explain" are different
+        // numbers, and only the second is what the residual claims to recover.
+        let unexplained: [(activity: String, bpm: Double)] =
+            recipe.truth.planted.compactMap {
+                if case let .unexplainedRise(activity, bpm) = $0 { return (activity, bpm) }
+                return nil
+            }
+
+        // Which sessions a habitual walker walks through, drawn once per session
+        // rather than per window. See `WalkingHabit` for why the decision has to
+        // be at session granularity to teach the curve anything.
+        let habit = recipe.walkingHabit
+        var walkedSessions: Set<Int> = []
+        if let habit {
+            for (index, window) in occupied.enumerated() {
+                // Drawn unconditionally so the stream depends on the session
+                // count alone, not on which activity happened to come up.
+                let drawn = Double.random(in: 0...1, using: &rng) < habit.share
+                if habit.alwaysDuring.contains(window.activity) || drawn {
+                    walkedSessions.insert(index)
+                }
+            }
+        }
+
         for offset in 0..<recipe.days {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: anchor) else { continue }
             let sleep = sleepByDay[day] ?? 7.2
@@ -71,6 +98,31 @@ extension SyntheticCohort {
                         // Walking through the session: roughly 100 steps a minute.
                         stepsInWindow += Double(samplingMinutes) * Double(Int.random(in: 85...110, using: &rng))
                     }
+                }
+
+                // ── A walking habit: the same pace at the same cost wherever it
+                //    happens, sessions and idle stretches alike. Nothing in here
+                //    knows what a meeting is, and that is the entire point. The
+                //    curve can then learn what walking costs from windows that
+                //    have no meeting in them, which turns the meeting residual
+                //    from a fit to itself into a prediction.
+                if let habit {
+                    let inSession = occupied.firstIndex { $0.range.contains(at) }
+                    // Both drawn every window so the stream does not depend on
+                    // where the sessions happened to fall.
+                    let idleWalk = Double.random(in: 0...1, using: &rng) < habit.share
+                    let pace = Double(Int.random(in: habit.cadence, using: &rng))
+                    if inSession.map(walkedSessions.contains) ?? idleWalk {
+                        stepsInWindow += Double(samplingMinutes) * pace
+                        bpm += habit.bpm
+                    }
+                }
+
+                // A rise on top of whatever movement explains — case C, the one
+                // a binary movement gate would throw away entirely.
+                if let match = occupied.first(where: { $0.range.contains(at) }),
+                   let extra = unexplained.first(where: { $0.activity == match.activity }) {
+                    bpm += extra.bpm
                 }
 
                 // Ambient walking bouts unrelated to anything logged.

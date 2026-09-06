@@ -201,18 +201,63 @@ final class HourssStore {
         return max(0, 12 - Double(rank) * 4)
     }
 
+    /// Health context, kept so a rebuild triggered by anything else does not
+    /// silently drop it.
+    private(set) var healthByDay: [HealthMetric: [Date: Double]] = [:]
+    /// Per-session heart-rate readings from the physiology layer, when available.
+    private(set) var physiologyReadings: [UUID: Physiology.Reading] = [:]
+
     /// Recomputes observations with Health context folded in.
     ///
     /// Insights are derived, not authored, so connecting or disconnecting Health
     /// simply rebuilds them — which is also how a sleep-context observation
     /// disappears again on disconnect, rather than lingering as a stale claim.
     func applyHealthContext(_ healthByDay: [HealthMetric: [Date: Double]]) {
-        insights = InsightBuilder.build(
+        self.healthByDay = healthByDay
+        rebuildInsights()
+    }
+
+    func applyPhysiology(_ readings: [UUID: Physiology.Reading]) {
+        physiologyReadings = readings
+        rebuildInsights()
+    }
+
+    /// Rebuild every observation from the current records.
+    ///
+    /// The status of an insight belongs to the person, not to the computation, so
+    /// saved and hidden survive the rebuild and are carried across by id. That is
+    /// only possible because an insight's identity now derives from the hypothesis
+    /// that produced it rather than from a fresh UUID — the old engine minted new
+    /// ones on every rebuild, so granting Health access quietly emptied whatever
+    /// someone had saved.
+    ///
+    /// A status is only carried forward if the claim is still being made. An
+    /// observation that no longer survives its own evidence should not come back
+    /// wearing a badge from when it did.
+    func rebuildInsights() {
+        let carried = Dictionary(
+            insights.filter { $0.status == .saved || $0.status == .hidden }
+                .map { ($0.id, $0.status) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        let rows = ObservationBuilder.rows(
             sessions: sessions,
             reflections: reflections,
             activities: activities,
-            healthByDay: healthByDay
+            healthByDay: healthByDay,
+            residuals: physiologyReadings,
+            workdays: profile.workdays
         )
+
+        insights = Engine.run(
+            EngineInput(observations: rows, priorities: profile.priorities)
+        ).map { insight in
+            guard let status = carried[insight.id] else { return insight }
+            var restored = insight
+            restored.status = status
+            return restored
+        }
     }
 
     func setStatus(_ status: InsightStatus, for id: UUID) {

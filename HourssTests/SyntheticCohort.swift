@@ -29,6 +29,23 @@ enum SyntheticCohort {
         /// `movement` records whether the person was also walking — the whole
         /// point of the layer-3 residual is telling these two apart.
         case heartRate(activity: String, bpm: Double, movement: Bool)
+        /// The person walks at about `cadence` steps a minute throughout the day —
+        /// inside logged sessions and outside them — and that pace costs them
+        /// `bpm` beats a minute wherever it happens.
+        ///
+        /// This is what makes a meeting residual an out-of-sample number. Without
+        /// it, someone whose only brisk windows are their meetings hands the curve
+        /// one bin containing nothing but meetings, and "what walking costs" and
+        /// "what meetings cost" are then the same estimate wearing two names.
+        case movementHabit(cadence: Double, bpm: Double)
+        /// Heart rate during this activity runs `bpm` above what the person's own
+        /// movement explains — the part of a rise walking does not buy.
+        ///
+        /// Deliberately not the same claim as `.heartRate`. For somebody who walks
+        /// through everything, "the rise" and "the rise movement cannot account
+        /// for" are two different numbers, and the residual only ever means to
+        /// recover the second.
+        case unexplainedRise(activity: String, bpm: Double)
 
         var description: String {
             switch self {
@@ -42,6 +59,10 @@ enum SyntheticCohort {
                 "days after more sleep rated \(fmt(delta)) higher"
             case let .heartRate(activity, bpm, movement):
                 "\(activity) runs \(fmt(bpm)) bpm high, \(movement ? "while walking" : "sitting still")"
+            case let .movementHabit(cadence, bpm):
+                "walks at \(fmt(cadence)) steps a minute all day, worth \(fmt(bpm)) bpm"
+            case let .unexplainedRise(activity, bpm):
+                "\(activity) runs \(fmt(bpm)) bpm above what movement explains"
             }
         }
 

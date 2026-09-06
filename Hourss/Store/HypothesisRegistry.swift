@@ -25,6 +25,78 @@ enum HypothesisRegistry {
     static func hypotheses(for observations: [EngineObservation]) -> [Hypothesis] {
         timeWindows() + activities(in: observations) + durations()
             + [workdayContrast()] + healthAssociations(in: observations)
+            + physiology(in: observations)
+    }
+
+    // MARK: - Physiology
+
+    /// One per activity, over the movement-adjusted heart-rate residual.
+    ///
+    /// The same machinery as every other question — the residual is a column, not
+    /// a special case. What differs is what may be said about it. A residual has
+    /// no good direction: `Outcome.heartRateResidual.higherIsBetter` is nil on
+    /// purpose, because a heart rate running above what movement explains is not a
+    /// verdict on anything. The phrasing below reports the number and the movement
+    /// context and stops there. Anything past that — intensity, stress, strain —
+    /// is a claim about a person's inner state that no wrist sensor can support,
+    /// and making it would change what this product legally is.
+    ///
+    /// These are only registered for activities that actually carry residuals.
+    /// Most sessions have none: the window needs enough heart-rate samples, a
+    /// clean lead-in, and a fitted curve. Registering a question nobody has data
+    /// for would cost every other hypothesis power under the correction for
+    /// nothing.
+    private static func physiology(in observations: [EngineObservation]) -> [Hypothesis] {
+        let scorable = observations.filter { $0.heartRateResidual != nil }
+        guard scorable.count >= 12 else { return [] }
+
+        let names = Set(scorable.map(\.activityName)).sorted()
+        return names.compactMap { name -> Hypothesis? in
+            let mine = scorable.filter { $0.activityName == name }
+            guard mine.count >= 6, scorable.count - mine.count >= 6 else { return nil }
+            return Hypothesis(
+                id: "physiology.\(slug(name)).vs.rest.\(Outcome.heartRateResidual.rawValue)",
+                type: .bodyContext,
+                outcome: .heartRateResidual,
+                focusLabel: name,
+                baselineLabel: "Your other sessions",
+                focus: { $0.activityName == name && $0.heartRateResidual != nil },
+                baseline: { $0.activityName != name && $0.heartRateResidual != nil },
+                phrase: { finding in
+                    let bpm = abs(meanResidual(of: finding.focusSessionIds, in: observations))
+                    let pace = meanCadence(of: finding.focusSessionIds, in: observations)
+                    let higher = finding.comparison.delta > 0
+                    return "During \(name.lowercased()), your heart rate has run about "
+                        + String(format: "%.0f", bpm) + " bpm "
+                        + (higher ? "above" : "below") + " your usual for those hours, "
+                        + movementPhrase(pace) + "."
+                },
+                caveat: "Heart rate moves with more than effort — a warm room, caffeine, or talking will do it.",
+                experiment: nil
+            )
+        }
+    }
+
+    /// How much movement there was, in words. Descriptive only: the sentence has
+    /// to let the reader draw their own conclusion, because the data supports the
+    /// observation and not the explanation.
+    private static func movementPhrase(_ cadence: Double) -> String {
+        switch cadence {
+        case ..<10: "with almost no movement to account for it"
+        case ..<40: "with only light movement"
+        case ..<80: "while moving about"
+        default: "while walking at a fair pace"
+        }
+    }
+
+    private static func meanResidual(of ids: [UUID], in observations: [EngineObservation]) -> Double {
+        let values = observations.filter { ids.contains($0.sessionId) }.compactMap(\.heartRateResidual)
+        return values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
+    }
+
+    private static func meanCadence(of ids: [UUID], in observations: [EngineObservation]) -> Double {
+        let values = observations.filter { ids.contains($0.sessionId) }.compactMap(\.cadence)
+        return values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
     }
 
     // MARK: - Timing
