@@ -209,6 +209,62 @@ struct RecommendationTests {
         }
     }
 
+    // MARK: - The two tiers must not converge
+
+    /// Experiments are free and propose a test. Recommendations are paid and
+    /// state what held up. Nothing enforces that but this.
+    ///
+    /// It is not a hypothetical drift: every recommendation string once opened
+    /// with "Try" and closed with "this week", and one branch returned the
+    /// hypothesis's own experiment text verbatim, so the paid feature emitted the
+    /// free one word for word.
+    @Test("No recommendation is phrased as an experiment")
+    func recommendationsDoNotProposeTests() {
+        let testingLanguage = ["try ", "see whether", "see if", "this week",
+                               "for a week", "experiment", "give it a go", "test "]
+        for person in SyntheticCohort.everyone {
+            let input = EngineInput(observations: rows(for: person),
+                                    priorities: [.energy, .focus, .balance, .sleep])
+            for recommendation in Recommendations.build(for: input) {
+                let text = (recommendation.action + " " + recommendation.claim).lowercased()
+                for phrase in testingLanguage {
+                    #expect(!text.contains(phrase), Comment(rawValue:
+                            "\(person.name): \"\(recommendation.action)\" reads as an experiment (\"\(phrase)\")"))
+                }
+            }
+        }
+    }
+
+    @Test("No recommendation repeats an insight's experiment verbatim")
+    func recommendationsAreNotExperiments() {
+        for person in SyntheticCohort.everyone {
+            let input = EngineInput(observations: rows(for: person),
+                                    priorities: [.energy, .focus, .balance, .sleep])
+            let experiments = Set(Engine.run(input).compactMap(\.experiment))
+            for recommendation in Recommendations.build(for: input) {
+                #expect(!experiments.contains(recommendation.action), Comment(rawValue:
+                        "\(person.name): the paid recommendation is the free experiment, verbatim"))
+            }
+        }
+    }
+
+    /// Experiments keep their own voice. A check the person runs has to read as
+    /// one, or the free tier stops being useful in its own right.
+    @Test("Experiments still propose a test rather than issue an instruction")
+    func experimentsStillReadAsTests() {
+        let instructions = ["you should", "you must", "make sure", "always ", "never "]
+        for person in SyntheticCohort.everyone {
+            let input = EngineInput(observations: rows(for: person))
+            for experiment in Engine.run(input).compactMap(\.experiment) {
+                let text = experiment.lowercased()
+                for phrase in instructions {
+                    #expect(!text.contains(phrase), Comment(rawValue:
+                            "\(person.name): \"\(experiment)\" instructs rather than proposes"))
+                }
+            }
+        }
+    }
+
     // MARK: - Fixtures
 
     /// Day means scattered around a centre, deterministically. A fixed cycle

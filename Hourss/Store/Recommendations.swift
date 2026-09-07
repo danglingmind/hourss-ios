@@ -581,25 +581,40 @@ enum Recommendations {
             $0.hypothesis.id == finding.hypothesis.id ? nil : $0.hypothesis.focusLabel.lowercased()
         }
 
+        // Voice, and the whole difference between the two tiers.
+        //
+        // An experiment proposes a test: "try moving one afternoon block this
+        // week and see whether it still reads the same." A recommendation states
+        // what has already held up and leaves the acting to the person. If one of
+        // these strings ever says "try", it has become an experiment and the free
+        // and paid tiers say the same thing in the same words.
+        //
+        // That is not hypothetical. This function used to open every string with
+        // "Try" and close most of them with "this week", and one branch returned
+        // the hypothesis's own experiment text verbatim — the paid feature
+        // emitting the free one.
+        //
+        // No time box either. "This week" belongs to a test with an end; a
+        // recommendation describes a pattern that held across the whole window.
         switch finding.publishedType {
         case .bestTimeWindow, .drainingTimeWindow, .durationSweetSpot:
-            if let experiment = finding.hypothesis.experiment { return experiment }
+            let when = label.lowercased()
             return finding.publishedType == .drainingTimeWindow
-                ? "Try moving one \(label.lowercased()) block to another hour this week."
-                : "Try putting one block you care about into your \(label.lowercased()) this week."
+                ? "Your \(when) is where blocks have held up least."
+                : "Your \(when) is where blocks have held up best."
 
         case .activityEnergizer:
-            guard let window else { return "Try giving \(label) a block of its own this week." }
-            return "Try giving \(label) one of your \(window) blocks this week."
+            guard let window else { return "\(label) has held up best given a block of its own." }
+            return "\(label) has held up best in your \(window)."
 
         case .activityDrain:
-            guard let window else { return "Try moving one \(label) block elsewhere in the week." }
-            return "Try keeping \(label) out of your \(window) this week."
+            guard let window else { return "\(label) has held up least where it currently sits." }
+            return "\(label) has held up least in your \(window)."
 
         case .workdayContrast:
             return finding.comparison.delta > 0
-                ? "Try borrowing one thing from your days off into a workday this week."
-                : "Try taking one thing that works on a workday into a day off this week."
+                ? "Your days off are where things have held up best."
+                : "Your workdays are where things have held up best."
 
         case .sleepContext, .bodyContext:
             // The claim is about which days go better, so the only thing it
@@ -608,7 +623,7 @@ enum Recommendations {
             // reach and the app is not allowed to give.
             guard let metric = HealthMetric(rawValue: Surprise.pattern(of: finding).subject) else { return nil }
             let better = finding.comparison.delta > 0 ? metric.higherPhrase : metric.lowerPhrase
-            return "Try keeping your bigger blocks for the days \(better)."
+            return "Your bigger blocks have held up best on days \(better)."
 
         // Nothing in the registry produces these, and inventing a suggestion for a
         // claim shape that has never been tested would be a promise about evidence
