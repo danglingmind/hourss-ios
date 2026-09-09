@@ -14,31 +14,57 @@ final class HealthAndMarksTests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launch()
+        // launch() returns when the process is up, which is before the first
+        // frame. Saying so here means a launch that never lands fails as a
+        // launch, rather than as whatever query happens to run next.
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: UITest.timeout),
+                      "The app did not reach the foreground")
     }
 
     private func walkToHealthStep() {
         launch()
-        XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.waitForExistence(timeout: 8))
-        app.descendants(matching: .any)["Start"].firstMatch.tap()
+        app.descendants(matching: .any)["Start"].firstMatch.tapWhenReady()
         // Health is beat two now, immediately after the problem.
-        XCTAssertTrue(app.descendants(matching: .any)["health-sleep"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["health-sleep"].firstMatch.waitForExistence(timeout: UITest.timeout))
+    }
+
+    /// Taps Continue through the beats between `from` and `to`, named by the
+    /// numbers the header prints.
+    ///
+    /// "Continue" is the same element on four consecutive beats, so waiting for
+    /// it to exist again cannot tell a beat that moved from a tap the transition
+    /// swallowed — under load that is the difference between a walk that arrives
+    /// and one that stalls a screen short. The header counts the beats, so wait
+    /// on that instead.
+    private func advance(through beats: ClosedRange<Int>) {
+        for beat in beats {
+            app.descendants(matching: .any)["Continue"].firstMatch.tapWhenReady()
+            XCTAssertTrue(app.staticTexts["\(beat) / 7"].waitForExistence(timeout: UITest.timeout),
+                          "Onboarding did not reach beat \(beat)")
+        }
     }
 
     /// There is no skip on the ask any more — Connect is the only way forward.
     private func finishOnboarding() {
-        app.descendants(matching: .any)["health-connect"].firstMatch.tap()
+        app.descendants(matching: .any)["health-connect"].firstMatch.tapWhenReady()
         // Beat 3 ranks priorities and gates Continue on at least one.
-        let focus = app.descendants(matching: .any)["priority-focus"].firstMatch
-        XCTAssertTrue(focus.waitForExistence(timeout: 10))
-        focus.tap()
-        for _ in 0..<4 {
-            let next = app.descendants(matching: .any)["Continue"].firstMatch
-            XCTAssertTrue(next.waitForExistence(timeout: 10))
-            next.tap()
+        app.descendants(matching: .any)["priority-focus"].firstMatch.tapWhenReady()
+        advance(through: 4...7)
+        app.buttons["Skip for now"].firstMatch.tapWhenReady()
+        XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: UITest.timeout))
+    }
+
+    /// A test that failed because the app was gone is not the same news as a
+    /// test that failed on what it asserted, and in a report the two look
+    /// alike. The unit tests are hosted in this same app, so another run
+    /// sharing this simulator terminates it out from under us — which no
+    /// amount of waiting here can survive, and which should not be mistaken
+    /// for a regression.
+    override func tearDown() {
+        if testRun?.hasSucceeded == false, let app, app.state != .runningForeground {
+            XCTContext.runActivity(named: "The app was not running when this test ended — check whether another run was sharing this simulator") { _ in }
         }
-        XCTAssertTrue(app.buttons["Skip for now"].firstMatch.waitForExistence(timeout: 10))
-        app.buttons["Skip for now"].firstMatch.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: 8))
+        super.tearDown()
     }
 
     private func attach(_ name: String) {
@@ -71,37 +97,29 @@ final class HealthAndMarksTests: XCTestCase {
     /// out the reveal and checks the facts are still there afterwards.
     func testProofMarksSurviveTheirReveal() {
         walkToHealthStep()
-        app.descendants(matching: .any)["health-connect"].firstMatch.tap()
+        app.descendants(matching: .any)["health-connect"].firstMatch.tapWhenReady()
         // Beat 3 ranks priorities and gates Continue on at least one.
-        let focus = app.descendants(matching: .any)["priority-focus"].firstMatch
-        XCTAssertTrue(focus.waitForExistence(timeout: 10))
-        focus.tap()
+        app.descendants(matching: .any)["priority-focus"].firstMatch.tapWhenReady()
         // Priorities → key → mechanism → proof.
-        for _ in 0..<3 {
-            let next = app.descendants(matching: .any)["Continue"].firstMatch
-            XCTAssertTrue(next.waitForExistence(timeout: 10))
-            next.tap()
-        }
-        XCTAssertTrue(app.staticTexts["ALREADY TRUE ABOUT YOU"].waitForExistence(timeout: 5),
+        advance(through: 4...6)
+        XCTAssertTrue(app.staticTexts["ALREADY TRUE ABOUT YOU"].waitForExistence(timeout: UITest.timeout),
                       "Did not land on the proof beat")
 
         // Wait for the read to finish rather than assuming it has.
         let facts = app.descendants(matching: .any).matching(identifier: "proof-fact")
-        let settled = NSPredicate(format: "count > 0")
-        let outcome = XCTWaiter().wait(for: [expectation(for: settled, evaluatedWith: facts)], timeout: 15)
 
-        if outcome == .timedOut {
+        if !facts.waitForFirstMatch() {
             // A data-less run is a legitimate outcome, but it must say so.
             XCTAssertTrue(app.descendants(matching: .any)["proof-empty"].firstMatch.exists,
                           "No facts and no empty state — the proof beat is showing nothing at all")
             return
         }
 
-        // Longer than reveal + stagger for three rows.
-        sleep(2)
-        XCTAssertGreaterThan(facts.count, 0, "The proof facts vanished after the reveal")
-        XCTAssertTrue(facts.element(boundBy: 0).isHittable,
+        // The rows reveal on a stagger. Wait for the first one to come out from
+        // under its mask rather than guessing how long that takes here.
+        XCTAssertTrue(facts.element(boundBy: 0).waitUntilHittable(),
                       "The first fact is not visible once the reveal has finished")
+        XCTAssertGreaterThan(facts.count, 0, "The proof facts vanished after the reveal")
         attach("33-proof-after-reveal")
     }
 
@@ -113,6 +131,9 @@ final class HealthAndMarksTests: XCTestCase {
 
         let connect = app.descendants(matching: .any)["health-connect"].firstMatch
         XCTAssertTrue(connect.exists)
+        // Settling is not the same as being on screen: a button below the fold
+        // settles below the fold, so the assertion keeps all of its force.
+        XCTAssertTrue(connect.waitUntilStill(), "The ask never finished laying itself out")
         XCTAssertTrue(connect.isHittable, "Connect Health is off screen — the ask needs scrolling")
 
         // And every consent row is visible too, since the scope has to be readable
@@ -140,9 +161,9 @@ final class HealthAndMarksTests: XCTestCase {
         walkToHealthStep()
         finishOnboarding()
 
-        app.descendants(matching: .any)["tab-you"].firstMatch.tap()
-        app.descendants(matching: .any)["row-health"].firstMatch.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["health-disconnect"].firstMatch.waitForExistence(timeout: 5),
+        app.descendants(matching: .any)["tab-you"].firstMatch.tapWhenReady()
+        app.descendants(matching: .any)["row-health"].firstMatch.tapWhenReady()
+        XCTAssertTrue(app.descendants(matching: .any)["health-disconnect"].firstMatch.waitForExistence(timeout: UITest.timeout),
                       "A connected state should offer disconnect")
         attach("30-health-connection")
     }
@@ -155,10 +176,15 @@ final class HealthAndMarksTests: XCTestCase {
         walkToHealthStep()
         finishOnboarding()
 
-        app.descendants(matching: .any)["tab-patterns"].firstMatch.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["lead-insight"].firstMatch.waitForExistence(timeout: 8))
-        app.descendants(matching: .any)["lead-insight"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["An observation, not a rule."].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["tab-patterns"].firstMatch.tapWhenReady()
+        app.descendants(matching: .any)["lead-insight"].firstMatch.tapWhenReady()
+        XCTAssertTrue(app.staticTexts["An observation, not a rule."].waitForExistence(timeout: UITest.timeout))
+
+        // The chart's marks acquire their labels as they draw, so give the read
+        // a chance to be there before taking one snapshot of the whole screen.
+        _ = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "out of 5", "sessions"))
+            .waitForFirstMatch()
 
         // Some element must speak a value out of 5 from a session count.
         let spoken = app.descendants(matching: .any).allElementsBoundByIndex
@@ -176,14 +202,17 @@ final class HealthAndMarksTests: XCTestCase {
         walkToHealthStep()
         finishOnboarding()
 
-        app.descendants(matching: .any)["tab-log"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["START A SESSION"].waitForExistence(timeout: 5))
-        app.descendants(matching: .any)["Creative"].firstMatch.tap()
-        app.descendants(matching: .any)["Start"].firstMatch.tap()
+        app.descendants(matching: .any)["tab-log"].firstMatch.tapWhenReady()
+        XCTAssertTrue(app.staticTexts["START A SESSION"].waitForExistence(timeout: UITest.timeout))
+        app.descendants(matching: .any)["Creative"].firstMatch.tapWhenReady()
+        app.descendants(matching: .any)["Start"].firstMatch.tapWhenReady()
 
-        XCTAssertTrue(app.staticTexts["NOW"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["NOW"].waitForExistence(timeout: UITest.timeout))
         let name = app.staticTexts["Creative"].firstMatch
         XCTAssertTrue(name.exists, "The running activity name is missing from the panel")
+        // The panel is still sliding in behind the sheet as it dismisses, and a
+        // name that is mid-flight is not yet a name that is off the panel.
+        XCTAssertTrue(name.waitUntilStill(), "The running panel never settled")
         XCTAssertTrue(name.isHittable, "The running activity name is not visible")
         attach("33-today-active-session")
     }
@@ -193,15 +222,18 @@ final class HealthAndMarksTests: XCTestCase {
         walkToHealthStep()
         finishOnboarding()
 
-        app.descendants(matching: .any)["tab-journal"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["JOURNAL"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any)["tab-journal"].firstMatch.tapWhenReady()
+        XCTAssertTrue(app.staticTexts["JOURNAL"].waitForExistence(timeout: UITest.timeout))
         attach("32-journal-heat")
+
+        // The calendar fills in cell by cell; scan it once it has cells.
+        _ = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "felt ")).waitForFirstMatch()
 
         let cells = app.buttons.allElementsBoundByIndex.filter { $0.label.contains("felt ") }
         XCTAssertFalse(cells.isEmpty, "No heat-calendar cell reports how its day felt")
 
-        cells.first?.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["back"].firstMatch.waitForExistence(timeout: 5),
+        cells.first?.tapWhenReady()
+        XCTAssertTrue(app.descendants(matching: .any)["back"].firstMatch.waitForExistence(timeout: UITest.timeout),
                       "Tapping a heat cell did not open the day")
     }
 
@@ -211,11 +243,11 @@ final class HealthAndMarksTests: XCTestCase {
         walkToHealthStep()
         finishOnboarding()
 
-        app.descendants(matching: .any)["tab-patterns"].firstMatch.tap()
+        app.descendants(matching: .any)["tab-patterns"].firstMatch.tapWhenReady()
         // With six weeks seeded, Patterns is past warm-up; the marks live behind it.
         // Assert the lead insight is present instead, which is the same guarantee:
         // the screen is showing computed evidence rather than advice.
-        XCTAssertTrue(app.descendants(matching: .any)["lead-insight"].firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["lead-insight"].firstMatch.waitForExistence(timeout: UITest.timeout))
         XCTAssertFalse(app.staticTexts["Log the same kind of work at different times of day."].exists,
                        "The generic advice list should be gone")
     }
