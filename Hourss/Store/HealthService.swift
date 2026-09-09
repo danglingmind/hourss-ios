@@ -124,29 +124,19 @@ final class HealthService {
 
         let anythingReal = collected.values.contains { !$0.isEmpty }
 
-        #if targetEnvironment(simulator)
-        // A simulator authorizes happily and then has nothing to hand over, so the
-        // demo is seeded. This never applies on a device.
-        dailyValues = Dictionary(uniqueKeysWithValues: metrics.map { metric in
-            let real = collected[metric] ?? [:]
-            return (metric, real.isEmpty ? MockData.seededDaily(for: metric) : real)
-        })
-        hasRealData = anythingReal
-        #else
-        // On a device an empty read stays empty. Substituting invented values here
-        // is how a denied permission used to end up presented back to the person
-        // as their own history, complete with a confidence band.
+        // An empty read stays empty, on a simulator as much as on a phone.
+        //
+        // This used to substitute generated values whenever HealthKit returned
+        // nothing, which on a device meant somebody who declined the permission
+        // got a connected badge and insights carrying confidence bands computed
+        // from data the app invented. The simulator branch survived that fix and
+        // is going the same way: a simulator with no Health data should look like
+        // what it is.
         dailyValues = collected
-        hasRealData = anythingReal
-        #endif
 
         let feed = await readPhysiology()
-        #if targetEnvironment(simulator)
-        physiology = feed.isEmpty ? Physiology.seededFeed(days: Self.physiologyDays) : feed
-        #else
         physiology = feed
         if !feed.isEmpty { hasRealData = true }
-        #endif
 
         lastSyncedAt = Date()
     }

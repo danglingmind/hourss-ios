@@ -40,11 +40,16 @@ struct PatternsView: View {
 
             HRule()
 
+            // Days, not sessions. The engine requires six distinct days on each
+            // side of any comparison and never counts sessions at all, so a
+            // session total told somebody they were two thirds of the way to
+            // something that was not being measured. Six sessions on one Tuesday
+            // are one day of evidence about Tuesdays.
             VStack(alignment: .leading, spacing: Space.xs) {
-                Text("\(store.eligibleSessionCount) of \(HourssStore.sessionsNeededForPatterns) sessions")
+                Text("\(store.ratedDayCount) of \(EvidenceFloor.days) days with a rating")
                     .textStyle(.stepName)
-                DataBar(fraction: store.warmUpProgress, height: DataBar.progress)
-                    .accessibilityLabel("\(store.eligibleSessionCount) of \(HourssStore.sessionsNeededForPatterns) sessions logged")
+                DataBar(fraction: store.evidenceProgress, height: DataBar.progress)
+                    .accessibilityLabel("\(store.ratedDayCount) of \(EvidenceFloor.days) days carrying a rated session")
             }
 
             HRule()

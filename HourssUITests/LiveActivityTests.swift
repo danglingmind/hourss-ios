@@ -82,7 +82,7 @@ final class LiveActivityTests: XCTestCase {
         // The launch is also what gives each test its own starting state: nothing
         // is persisted across launches, so the app finds no session matching a Live
         // Activity a previous test left running and ends every one it finds.
-        app.launch()
+        app.launchWithHistory()
         walkOnboarding()
 
         tap("tab-log")
@@ -214,7 +214,7 @@ final class LiveActivityTests: XCTestCase {
         // Nothing is persisted across launches, so the relaunched app finds no
         // session matching the orphan and has to end it.
         app = XCUIApplication()
-        app.launch()
+        app.launchWithHistory()
         XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.waitForExistence(timeout: UITest.timeout),
                       "The app did not come back up")
 

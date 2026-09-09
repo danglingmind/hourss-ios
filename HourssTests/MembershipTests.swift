@@ -24,7 +24,7 @@ struct MembershipTests {
     }
 
     private func makeStore(sessions: [Session], rated: [UUID: Int]) -> HourssStore {
-        let store = HourssStore(seeded: false)
+        let store = HourssStore()
         store.sessions = sessions
         for (id, feeling) in rated {
             store.saveReflection(sessionId: id, feeling: feeling, performance: nil, note: nil)
@@ -166,7 +166,7 @@ struct MembershipTests {
     @Test("The count equals the distinct rated days the engine sees")
     func matchesWhatTheEngineSees() {
         for person in SyntheticCohort.everyone {
-            let store = HourssStore(seeded: false)
+            let store = HourssStore()
             store.activities = person.activities
             store.sessions = person.sessions
             store.reflections = person.reflections
@@ -196,7 +196,7 @@ struct MembershipTests {
         // so sessions and reflections must come off one binding. Read twice, they
         // are two different people and none of the reflection keys match.
         let slump = SyntheticCohort.afternoonSlump
-        let full = HourssStore(seeded: false)
+        let full = HourssStore()
         full.sessions = slump.sessions
         full.reflections = slump.reflections
 
@@ -208,7 +208,7 @@ struct MembershipTests {
         // floor is a necessary condition and was never a sufficient one, and this
         // is the person who makes the difference concrete rather than academic.
         let brief = SyntheticCohort.shortHistory
-        let short = HourssStore(seeded: false)
+        let short = HourssStore()
         short.sessions = brief.sessions
         short.reflections = brief.reflections
 

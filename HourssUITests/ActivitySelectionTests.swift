@@ -18,7 +18,7 @@ final class ActivitySelectionTests: XCTestCase {
     private func launchToStartBeat() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launch()
+        app.launchWithHistory()
         XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.waitForExistence(timeout: 8))
         app.descendants(matching: .any)["Start"].firstMatch.tap()
         app.descendants(matching: .any)["health-connect"].firstMatch.tap()

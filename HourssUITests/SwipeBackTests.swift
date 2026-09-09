@@ -24,7 +24,7 @@ final class SwipeBackTests: XCTestCase {
     private func launchPastOnboarding() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launch()
+        app.launchWithHistory()
 
         tapID("Start")
         reachBeat(2)

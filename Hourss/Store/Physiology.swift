@@ -690,42 +690,6 @@ enum Physiology {
 
     // MARK: - Simulator data
 
-    /// Deterministic physiology for simulator builds, which have no Health data at
-    /// all. Never reachable on a device: see the note in `HealthService.refresh()`
-    /// about what happens when invented values are presented back to somebody as
-    /// their own history.
-    static func seededFeed(days: Int = 60, now: Date = Date()) -> Feed {
-        var state: UInt64 = 0x484F5552 &* 6364136223846793005 &+ 1442695040888963407
-        func next() -> Double {
-            state ^= state << 13
-            state ^= state >> 7
-            state ^= state << 17
-            return Double(state % 10_000) / 10_000
-        }
-
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
-        var heartRate: [Sample] = []
-        var steps: [Sample] = []
-
-        for offset in 0..<days {
-            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
-            for minuteOfDay in stride(from: 7 * 60, to: 23 * 60, by: 5) {
-                let at = day.addingTimeInterval(Double(minuteOfDay) * 60)
-                let hour = Double(minuteOfDay) / 60
-                var bpm = 61 + 8 * sin((hour - 7) / 16 * .pi) + (next() - 0.5) * 5
-                var stepped = next() * 12
-                if next() < 0.06 {
-                    let bout = 150 + next() * 350
-                    stepped += bout
-                    bpm += bout / 30
-                }
-                heartRate.append(Sample(at: at, value: bpm))
-                steps.append(Sample(at: at, value: stepped))
-            }
-        }
-        return Feed(heartRate: heartRate, steps: steps, vigorous: [])
-    }
 
     // MARK: - Small statistics
 

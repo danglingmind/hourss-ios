@@ -1,15 +1,34 @@
 import Foundation
 
-/// Seeds roughly six weeks of history so the Patterns screens have something real
-/// to stand on.
+#if DEBUG
+
+/// Generated history, for tests and for looking at the app with something in it.
 ///
-/// Two things matter here. First, generation is deterministic (fixed seed), so a
-/// demo looks identical every launch. Second, the observations shown in Patterns
-/// are *computed from these sessions*, not hardcoded — the "4.2 vs 3.4" evidence
-/// line and the session list behind it always agree, because they come from the
-/// same array.
+/// This is not the product. Nothing here runs unless a launch argument asks for
+/// it, and the whole file is compiled out of any build that is not DEBUG — a
+/// shipped binary contains no path that can invent a session, a rating or a
+/// health reading. That matters more here than in most apps: every number the
+/// engine shows is a claim about somebody's own life, and a claim computed from
+/// data the app made up is a lie however carefully it is phrased.
+///
+/// The `#if DEBUG` wraps the file rather than its call site for the same reason
+/// the entitlement override does. Gating the caller leaves the generator
+/// compiled in and reachable by anything that can name it.
+///
+/// Two things still matter about how it generates. It is deterministic, so a
+/// failing test can be run again; and the observations it produces are computed
+/// from the sessions rather than written by hand, so a claim and its evidence
+/// cannot contradict each other.
 @MainActor
-enum MockData {
+enum DebugFixture {
+
+    /// The launch argument that asks for it. Absent, the app starts empty, which
+    /// is what a real first run looks like.
+    static let launchArgument = "-hourss-seed-fixture"
+
+    static var isRequested: Bool {
+        ProcessInfo.processInfo.arguments.contains(launchArgument)
+    }
 
     /// Small deterministic PRNG. `SystemRandomNumberGenerator` would make the demo
     /// different on every launch, which is exactly what we don't want.
@@ -51,7 +70,7 @@ enum MockData {
             case .restingHeartRate: (isWeekend ? 55 : 60) + jitter * 3
             // Only for exhaustiveness. `HealthService` never asks for a daily
             // heart rate; the simulator's per-sample stand-in is
-            // `Physiology.seededFeed`.
+            // `DebugFixture.seededFeed`.
             case .heartRate: (isWeekend ? 68 : 72) + jitter * 4
             case .respiratoryRate: 14.5 + jitter * 0.8
             case .workoutMinutes: isWeekend ? max(0, 45 + jitter * 15) : (Int.random(in: 0...2, using: &rng) == 0 ? 30 + jitter * 10 : 0)
@@ -185,4 +204,44 @@ enum MockData {
         store.reflections = reflections
         store.rebuildInsights()
     }
+
+
+    /// Deterministic physiology for simulator builds, which have no Health data at
+    /// all. Never reachable on a device: see the note in `HealthService.refresh()`
+    /// about what happens when invented values are presented back to somebody as
+    /// their own history.
+    static func seededFeed(days: Int = 60, now: Date = Date()) -> Physiology.Feed {
+        var state: UInt64 = 0x484F5552 &* 6364136223846793005 &+ 1442695040888963407
+        func next() -> Double {
+            state ^= state << 13
+            state ^= state >> 7
+            state ^= state << 17
+            return Double(state % 10_000) / 10_000
+        }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        var heartRate: [Physiology.Sample] = []
+        var steps: [Physiology.Sample] = []
+
+        for offset in 0..<days {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+            for minuteOfDay in stride(from: 7 * 60, to: 23 * 60, by: 5) {
+                let at = day.addingTimeInterval(Double(minuteOfDay) * 60)
+                let hour = Double(minuteOfDay) / 60
+                var bpm = 61 + 8 * sin((hour - 7) / 16 * .pi) + (next() - 0.5) * 5
+                var stepped = next() * 12
+                if next() < 0.06 {
+                    let bout = 150 + next() * 350
+                    stepped += bout
+                    bpm += bout / 30
+                }
+                heartRate.append(Physiology.Sample(at: at, value: bpm))
+                steps.append(Physiology.Sample(at: at, value: stepped))
+            }
+        }
+        return Physiology.Feed(heartRate: heartRate, steps: steps, vigorous: [])
+    }
 }
+
+#endif

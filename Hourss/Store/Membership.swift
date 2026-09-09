@@ -115,10 +115,11 @@ extension HourssStore {
     /// feeling hypothesis can use. A figure computed on any looser basis would
     /// count evidence the engine will never see.
     ///
-    /// Distinct from `sessionsNeededForPatterns`, which counts sessions against a
-    /// product heuristic of twelve. That figure still drives the warm-up screen
-    /// and is not this one; PRD A.11 records the disagreement and asks for the two
-    /// to be reconciled onto days.
+    /// Days are the unit the engine works in: it wants six distinct days on each
+    /// side of a comparison and never counts sessions at all. A session total
+    /// against a heuristic threshold used to stand in for readiness on the
+    /// warm-up screen, telling somebody they were most of the way to something
+    /// that was not being measured. Both surfaces now count this.
     var ratedDayCount: Int {
         let calendar = Calendar.current
         var days: Set<Date> = []
@@ -135,4 +136,12 @@ extension HourssStore {
     /// a claim testable, not true, and nothing reading this may phrase it as an
     /// arrival.
     var meetsEvidenceFloor: Bool { ratedDayCount >= EvidenceFloor.days }
+
+    /// How far along the floor this person is, for a bar to fill.
+    ///
+    /// A fraction of a necessary condition, not of an arrival: reaching one still
+    /// buys nothing unless a claim then survives its gates.
+    var evidenceProgress: Double {
+        min(1, Double(ratedDayCount) / Double(EvidenceFloor.days))
+    }
 }

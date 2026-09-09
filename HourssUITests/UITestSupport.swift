@@ -124,3 +124,22 @@ extension XCUIElementQuery {
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 }
+
+extension XCUIApplication {
+
+    /// Launch with generated history in place.
+    ///
+    /// The app starts empty now — a first run has nothing in it, and that is a
+    /// state the product has to be good at rather than one it hides behind
+    /// invented sessions. So a test that needs a populated app has to ask.
+    ///
+    /// The string is duplicated from `DebugFixture.launchArgument` rather than
+    /// shared, because a UI test drives the app from another process and cannot
+    /// import its types. If it ever changes, it changes in two places, and the
+    /// tests that need history will fail loudly rather than quietly walking an
+    /// empty app.
+    func launchWithHistory() {
+        launchArguments += ["-hourss-seed-fixture"]
+        launch()
+    }
+}

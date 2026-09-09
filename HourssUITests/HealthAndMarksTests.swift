@@ -13,7 +13,7 @@ final class HealthAndMarksTests: XCTestCase {
     private func launch() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launch()
+        app.launchWithHistory()
         // launch() returns when the process is up, which is before the first
         // frame. Saying so here means a launch that never lands fails as a
         // launch, rather than as whatever query happens to run next.

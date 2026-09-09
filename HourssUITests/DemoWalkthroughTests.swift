@@ -15,7 +15,7 @@ final class DemoWalkthroughTests: XCTestCase {
     private func launch() {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launch()
+        app.launchWithHistory()
     }
 
     // MARK: - Helpers

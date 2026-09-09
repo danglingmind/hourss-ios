@@ -31,7 +31,7 @@ struct SlotTests {
 
     private func store(for person: SyntheticCohort.Person,
                        priorities: [Priority] = [.focus, .balance, .energy]) -> HourssStore {
-        let store = HourssStore(seeded: false)
+        let store = HourssStore()
         store.profile.priorities = priorities
         store.activities = person.activities
         store.sessions = person.sessions
@@ -172,7 +172,7 @@ struct SlotTests {
         // Six sessions on one Tuesday are one day of evidence about Tuesdays. The
         // line this replaced counted sessions against a constant of twelve, which
         // was a product heuristic and never the engine's condition.
-        let store = HourssStore(seeded: false)
+        let store = HourssStore()
         let activity = store.activities[0]
         let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 4, hour: 9))!
 
@@ -195,7 +195,7 @@ struct SlotTests {
     func unratedDaysDoNotCount() {
         // Unrated stays unknown. A day the engine cannot use is not a day of
         // evidence, and a figure that counted it would overstate the record.
-        let store = HourssStore(seeded: false)
+        let store = HourssStore()
         let activity = store.activities[0]
         let day = Calendar.current.date(from: DateComponents(year: 2026, month: 3, day: 4, hour: 9))!
         let session = Session(activityId: activity.id, startAt: day,

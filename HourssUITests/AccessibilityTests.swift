@@ -11,7 +11,7 @@ final class AccessibilityTests: XCTestCase {
         if let contentSize {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
         }
-        app.launch()
+        app.launchWithHistory()
         return app
     }
 

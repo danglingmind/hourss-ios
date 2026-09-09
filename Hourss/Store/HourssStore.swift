@@ -23,8 +23,15 @@ final class HourssStore {
     /// previews can run the store without ActivityKit.
     var live: LiveSessionController?
 
-    init(seeded: Bool = true) {
-        if seeded { MockData.seed(into: self) }
+    /// Starts empty.
+    ///
+    /// A first run has nothing in it, and that is the state the app has to be
+    /// good at rather than one it hides behind generated history. Fixture data
+    /// exists only in DEBUG builds and only when a launch argument asks for it.
+    init() {
+        #if DEBUG
+        if DebugFixture.isRequested { DebugFixture.seed(into: self) }
+        #endif
     }
 
     // MARK: - Lookups
@@ -299,17 +306,17 @@ final class HourssStore {
 
     // MARK: - Warm-up state
 
-    /// Sessions eligible for pattern work, and how far off the first observation is.
+    /// Sessions eligible for pattern work.
+    ///
+    /// Not a measure of readiness, and no longer displayed as one. Readiness is
+    /// `ratedDayCount` against `EvidenceFloor`, because days are the unit the
+    /// engine works in — it wants six distinct days on each side of a comparison
+    /// and never counts sessions at all. A session total against a threshold of
+    /// twelve told somebody they were most of the way to something that was not
+    /// being measured.
     var eligibleSessionCount: Int { sessions.filter(\.isEligibleForPatterns).count }
 
-    /// The spec gates the first observation behind a meaningful body of evidence.
-    static let sessionsNeededForPatterns = 12
-
     var isWarmingUp: Bool { visibleInsights.isEmpty }
-
-    var warmUpProgress: Double {
-        min(1, Double(eligibleSessionCount) / Double(Self.sessionsNeededForPatterns))
-    }
 
     /// Which times of day you have actually logged in. A pattern needs contrast,
     /// so logging only mornings tells the engine less than it looks like.
