@@ -112,7 +112,7 @@ struct OnboardingFlow: View {
                     connected()
                 }
             }
-            .disabled(health.selectedGroups.isEmpty || isConnecting)
+            .disabled(isConnecting)
             .accessibilityIdentifier("health-connect")
 
         case 2:
@@ -203,11 +203,18 @@ private struct PromiseStep: View {
                 Text("are worth ").styled(.sectionTitle).then(Text("keeping.").styled(.emphasis(42))),
             ], style: .sectionTitle)
 
-            Text("Hourss starts with what you've already lived, not a blank page.")
+            Text("Your body has been keeping a record all along. Hourss reads it, so your first day here starts with a year of evidence instead of a blank page.")
                 .textStyle(.body)
                 .foregroundStyle(Color.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
+            signals
+
+            // Was a list of four toggles. Every one of them had to be on for the
+            // engine to say anything, so the choice was between using the app and
+            // not — and a control whose only real setting is "yes" is a control
+            // that exists to look generous. Stating what is read is honest;
+            // pretending it is optional was not.
             VStack(spacing: 0) {
                 HRule()
                 ForEach(HealthGroup.allCases) { group in
@@ -215,52 +222,46 @@ private struct PromiseStep: View {
                 }
             }
 
-            Text("Read only. Nothing is ever written back.")
+            Text("Read only. Nothing is ever written back, and nothing leaves your phone.")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .pageGutter()
         .padding(.top, Space.md)
     }
 
-    /// Full size again. Shrinking the type to squeeze a button on screen was the
-    /// wrong trade — the action belongs in the footer, and the content can breathe.
-    /// The group name drops to body size and the row loses its generous padding —
-    /// four rows at `stepName` plus their scope lines is what pushed the button
-    /// off the screen.
-    private func groupRow(_ group: HealthGroup) -> some View {
-        @Bindable var health = health
-        let selected = health.selectedGroups.contains(group)
-
-        return Button {
-            if selected {
-                health.selectedGroups.remove(group)
-            } else {
-                health.selectedGroups.insert(group)
+    /// The count, given the weight the page's argument actually rests on.
+    private var signals: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
+            Text("\(HealthMetric.allCases.count)")
+                .textStyle(.dayNumeral)
+                .foregroundStyle(Color.lime)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("signals, in four groups")
+                    .textStyle(.stepName)
+                Text("All of them, or none — the patterns need the whole picture")
+                    .textStyle(.label)
+                    .foregroundStyle(Color.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        } label: {
-            HStack(alignment: .top, spacing: Space.sm) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(group.title)
-                        .textStyle(.stepName)
-                    Text(group.scopeDescription)
-                        .textStyle(.label)
-                        .foregroundStyle(Color.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: Space.sm)
-                SelectionDot(isSelected: selected)
-                    .padding(.top, 6)
-            }
-            .padding(.vertical, Space.sm)
-            .frame(minHeight: Space.tapTarget)
-            .contentShape(.rect)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("health-\(group.rawValue)")
-        .accessibilityLabel("\(group.title). Reads \(group.scopeDescription)")
-        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .accessibilityElement(children: .combine)
+    }
+
+    private func groupRow(_ group: HealthGroup) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(group.title)
+                .textStyle(.stepName)
+            Text(group.scopeDescription)
+                .textStyle(.label)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Space.sm)
         .overlay(alignment: .bottom) { HRule() }
+        .accessibilityElement(children: .combine)
     }
 }
 

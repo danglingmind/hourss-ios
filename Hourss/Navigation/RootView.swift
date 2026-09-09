@@ -7,18 +7,28 @@ struct RootView: View {
     @State private var selection: Tab = .today
     @State private var isStartingSession = false
 
+    @Environment(HealthService.self) private var health
+
     var body: some View {
         @Bindable var store = store
 
         Group {
-            if store.hasCompletedOnboarding {
-                main
-            } else {
+            if !store.hasCompletedOnboarding {
                 OnboardingFlow()
                     .transition(.opacity)
+            } else if health.accessLost {
+                // Ahead of the app rather than over it. Every screen behind this
+                // is built from readings that are no longer arriving, so leaving
+                // them reachable would mean showing somebody a feed that has
+                // quietly stopped being true.
+                ReconnectHealthView()
+                    .transition(.opacity)
+            } else {
+                main
             }
         }
         .animation(.easeOut(duration: Motion.standard), value: store.hasCompletedOnboarding)
+        .animation(.easeOut(duration: Motion.standard), value: health.accessLost)
     }
 
     private var main: some View {

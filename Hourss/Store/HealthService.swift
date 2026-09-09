@@ -48,6 +48,30 @@ final class HealthService {
     /// both mean the same thing to the product: there is nothing true to show.
     private(set) var hasRealData = false
 
+    /// Whether this phone has ever handed over real Health data.
+    ///
+    /// Persisted, because it is the only thing that lets a revoked permission be
+    /// told apart from an empty one. iOS never reports read authorization — a
+    /// refusal and "nothing recorded" are the same answer — so the question
+    /// cannot be asked directly and has to be inferred from a change: we had a
+    /// year of readings yesterday, we have none today, and nothing else explains
+    /// that.
+    private var hasEverHadData: Bool {
+        get { UserDefaults.standard.bool(forKey: "hourss.health.everHadData") }
+        set { UserDefaults.standard.set(newValue, forKey: "hourss.health.everHadData") }
+    }
+
+    /// Access appears to have been withdrawn.
+    ///
+    /// Deliberately an inference and deliberately conservative. It fires only
+    /// where this phone previously read real data and a full read now returns
+    /// none, which no ordinary gap produces: a watch left on the charger still
+    /// leaves steps, and a quiet week still leaves sleep. It cannot fire for
+    /// somebody who never had data, which is the case that would otherwise lock
+    /// out every new user, everybody without a watch, and anybody whose first
+    /// read happened to be empty.
+    private(set) var accessLost = false
+
     var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
     var selectedMetrics: [HealthMetric] {
@@ -67,6 +91,16 @@ final class HealthService {
     /// sheet half-presents and never resolves, and the window wedges. There is no
     /// Health data on a simulator either, so it goes straight to seeded values.
     /// Devices get the real prompt, with nothing racing the person reading it.
+    /// Ask again after access was withdrawn.
+    ///
+    /// `requestAuthorization` will not re-present the sheet once somebody has
+    /// answered it — iOS treats that as settled — so the only route back is the
+    /// Settings app, and the button that calls this has to say so rather than
+    /// appearing to do something it cannot.
+    func recheckAccess() async {
+        await refresh()
+    }
+
     func connect() async {
         #if targetEnvironment(simulator)
         await finishConnecting()
@@ -133,6 +167,15 @@ final class HealthService {
         // is going the same way: a simulator with no Health data should look like
         // what it is.
         dailyValues = collected
+
+        // The inference, and the only place it is drawn.
+        let gotSomething = collected.values.contains { !$0.isEmpty }
+        if gotSomething {
+            hasEverHadData = true
+            accessLost = false
+        } else if hasEverHadData {
+            accessLost = true
+        }
 
         let feed = await readPhysiology()
         physiology = feed
