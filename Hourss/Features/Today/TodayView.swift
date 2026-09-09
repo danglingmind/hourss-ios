@@ -8,6 +8,14 @@ struct TodayView: View {
 
     @State private var selectedSessionId: UUID?
 
+    /// The recommendation layer's output, cached.
+    ///
+    /// Held here rather than read from the store because building it runs the
+    /// engine — findings, the correction, the bootstrap — and a view body is
+    /// re-evaluated on every keystroke elsewhere in the app. Recomputed when the
+    /// record it rests on changes, and no more often.
+    @State private var recommendations: [Recommendation] = []
+
     private var today: Date { Calendar.current.startOfDay(for: Date()) }
     private var todaysSessions: [Session] { store.sessions(on: today) }
 
@@ -27,7 +35,10 @@ struct TodayView: View {
                         sessions: todaysSessions,
                         selectedSessionId: $selectedSessionId
                     )
-                    observation
+                    ObservationSlotView(
+                        state: store.slotState(on: today, recommendations: recommendations),
+                        recommendations: recommendations
+                    )
                 }
             }
             .pageGutter()
@@ -37,6 +48,12 @@ struct TodayView: View {
         .safeAreaInset(edge: .top, spacing: 0) { header }
         .onAppear {
             if selectedSessionId == nil { selectedSessionId = todaysSessions.last?.id }
+        }
+        // The layer runs whether or not this person can see its output: the
+        // upgrade prompt names how many recommendations they would get, so the
+        // count only exists if the count was computed.
+        .task(id: recommendationInputs) {
+            recommendations = store.slotRecommendations()
         }
     }
 
@@ -111,49 +128,11 @@ struct TodayView: View {
         }
     }
 
-    /// One observation, or a nudge to close out an unrated session. The spec caps
-    /// this at a single prompt — a feed of them would be the thing the product is
-    /// explicitly not.
-    @ViewBuilder
-    private var observation: some View {
-        let unrated = store.unratedSessions(on: today)
-
-        VStack(alignment: .leading, spacing: Space.sm) {
-            HRule()
-            if let session = unrated.first {
-                Eyebrow("One thing left")
-                Text("You logged \(store.activityName(session.activityId)) but haven't said how it felt.")
-                    .textStyle(.sectionLead)
-                Button {
-                    store.pendingReflectionSessionId = session.id
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("Add how it felt").textStyle(.action)
-                        Text("→").font(.custom("DMSans-Bold", fixedSize: 18)).foregroundStyle(Color.orange)
-                    }
-                    .frame(minHeight: Space.tapTarget)
-                    .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("add-missing-reflection")
-            } else if let insight = store.visibleInsights.first {
-                Eyebrow("Here's something we're noticing")
-                Text(insight.statement).textStyle(.sectionLead)
-                Text(insight.evidence.summary)
-                    .textStyle(.label)
-                    .foregroundStyle(Color.muted)
-            } else {
-                // The bar says "a few more hours and patterns start to show"
-                // without spending a sentence on it, and says how many.
-                Eyebrow("Warming up")
-                Text("\(store.eligibleSessionCount) of \(HourssStore.sessionsNeededForPatterns) sessions")
-                    .textStyle(.sectionLead)
-                DataBar(fraction: store.warmUpProgress, height: DataBar.progress)
-                    .padding(.top, Space.xs)
-                    .accessibilityLabel("\(store.eligibleSessionCount) of \(HourssStore.sessionsNeededForPatterns) sessions logged toward the first observation")
-            }
-        }
-        .padding(.top, Space.md)
+    /// What the slot rests on, reduced to something cheap to compare. The engine
+    /// is deterministic over the record, so nothing else can move its answer.
+    private var recommendationInputs: [Int] {
+        [store.sessions.count, store.reflections.count, store.profile.priorities.count,
+         store.healthByDay.count, store.physiologyReadings.count]
     }
 }
 

@@ -6,13 +6,20 @@ enum YouRoute: Hashable {
 
 /// Y1 — a settings list, not a dashboard.
 ///
-/// The surfaces that need Clerk, HealthKit or StoreKit (Y2, Y4, Y5) appear as
-/// visibly disabled rows. Showing them greyed reads as deliberately scoped;
-/// hiding them would make the shell look like it forgot them, and mocking them
-/// would imply working auth and health integration.
+/// The surfaces that need Clerk (Y2) appear as visibly disabled rows. Showing
+/// them greyed reads as deliberately scoped; hiding them would make the shell
+/// look like it forgot them, and mocking them would imply working auth.
+///
+/// Membership (Y5) is no longer one of them. It has no purchase behind it yet,
+/// but the tier is real state that Today's observation slot varies on, so the
+/// row states it rather than standing in for it.
 struct YouView: View {
     @Environment(HourssStore.self) private var store
     @Environment(HealthService.self) private var health
+
+    /// One route to entitlement, through the object every screen here already
+    /// holds, so no screen can end up reading a different answer.
+    private var membership: Membership { store.membership }
 
     private var healthDetail: String {
         guard health.isConnected else { return "Not connected" }
@@ -47,13 +54,13 @@ struct YouView: View {
                     HRule()
                 }
 
+                membershipSection
+
                 VStack(alignment: .leading, spacing: 0) {
                     Eyebrow("Not in this build")
                         .padding(.bottom, Space.xs)
                     HRule()
                     SettingsRow(title: "Profile", detail: "Needs an account", enabled: false)
-                    HRule()
-                    SettingsRow(title: "Membership", detail: "Needs StoreKit", enabled: false)
                     HRule()
                 }
 
@@ -73,6 +80,44 @@ struct YouView: View {
             case .privacy: PrivacyView()
             case .health: HealthConnectionView()
             }
+        }
+    }
+
+    /// Membership, which is real state now that the observation slot on Today
+    /// varies on it — so it leaves the disabled group even though there is still
+    /// nothing to buy. A debug build switches it in place; a release build states
+    /// where the person stands and offers no control, because the only honest
+    /// control is a purchase and there is not one yet.
+    ///
+    /// The caption is not a pitch. It is the boundary: what membership adds, and
+    /// what it will never sit in front of.
+    private var membershipSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Eyebrow("Membership")
+                .padding(.bottom, Space.xs)
+            HRule()
+            #if DEBUG
+            Button {
+                membership.setTier(membership.isEntitled ? .free : .member)
+            } label: {
+                SettingsRow(
+                    title: "Membership",
+                    detail: "\(membership.tier.settingsDetail) — tap to switch (debug)"
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("row-membership")
+            #else
+            SettingsRow(title: "Membership", detail: membership.tier.settingsDetail, enabled: false)
+                .accessibilityIdentifier("row-membership")
+            #endif
+            HRule()
+
+            Text("Membership adds recommendations. Your own record is never behind it — export, deletion and every privacy setting stay free.")
+                .textStyle(.label)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, Space.xs)
         }
     }
 
