@@ -78,13 +78,18 @@ final class HealthAndMarksTests: XCTestCase {
 
     /// Each category is consented to separately, and each says what it unlocks —
     /// the spec requires the read scopes be explained before the OS dialog.
-    func testHealthStepOffersGranularCategories() {
+    func testHealthStepStatesEverythingItReads() {
         walkToHealthStep()
+        // These were a choice once, and every one of them had to be on for the
+        // engine to say anything — so the control was between using the app and
+        // not. They are a disclosure now, and the assertion changes with them:
+        // not that each can be toggled, but that each is named before the
+        // system sheet appears.
         for group in ["health-sleep", "health-recovery", "health-movement", "health-mind"] {
             XCTAssertTrue(app.descendants(matching: .any)[group].firstMatch.exists,
-                          "\(group) is missing — consent must be granular")
+                          "\(group) is missing — every group must be named before the ask")
         }
-        XCTAssertTrue(app.staticTexts["Read only. Nothing is ever written back."].exists,
+        XCTAssertTrue(app.staticTexts["Read only. Nothing is ever written back, and nothing leaves your phone."].exists,
                       "The screen must state the read-only scope")
         // Scope must be visible before the OS dialog, not just a group name.
         XCTAssertTrue(app.staticTexts["Heart rate variability · Resting heart rate · Respiratory rate · Heart rate"].exists,

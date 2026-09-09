@@ -203,19 +203,22 @@ private struct PromiseStep: View {
                 Text("are worth ").styled(.sectionTitle).then(Text("keeping.").styled(.emphasis(42))),
             ], style: .sectionTitle)
 
-            Text("Your body has been keeping a record all along. Hourss reads it, so your first day here starts with a year of evidence instead of a blank page.")
+            // Short on purpose. This page has to reach its button without a
+            // scroll — that was reported once already and came straight back the
+            // moment prose was added above the fold.
+            Text("Your body has already kept the record. Hourss reads it, so day one starts with a year of evidence.")
                 .textStyle(.body)
                 .foregroundStyle(Color.muted)
                 .fixedSize(horizontal: false, vertical: true)
-
-            signals
 
             // Was a list of four toggles. Every one of them had to be on for the
             // engine to say anything, so the choice was between using the app and
             // not — and a control whose only real setting is "yes" is a control
             // that exists to look generous. Stating what is read is honest;
             // pretending it is optional was not.
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                Eyebrow("\(HealthMetric.allCases.count) signals · four groups")
+                    .padding(.bottom, Space.xs)
                 HRule()
                 ForEach(HealthGroup.allCases) { group in
                     groupRow(group)
@@ -231,24 +234,6 @@ private struct PromiseStep: View {
         .padding(.top, Space.md)
     }
 
-    /// The count, given the weight the page's argument actually rests on.
-    private var signals: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-            Text("\(HealthMetric.allCases.count)")
-                .textStyle(.dayNumeral)
-                .foregroundStyle(Color.lime)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("signals, in four groups")
-                    .textStyle(.stepName)
-                Text("All of them, or none — the patterns need the whole picture")
-                    .textStyle(.label)
-                    .foregroundStyle(Color.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
     private func groupRow(_ group: HealthGroup) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(group.title)
@@ -262,6 +247,11 @@ private struct PromiseStep: View {
         .padding(.vertical, Space.sm)
         .overlay(alignment: .bottom) { HRule() }
         .accessibilityElement(children: .combine)
+        // Kept from when these were buttons. The rows are no longer a choice,
+        // but the screen still has to be addressable — what is on it is the
+        // whole disclosure, and a disclosure nothing can assert against is one
+        // nobody will notice going missing.
+        .accessibilityIdentifier("health-\(group.rawValue)")
     }
 }
 
