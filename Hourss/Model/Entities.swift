@@ -1,7 +1,7 @@
 import Foundation
 
 /// Mirrors the `activities` table.
-struct Activity: Identifiable, Hashable {
+struct Activity: Identifiable, Hashable, Codable {
     let id: UUID
     var name: String
     var category: String
@@ -31,7 +31,7 @@ struct Activity: Identifiable, Hashable {
 }
 
 /// Mirrors the `sessions` table. `endAt` is nil while a session is running.
-struct Session: Identifiable, Hashable {
+struct Session: Identifiable, Hashable, Codable {
     let id: UUID
     var activityId: UUID
     var startAt: Date
@@ -84,7 +84,7 @@ struct Session: Identifiable, Hashable {
 
 /// Mirrors `session_reflections`. Both scores are optional on purpose — an
 /// unanswered scale is unknown, not neutral.
-struct Reflection: Identifiable, Hashable {
+struct Reflection: Identifiable, Hashable, Codable {
     var id: UUID { sessionId }
     let sessionId: UUID
     var feelingScore: Int?
@@ -133,7 +133,7 @@ struct Insight: Identifiable, Hashable {
 }
 
 /// Mirrors the `profiles` table.
-struct Profile {
+struct Profile: Codable {
     var displayName: String = ""
     var timezone: String = TimeZone.current.identifier
     /// In the person's own order, most important first.

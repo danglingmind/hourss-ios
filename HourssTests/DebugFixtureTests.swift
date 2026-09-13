@@ -19,7 +19,7 @@ struct DemoDataTests {
 
     @Test("The fixture produces observations")
     func demoProducesInsights() {
-        let store = HourssStore()
+        let store = HourssStore(repository: InMemoryRecordRepository())
         DebugFixture.seed(into: store)
         #expect(!store.visibleInsights.isEmpty, Comment(rawValue:
                 "the fixture produced no visible observation; " +
@@ -28,7 +28,7 @@ struct DemoDataTests {
 
     @Test("The fixture's observations carry real evidence")
     func demoInsightsAreWellFormed() {
-        let store = HourssStore()
+        let store = HourssStore(repository: InMemoryRecordRepository())
         DebugFixture.seed(into: store)
         for insight in store.visibleInsights {
             #expect(insight.evidence.comparisonCount > 0)

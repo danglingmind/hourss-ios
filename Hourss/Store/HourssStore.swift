@@ -28,10 +28,75 @@ final class HourssStore {
     /// A first run has nothing in it, and that is the state the app has to be
     /// good at rather than one it hides behind generated history. Fixture data
     /// exists only in DEBUG builds and only when a launch argument asks for it.
-    init() {
+    private let repository: RecordRepository
+    /// Suspends writing while a batch of changes lands, so loading the record
+    /// does not save it straight back, field by field.
+    private var isRestoring = false
+
+    init(repository: RecordRepository? = nil) {
         #if DEBUG
-        if DebugFixture.isRequested { DebugFixture.seed(into: self) }
+        if DebugFixture.isRequested {
+            // Generated history goes nowhere near the real record. A UI test
+            // that logs a session would otherwise write it to the same file the
+            // app uses, so one test's leftovers would arrive in the next run and
+            // in anybody's app on the same device.
+            self.repository = repository ?? InMemoryRecordRepository()
+            DebugFixture.seed(into: self)
+            return
+        }
         #endif
+        self.repository = repository ?? FileRecordRepository()
+        restore()
+    }
+
+    // MARK: - Persistence
+
+    /// Read the record back.
+    ///
+    /// A failure here is not fatal and must not be: a record that cannot be
+    /// decoded is a bug to fix, not a reason to refuse to open. Starting empty
+    /// loses the history, which is bad; refusing to launch loses it too and takes
+    /// the app with it.
+    private func restore() {
+        isRestoring = true
+        defer { isRestoring = false }
+
+        guard let record = try? repository.load() else { return }
+        activities = record.activities.isEmpty ? Activity.defaults : record.activities
+        sessions = record.sessions
+        reflections = record.reflections
+        profile = record.profile
+        hasCompletedOnboarding = record.hasCompletedOnboarding
+
+        // Insights are derived rather than stored, so they are recomputed here
+        // and only the part that belongs to the person — saved, hidden — is
+        // restored onto them.
+        rebuildInsights()
+        for (id, status) in record.insightStatus {
+            guard let index = insights.firstIndex(where: { $0.id == id }) else { continue }
+            insights[index].status = status
+        }
+    }
+
+    /// Write the record out.
+    ///
+    /// Every mutation calls this. The whole record is a few hundred kilobytes
+    /// after a year, so rewriting it costs less than tracking what changed, and
+    /// the tracking is where this kind of code usually goes wrong.
+    func persist() {
+        guard !isRestoring else { return }
+        var record = Record()
+        record.activities = activities
+        record.sessions = sessions
+        record.reflections = reflections
+        record.profile = profile
+        record.hasCompletedOnboarding = hasCompletedOnboarding
+        record.insightStatus = Dictionary(
+            insights.filter { $0.status == .saved || $0.status == .hidden }
+                .map { ($0.id, $0.status) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        try? repository.save(record)
     }
 
     // MARK: - Lookups
@@ -115,6 +180,7 @@ final class HourssStore {
         let session = Session(activityId: activityId, startAt: Date(), intention: intention)
         sessions.append(session)
         live?.start(session: session, activityName: activityName(activityId))
+        persist()
         return session
     }
 
@@ -136,6 +202,7 @@ final class HourssStore {
         sessions.append(session)
         sessions.sort { $0.startAt < $1.startAt }
         pendingReflectionSessionId = session.id
+        persist()
         return session
     }
 
@@ -159,6 +226,7 @@ final class HourssStore {
         // The Island's whole job was the running session. Reflection happens in
         // the app, so there is nothing left for it to show.
         live?.endAll()
+            persist()
     }
 
     /// Saves a reflection. A nil feeling is preserved as "unanswered" rather than
@@ -174,11 +242,13 @@ final class HourssStore {
         if pendingReflectionSessionId == sessionId {
             pendingReflectionSessionId = nil
         }
+            persist()
     }
 
     func deleteSession(_ id: UUID) {
         sessions.removeAll { $0.id == id }
         reflections[id] = nil
+            persist()
     }
 
 
@@ -297,6 +367,7 @@ final class HourssStore {
     func setStatus(_ status: InsightStatus, for id: UUID) {
         guard let index = insights.firstIndex(where: { $0.id == id }) else { return }
         insights[index].status = status
+            persist()
     }
 
     func sessions(for insight: Insight) -> [Session] {

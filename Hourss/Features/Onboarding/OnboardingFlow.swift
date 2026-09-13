@@ -144,6 +144,10 @@ struct OnboardingFlow: View {
 
     private func finish() {
         store.hasCompletedOnboarding = true
+        // Onboarding is the one place that writes the profile and the activity
+        // list, and it writes them straight onto the store rather than through a
+        // method, so this is where they reach the disk.
+        store.persist()
     }
 }
 

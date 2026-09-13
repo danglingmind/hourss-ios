@@ -155,7 +155,7 @@ struct EngineBaselineTests {
     @Test("Saved and hidden survive a rebuild")
     func statusSurvivesRebuild() throws {
         let person = SyntheticCohort.afternoonSlump
-        let store = HourssStore()
+        let store = HourssStore(repository: InMemoryRecordRepository())
         store.activities = person.activities
         store.sessions = person.sessions
         store.reflections = person.reflections

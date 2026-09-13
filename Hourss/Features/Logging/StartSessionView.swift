@@ -25,15 +25,29 @@ struct StartSessionView: View {
     /// The spec's upper bound on a valid session.
     private static let maxDurationMinutes: Double = 16 * 60
 
-    private var startOfDay: Date { Calendar.current.startOfDay(for: Date()) }
+    /// The slot's origin, which is not midnight.
+    ///
+    /// It used to be. That confined a past slot to the calendar day, so in the
+    /// first hour after midnight there was no room behind you to put one: at
+    /// half past twelve the longest slot available was thirty minutes, and the
+    /// session that ended at ten to midnight could not be recorded at all. The
+    /// day boundary is a property of the calendar, not of when somebody stopped
+    /// working, and the sheet had no business enforcing it.
+    ///
+    /// The window now runs back a full sixteen hours — the spec's own longest
+    /// valid session — so the slot can reach across midnight and the arithmetic
+    /// below stops depending on what time it happens to be.
+    private var windowStart: Date {
+        Date().addingTimeInterval(-Self.maxDurationMinutes * 60)
+    }
 
     /// Now, rounded down to the grid, so the readouts land on tidy times.
     private var nowMinutes: Double {
-        let elapsed = Date().timeIntervalSince(startOfDay) / 60
+        let elapsed = Date().timeIntervalSince(windowStart) / 60
         return (elapsed / Self.stepMinutes).rounded(.down) * Self.stepMinutes
     }
 
-    /// Enough of the day has to have passed for a past slot to exist at all.
+    /// Enough time has to sit behind the moment for a past slot to exist at all.
     private var canLogPast: Bool { nowMinutes >= Self.stepMinutes }
 
     private var latestStart: Double { max(0, nowMinutes - Self.stepMinutes) }
@@ -43,7 +57,7 @@ struct StartSessionView: View {
         max(Self.stepMinutes, min(Self.maxDurationMinutes, nowMinutes - startMinutes))
     }
 
-    private var slotStart: Date { startOfDay.addingTimeInterval(startMinutes * 60) }
+    private var slotStart: Date { windowStart.addingTimeInterval(startMinutes * 60) }
     private var slotEnd: Date { slotStart.addingTimeInterval(durationMinutes * 60) }
 
     private var overlapping: [Session] {
@@ -124,10 +138,10 @@ struct StartSessionView: View {
                         value: $startMinutes,
                         range: 0...max(Self.stepMinutes, latestStart),
                         step: Self.stepMinutes,
-                        lowLabel: startOfDay.formatted(.dateTime.hour().minute()),
-                        highLabel: startOfDay.addingTimeInterval(latestStart * 60).formatted(.dateTime.hour().minute()),
+                        lowLabel: windowStart.formatted(.dateTime.hour().minute()),
+                        highLabel: windowStart.addingTimeInterval(latestStart * 60).formatted(.dateTime.hour().minute()),
                         spokenValue: { minutes in
-                            startOfDay.addingTimeInterval(minutes * 60)
+                            windowStart.addingTimeInterval(minutes * 60)
                                 .formatted(.dateTime.hour().minute())
                         }
                     )
