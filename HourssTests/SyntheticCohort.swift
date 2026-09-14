@@ -38,6 +38,17 @@ enum SyntheticCohort {
         /// one bin containing nothing but meetings, and "what walking costs" and
         /// "what meetings cost" are then the same estimate wearing two names.
         case movementHabit(cadence: Double, bpm: Double)
+        /// This activity, in this time bucket — and optionally only on days after
+        /// the person's own sleep median — is rated `delta` above what the
+        /// activity and the hour separately account for.
+        ///
+        /// Deliberately *only* the interaction. Whatever either factor is worth on
+        /// its own is planted as its own effect, so `delta` is the lift over an
+        /// additive world and nothing else. A conjunction case that folded the
+        /// main effects in would make the confounded person impossible to write:
+        /// he needs a large activity effect and an interaction of exactly zero,
+        /// and those have to be separately settable to be separately zeroable.
+        case conjunction(activity: String, bucket: TimeBucket, afterMedianSleep: Bool, delta: Double)
         /// Heart rate during this activity runs `bpm` above what the person's own
         /// movement explains — the part of a rise walking does not buy.
         ///
@@ -61,6 +72,10 @@ enum SyntheticCohort {
                 "\(activity) runs \(fmt(bpm)) bpm high, \(movement ? "while walking" : "sitting still")"
             case let .movementHabit(cadence, bpm):
                 "walks at \(fmt(cadence)) steps a minute all day, worth \(fmt(bpm)) bpm"
+            case let .conjunction(activity, bucket, afterMedianSleep, delta):
+                "\(activity) in the \(bucket.label.lowercased())"
+                + (afterMedianSleep ? " after above-median sleep" : "")
+                + " rated \(fmt(delta)) above what either factor alone buys"
             case let .unexplainedRise(activity, bpm):
                 "\(activity) runs \(fmt(bpm)) bpm above what movement explains"
             }

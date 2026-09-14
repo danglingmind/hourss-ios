@@ -11,9 +11,14 @@ import Foundation
 /// passes, for a reason that has nothing to do with what it claims to check.
 ///
 /// Each person isolates one question. Together they cover both directions of
-/// correctness: five carry a real effect the engine ought to find, and four carry
-/// none — or one it should refuse to explain — which is where a pattern engine
-/// actually fails.
+/// correctness: most carry a real effect the engine ought to find, and the rest
+/// carry none — or one it should refuse to explain — which is where a pattern
+/// engine actually fails.
+///
+/// The conjunction people at the bottom exist for the same reason twice over. A
+/// search over combinations has more ways to be wrong than a search over single
+/// factors, and the one that matters is `deepWorkMostlyMorning`: a person whose
+/// intersection looks strong because one of its halves is.
 extension SyntheticCohort {
 
     /// A genuine afternoon slump. The simplest true thing there is.
@@ -105,10 +110,98 @@ extension SyntheticCohort {
                        planted: [.activityEffect(named: "Admin", delta: -1.4)],
                        rationale: "Informative missingness: the drain is real but under-reported, so the measured gap understates it.")))
 
+    // MARK: - Conjunctions
+
+    /// Deep work in the morning, worth more than deep work and mornings combined.
+    ///
+    /// Both factors carry a little on their own — enough for the main-effect tree
+    /// to generate the candidate at all — and the intersection carries far more
+    /// than adding them predicts. This is the pattern §6 exists to find, and the
+    /// only 2-way in the cohort that should clear the lift gate.
+    static let morningDeepWork: Person = make(.init(
+        name: "Morning deep work", seed: 0x2A01, baseRating: 2.6, noiseSD: 0.7,
+        schedule: .init(activity: "Deep work", prevalence: 0.45, morningShare: 0.5),
+        truth: .init(
+            planted: [.activityEffect(named: "Deep work", delta: 0.35),
+                      .timeWindow(better: .morning, worse: .afternoon, delta: 0.4),
+                      .conjunction(activity: "Deep work", bucket: .morning,
+                                   afterMedianSleep: false, delta: 1.4)],
+            rationale: "A real two-way interaction with small main effects under it. The lift is the whole claim.")))
+
+    /// The same, but only after a night above this person's own sleep median.
+    ///
+    /// The 2-way is real too and deliberately smaller, so a search that stops at
+    /// two factors finds something true and incomplete. The third factor is where
+    /// most of the effect lives, and splitting the intersection on sleep is the
+    /// only way to see it — which is the argument for the layer existing.
+    static let morningDeepWorkAfterSleep: Person = make(.init(
+        name: "Morning deep work after sleep", seed: 0x2A02, baseRating: 2.6, noiseSD: 0.7,
+        schedule: .init(activity: "Deep work", prevalence: 0.45, morningShare: 0.5),
+        truth: .init(
+            planted: [.activityEffect(named: "Deep work", delta: 0.3),
+                      .conjunction(activity: "Deep work", bucket: .morning,
+                                   afterMedianSleep: false, delta: 0.45),
+                      .conjunction(activity: "Deep work", bucket: .morning,
+                                   afterMedianSleep: true, delta: 1.1)],
+            rationale: "A real three-way. The 2-way under it is real and small, so the third factor has to be earned separately.")))
+
+    /// Deep work is good everywhere, and he mostly does it in the morning.
+    ///
+    /// The critical negative, and the reason the lift gate is in the design at
+    /// all. A conjunction search that scores `deep work ∩ morning` against the
+    /// rest of his sessions finds a large, real, well-supported difference — and
+    /// every bit of it belongs to deep work. Nothing about the morning adds
+    /// anything, and the intersection is a weaker claim than the single factor it
+    /// is built from, because the deep work he does in the afternoon is just as
+    /// good and sits in the baseline dragging it up.
+    ///
+    /// Seventy percent rather than ninety on purpose. At ninety the intersection
+    /// is nearly the whole activity and the two hypotheses stop being separable
+    /// even in principle; seventy leaves a real afternoon cell to be wrong about.
+    static let deepWorkMostlyMorning: Person = make(.init(
+        name: "Deep work, mostly morning", seed: 0x2A03, baseRating: 2.6, noiseSD: 0.7,
+        schedule: .init(activity: "Deep work", prevalence: 0.45, morningShare: 0.7),
+        truth: .init(
+            planted: [.activityEffect(named: "Deep work", delta: 1.5)],
+            rationale: "A large main effect and no interaction, in a schedule that makes one look present. The lift gate has to refuse this.")))
+
+    /// Sessions everywhere, ratings from nowhere.
+    ///
+    /// `flatline` is noise on the default schedule, which puts the first session
+    /// of every day in the morning and so leaves most cells too thin to tempt
+    /// anybody. This person's sessions are spread across activities and hours,
+    /// which fills the conjunction grid with well-populated cells that mean
+    /// nothing — the shape a combinatorial search most wants to find something in.
+    static let scatteredNoise: Person = make(.init(
+        name: "Scattered noise", seed: 0x2A04, baseRating: 3.3, noiseSD: 0.85,
+        schedule: .init(activity: "Deep work", prevalence: 0.2,
+                        morningShare: Schedule.backgroundMorningShare),
+        truth: .init(
+            planted: [],
+            forbidden: [.anyVisibleClaim],
+            rationale: "Noise spread evenly enough to populate every conjunction cell. Any interaction found here is invented.")))
+
+    /// A real conjunction, on five days.
+    ///
+    /// The effect is large and genuine; there is simply not enough of it. Kept
+    /// distinct from `shortHistory`, whose whole record is short — this person has
+    /// ninety days of everything else, so the refusal has to come from counting
+    /// days *inside the intersection* rather than from the size of the history.
+    static let rareMorningCreative: Person = make(.init(
+        name: "Rare morning creative", seed: 0x2A05, baseRating: 2.6, noiseSD: 0.7,
+        schedule: .init(activity: "Creative", morningShare: 1.0, onlyOnEveryNthDay: 20),
+        truth: .init(
+            planted: [.conjunction(activity: "Creative", bucket: .morning,
+                                   afterMedianSleep: false, delta: 1.5)],
+            forbidden: [.anyVisibleClaim],
+            rationale: "A real interaction on too few calendar days to support. The day gate, not the lift gate.")))
+
     /// Everyone, for suites that sweep the cohort.
     static var everyone: [Person] {
         [afternoonSlump, flatline, meetingDrain, shortHistory,
          stillMeetings, walkingMeetings, walksEverywhere, walksAndStrains,
-         skipsTheBadOnes]
+         skipsTheBadOnes,
+         morningDeepWork, morningDeepWorkAfterSleep, deepWorkMostlyMorning,
+         scatteredNoise, rareMorningCreative]
     }
 }

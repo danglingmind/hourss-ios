@@ -29,6 +29,9 @@ extension SyntheticCohort {
         /// one activity. Nil for everybody who does not have one, which keeps the
         /// random stream — and so every existing person — byte-identical.
         var walkingHabit: WalkingHabit? = nil
+        /// Explicit placement of sessions across activities and hours. See
+        /// `Schedule`. Nil leaves the original day-walking behaviour untouched.
+        var schedule: Schedule? = nil
         var truth: Truth
     }
 
@@ -52,6 +55,36 @@ extension SyntheticCohort {
         var alwaysDuring: [String] = []
     }
 
+    /// Where a person's sessions land, rather than where the day happens to put
+    /// them.
+    ///
+    /// A conjunction is as much a claim about *placement* as about ratings. The
+    /// default generator walks forward from breakfast, so the first session of
+    /// every day is a morning one whatever activity it is, and which activity
+    /// lands in which hour is not something a recipe can state. Confounding —
+    /// the case the interaction lift gate exists to refuse — cannot be built at
+    /// all without saying it: the whole construction is one activity that is
+    /// mostly, but not causally, a morning activity.
+    ///
+    /// Nil for everybody who already existed, which keeps the random stream, and
+    /// so every person generated before this, byte-identical.
+    struct Schedule {
+        /// The activity whose placement is stated rather than drawn.
+        var activity: String
+        /// Share of sessions that are that activity.
+        var prevalence: Double = 0.45
+        /// Share of *those* sessions that land in the morning. Equal to
+        /// `backgroundMorningShare` is no imbalance at all; 0.7 is the confound.
+        var morningShare: Double = 0.5
+        /// Confines the activity to every nth day, so a real conjunction can exist
+        /// on too few calendar days to be worth supporting.
+        var onlyOnEveryNthDay: Int? = nil
+        /// What everything else keeps. Held fixed so the hour is a proxy for the
+        /// activity only to the extent `morningShare` makes it one, and a person
+        /// with no imbalance genuinely has none rather than a smaller one.
+        static let backgroundMorningShare = 0.35
+    }
+
     static func make(_ recipe: Recipe) -> Person {
         var rng = Seeded(seed: recipe.seed)
         let calendar = Calendar.current
@@ -66,6 +99,11 @@ extension SyntheticCohort {
             sleepByDay[day] = (isWeekend ? 8.1 : 7.1) + gaussian(&rng, sd: 0.55)
         }
         let sleepMean = sleepByDay.values.reduce(0, +) / Double(sleepByDay.count)
+        /// The median rather than the mean, because that is the predicate §6.4
+        /// writes into a three-way hypothesis — "health.sleep >= median". A
+        /// conjunction planted against one boundary and read against another
+        /// would land half its sessions on the wrong side of its own answer key.
+        let sleepMedian = sleepByDay.values.sorted()[sleepByDay.count / 2]
 
         var sessions: [Session] = []
         var reflections: [UUID: Reflection] = [:]
@@ -78,14 +116,38 @@ extension SyntheticCohort {
             let sleepLastNight = sleepByDay[day] ?? sleepMean
 
             var hour = Int.random(in: 8...10, using: &rng)
-            for _ in 0..<Int.random(in: recipe.sessionsPerDay, using: &rng) {
-                guard hour < 21 else { break }
-                let activity = activities[Int.random(in: 0..<activities.count, using: &rng)]
-                let minutes = [25, 45, 50, 60, 75, 95, 120][Int.random(in: 0...6, using: &rng)]
+            let count = Int.random(in: recipe.sessionsPerDay, using: &rng)
 
-                guard let start = calendar.date(bySettingHour: hour,
-                                                minute: Int.random(in: 0...45, using: &rng),
-                                                second: 0, of: day) else { break }
+            // Drawn up front for scheduled people, because slots are handed out
+            // without replacement and that is a decision about the whole day.
+            var plan: [PlannedSession] = []
+            if let schedule = recipe.schedule {
+                plan = plannedDay(schedule, dayOffset: offset, count: count,
+                                  activities: activities, rng: &rng)
+            }
+
+            for index in 0..<count {
+                let activity: Activity
+                let minutes: Int
+                let start: Date
+                if recipe.schedule != nil {
+                    guard index < plan.count else { break }
+                    let slot = plan[index]
+                    activity = slot.activity
+                    minutes = slot.minutes
+                    guard let at = calendar.date(bySettingHour: slot.hour, minute: slot.minute,
+                                                 second: 0, of: day) else { break }
+                    start = at
+                } else {
+                    guard hour < 21 else { break }
+                    activity = activities[Int.random(in: 0..<activities.count, using: &rng)]
+                    minutes = [25, 45, 50, 60, 75, 95, 120][Int.random(in: 0...6, using: &rng)]
+
+                    guard let at = calendar.date(bySettingHour: hour,
+                                                 minute: Int.random(in: 0...45, using: &rng),
+                                                 second: 0, of: day) else { break }
+                    start = at
+                }
                 let end = start.addingTimeInterval(TimeInterval(minutes * 60))
                 let session = Session(activityId: activity.id, startAt: start, endAt: end)
                 sessions.append(session)
@@ -98,7 +160,8 @@ extension SyntheticCohort {
                                           to: session,
                                           named: activity.name,
                                           sleepLastNight: sleepLastNight,
-                                          sleepMean: sleepMean)
+                                          sleepMean: sleepMean,
+                                          sleepMedian: sleepMedian)
                 }
                 value += gaussian(&rng, sd: recipe.noiseSD)
                 let rating = max(1, min(5, Int(value.rounded())))
@@ -115,7 +178,9 @@ extension SyntheticCohort {
                         submittedAt: end
                     )
                 }
-                hour += max(1, minutes / 60) + Int.random(in: 1...2, using: &rng)
+                if recipe.schedule == nil {
+                    hour += max(1, minutes / 60) + Int.random(in: 1...2, using: &rng)
+                }
             }
         }
 
@@ -133,6 +198,69 @@ extension SyntheticCohort {
                       heartRate: health.heartRate)
     }
 
+    struct PlannedSession {
+        let activity: Activity
+        let hour: Int
+        let minute: Int
+        let minutes: Int
+    }
+
+    /// Lays out one day's sessions at stated hours.
+    ///
+    /// Slots are handed out without replacement and every session is short enough
+    /// to finish inside its own hour, so a day never has two sessions claiming the
+    /// same minutes — the heart-rate generator reads these windows and overlapping
+    /// ones would make an activity's physiology partly somebody else's.
+    private static func plannedDay(
+        _ schedule: Schedule,
+        dayOffset: Int,
+        count: Int,
+        activities: [Activity],
+        rng: inout Seeded
+    ) -> [PlannedSession] {
+        let target = activities.first { $0.name == schedule.activity }
+        let others = activities.filter { $0.name != schedule.activity }
+        guard !others.isEmpty else { return [] }
+
+        // Morning is 05–11; the remaining pool spans midday, afternoon and
+        // evening so "not morning" is a mixture rather than a second single hour.
+        var morning = [7, 8, 9, 10]
+        var later = [11, 12, 14, 15, 16, 18, 19]
+
+        var out: [PlannedSession] = []
+        for index in 0..<count {
+            var isTarget = Double.random(in: 0...1, using: &rng) < schedule.prevalence
+            if let stride = schedule.onlyOnEveryNthDay {
+                // One occurrence, on its own days, and none anywhere else — a real
+                // conjunction spread over a countable number of calendar days.
+                isTarget = dayOffset % stride == 0 && index == 0
+            }
+
+            let wantsMorning = Double.random(in: 0...1, using: &rng)
+                < (isTarget ? schedule.morningShare : Schedule.backgroundMorningShare)
+            var pool = wantsMorning ? morning : later
+            if pool.isEmpty { pool = wantsMorning ? later : morning }
+            guard !pool.isEmpty else { break }
+
+            let hour = pool[Int.random(in: 0..<pool.count, using: &rng)]
+            morning.removeAll { $0 == hour }
+            later.removeAll { $0 == hour }
+
+            let activity: Activity
+            if isTarget, let target {
+                activity = target
+            } else {
+                activity = others[Int.random(in: 0..<others.count, using: &rng)]
+            }
+
+            out.append(PlannedSession(activity: activity,
+                                      hour: hour,
+                                      minute: Int.random(in: 0...5, using: &rng),
+                                      minutes: [25, 45, 50][Int.random(in: 0...2, using: &rng)]))
+        }
+        return out.sorted { $0.hour < $1.hour }
+    }
+
     /// How much one planted effect moves one session's rating. Effects that do not
     /// apply to this session contribute exactly zero.
     private static func contribution(
@@ -140,7 +268,8 @@ extension SyntheticCohort {
         to session: Session,
         named: String,
         sleepLastNight: Double,
-        sleepMean: Double
+        sleepMean: Double,
+        sleepMedian: Double
     ) -> Double {
         switch effect {
         case let .timeWindow(_, worse, delta):
@@ -151,6 +280,13 @@ extension SyntheticCohort {
             session.durationBucket == bucket ? delta : 0
         case let .sleepAssociation(delta):
             (sleepLastNight - sleepMean) * delta
+        case let .conjunction(activity, bucket, afterMedianSleep, delta):
+            // Every condition, or nothing. A session that satisfies two of three
+            // gets exactly zero of this effect — which is what makes the lift the
+            // planted number rather than something smeared across the margins.
+            (named == activity
+             && session.timeBucket == bucket
+             && (!afterMedianSleep || sleepLastNight >= sleepMedian)) ? delta : 0
         case .heartRate, .movementHabit, .unexplainedRise:
             0   // physiological, not a rating effect
         }
