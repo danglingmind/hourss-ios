@@ -124,5 +124,16 @@ enum InteractionBudget {
     /// Candidates are ranked by main-effect strength and the tail is dropped
     /// untested, which is a decision to look in fewer places rather than a
     /// decision to believe more easily.
-    static let maximumCandidates = 60
+    ///
+    /// Thirty rather than sixty, and the difference is not cosmetic. A step-up
+    /// procedure compares each p against `k/m · q`, so every extra candidate
+    /// raises the bar for all of them. At sixty, the person carrying a genuine
+    /// three-way interaction was refused outright — their best candidate holds a
+    /// permutation p of 0.0060 whatever the budget, and what moved was the
+    /// threshold it was measured against. At thirty they are found again, and
+    /// neither negative gains a single claim.
+    ///
+    /// It costs the two-way person two of five admissions. Refusing a real
+    /// finding entirely is the worse failure, so that is the trade taken.
+    static let maximumCandidates = 30
 }
