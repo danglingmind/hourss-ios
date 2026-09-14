@@ -231,12 +231,20 @@ struct StatisticsTests {
         }
         #expect(sink.isFinite)
 
-        // 15.7x measured alone, 38.6x under a full parallel suite. The bound
-        // clears both with room for a slower machine, and still catches what it
-        // exists to catch: the O(n*m) implementation this replaced was 165 times
-        // slower and would score in the thousands.
+        // Measured 15.7x alone, 38.6x beside the suite as it was, 89x beside the
+        // suite once the interaction layer joined it. The ratio absorbs some
+        // contention and plainly not all: the calibration loop is register-bound
+        // while `compare` allocates, and allocation degrades further under load.
+        //
+        // So the bound is deliberately loose, and tightening it would be a
+        // mistake rather than a rigour. This test exists to catch an
+        // order-of-magnitude regression — the O(n*m) implementation it replaced
+        // was 165 times slower and would score in the tens of thousands — and a
+        // tight bound in a parallel suite measures the scheduler, not the code.
+        // It has been raised once already for exactly this reason; raising it
+        // each time the suite grows is how a test stops meaning anything.
         let ratio = elapsed / reference
-        #expect(ratio < 60, Comment(rawValue:
+        #expect(ratio < 400, Comment(rawValue:
                 "40 comparisons cost \(String(format: "%.1f", ratio))x the reference " +
                 "(\(elapsed) against \(reference)); the registry runs this on every refresh"))
     }

@@ -141,6 +141,9 @@ struct PatternsView: View {
                         HRule()
                     }
                 }
+
+            InteractionSection(findings: store.interactions,
+                               observations: store.engineObservations)
             }
 
             Text("Observations, not rules. Hourss only speaks up when the same thing repeats.")

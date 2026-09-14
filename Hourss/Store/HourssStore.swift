@@ -338,6 +338,21 @@ final class HourssStore {
     /// A status is only carried forward if the claim is still being made. An
     /// observation that no longer survives its own evidence should not come back
     /// wearing a badge from when it did.
+    /// Conjunctions that survived every gate, strongest first.
+    ///
+    /// Separate from `insights` rather than folded into them, because they are a
+    /// different kind of claim with a different correction behind it, and mixing
+    /// the two would make the feed's ordering meaningless — a permutation p and a
+    /// bootstrap interval are not comparable quantities.
+    private(set) var interactions: [InteractionFinding] = []
+
+    /// The rows the last rebuild ran on.
+    ///
+    /// Kept because narration needs them to name a factor in the person's own
+    /// words — "your Deep work sessions", not "activity.deep-work" — and
+    /// recomputing them in a view body would rebuild every row on every redraw.
+    private(set) var engineObservations: [EngineObservation] = []
+
     func rebuildInsights() {
         let carried = Dictionary(
             insights.filter { $0.status == .saved || $0.status == .hidden }
@@ -353,6 +368,25 @@ final class HourssStore {
             residuals: physiologyReadings,
             workdays: profile.workdays
         )
+
+        engineObservations = rows
+        let input = EngineInput(observations: rows, priorities: profile.priorities)
+
+        // Interactions run off the same rows and the same main effects the feed
+        // is built from, so a conjunction can never rest on evidence the feed
+        // would not also accept. Recomputed here rather than lazily: the search
+        // is bounded by `InteractionBudget` precisely so it can be afforded on
+        // every rebuild rather than becoming a thing that runs sometimes.
+        let mainEffectFindings = Engine.applyingCorrection(to: Engine.findings(for: input))
+        let candidates = InteractionCandidates.findings(
+            for: input,
+            mainEffects: InteractionCandidates.mainEffects(from: mainEffectFindings)
+        )
+        interactions = InteractionCorrection
+            .permutationFDR(to: candidates, observations: rows)
+            .findings
+            .filter(\.isReportable)
+            .sorted { $0.interaction.lift > $1.interaction.lift }
 
         insights = Engine.run(
             EngineInput(observations: rows, priorities: profile.priorities)

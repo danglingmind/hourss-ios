@@ -6,6 +6,7 @@ struct HourssApp: App {
     @State private var store = HourssStore()
     @State private var health = HealthService()
     @State private var live = LiveSessionController()
+    @State private var narration = NarrationStore()
 
     init() { FontAudit.run() }
 
@@ -14,6 +15,7 @@ struct HourssApp: App {
             RootView()
                 .environment(store)
                 .environment(health)
+                .environment(narration)
                 .tint(.orange)
                 .task {
                     store.live = live
