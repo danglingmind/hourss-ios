@@ -46,7 +46,33 @@ genuinely small.
 
 ### Record-fed fact generators
 
-**Status:** not built. The Health-fed half shipped; nothing reads the record.
+**Status:** partially built. The shape is settled and one generator ships; three
+of the four listed problems are solved, and the remaining work is more
+generators rather than more design.
+
+**Done.** `Fact.metric` and `Fact.group` collapsed into `Fact.Subject` —
+`.health(HealthMetric)` or `.record(RecordTopic)` — with computed `title`,
+`healthGroup` (nil for a record fact, which is what keeps it out of the consent
+scope and the engine's factor space), `key` and `varietyKey`. `RecordFacts.pool`
+supplies `longestStretch`, excluding imported sleep. `DailyFact` takes the two
+pools separately and offers the record first: merging them was wrong, because
+`surprise` scores an unknown prior at half a bit against better than four for a
+strong Health prior, so a record fact would have sorted below nearly every
+Health fact and arrived five weeks late — the opposite of its purpose. Key
+parsing now splits from the end, since a record key has three components where a
+Health key has two; splitting from the front had silently disabled variety
+control for exactly the facts added to improve it. `AllFactsView` leads with the
+record sections. `build(from:)` is untouched and still Health-only, which is
+right: on day one there is no record.
+
+**Still to do.** More generators — the obvious next ones are a logging streak, a
+first-of-its-kind ("first afternoon you have rated"), and a ratings superlative.
+Ratings needs care: on a five-point scale the top value is usually tied several
+ways, so the honest formulation is at the moment of rating, comparing one session
+against everything logged before it, which makes it a `DayContextCard` fact
+rather than a pool fact. `RecordTopic` has one case; each new generator either
+joins `.length` or adds a topic, and topics are the variety axis, so adding one
+widens the distinct-day count.
 
 **Why it matters.** `HealthDigest.pool(from:)`
 (`Hourss/Store/HealthDigest.swift:161`) takes exactly one argument —

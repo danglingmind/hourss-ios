@@ -83,7 +83,11 @@ struct TodayView: View {
         // it more than once a day is free, which is why the whole of its memory
         // sits in defaults rather than in this view's lifetime.
         .task(id: dailyFactInputs) {
-            dailyFact = DailyFact().fact(for: today, from: HealthDigest.pool(from: store.healthByDay))
+            dailyFact = DailyFact().fact(
+                for: today,
+                record: RecordFacts.pool(sessions: store.sessions,
+                                         activityName: store.activityName),
+                from: HealthDigest.pool(from: store.healthByDay))
         }
     }
 
@@ -192,7 +196,7 @@ struct TodayView: View {
     /// cold launch; the two health counts catch a sync that changed what the
     /// history holds.
     private var dailyFactInputs: [Int] {
-        [Int(today.timeIntervalSinceReferenceDate),
+        [Int(today.timeIntervalSinceReferenceDate), store.sessions.count,
          store.healthByDay.count,
          store.healthByDay.values.reduce(0) { $0 + $1.count }]
     }

@@ -37,8 +37,8 @@ struct DailyFactTests {
         HealthDigest.Fact(
             figure: "\(metric.rawValue)-\(HealthDigest.kindKey(kind))",
             sentence: "\(metric.rawValue) \(HealthDigest.kindKey(kind))",
-            group: metric.group, kind: kind, mark: .none,
-            strength: strength, metric: metric, raised: true
+            kind: kind, mark: .none,
+            strength: strength, subject: .health(metric), raised: true
         )
     }
 
@@ -105,8 +105,8 @@ struct DailyFactTests {
 
         let yesterday = try #require(dispenser.fact(for: day(1), from: pool))
         let today = try #require(dispenser.fact(for: day(0), from: pool))
-        #expect(yesterday.metric == .steps && yesterday.kind == .contrast)
-        #expect(today.metric != yesterday.metric)
+        #expect(yesterday.subject.key == HealthMetric.steps.rawValue && yesterday.kind == .contrast)
+        #expect(today.subject.key != yesterday.subject.key)
         #expect(today.kind != yesterday.kind)
     }
 
@@ -123,7 +123,7 @@ struct DailyFactTests {
 
         _ = try #require(dispenser.fact(for: day(1), from: pool))
         let today = try #require(dispenser.fact(for: day(0), from: pool))
-        #expect(today.metric == .hrv)
+        #expect(today.subject.key == HealthMetric.hrv.rawValue)
     }
 
     @Test("An exhausted pool shows nothing rather than repeating itself")

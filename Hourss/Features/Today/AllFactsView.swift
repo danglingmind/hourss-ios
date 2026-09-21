@@ -40,10 +40,26 @@ struct AllFactsView: View {
                     // Under a heading the same facts read as depth: four things
                     // known about sleep is a section, where four sleep cards
                     // scattered through a list is a stutter.
+                    // Things you logged first, then what the watch read.
+                    //
+                    // Deliberately this order and not the reverse. A record fact
+                    // exists because somebody did the logging, and putting the
+                    // part they earned under four sections of Health history
+                    // would bury it under the part they did not.
+                    ForEach(HealthDigest.RecordTopic.allCases, id: \.self) { topic in
+                        let inTopic = facts.filter {
+                            if case .record(let t) = $0.subject { return t == topic }
+                            return false
+                        }
+                        if !inTopic.isEmpty {
+                            section(titled: topic.title, facts: inTopic)
+                        }
+                    }
+
                     ForEach(HealthGroup.allCases) { group in
-                        let inGroup = facts.filter { $0.group == group }
+                        let inGroup = facts.filter { $0.subject.healthGroup == group }
                         if !inGroup.isEmpty {
-                            section(group, facts: inGroup)
+                            section(titled: group.title, facts: inGroup)
                         }
                     }
                 }
@@ -54,26 +70,31 @@ struct AllFactsView: View {
         .background(Color.canvas)
         .navigationBarBackButtonHidden()
         .safeAreaInset(edge: .top, spacing: 0) { header }
-        .task(id: store.healthByDay.count) {
-            let pool = HealthDigest.pool(from: store.healthByDay)
+        .task(id: [store.healthByDay.count, store.sessions.count]) {
+            let record = RecordFacts.pool(sessions: store.sessions,
+                                          activityName: store.activityName)
+            let pool = record + HealthDigest.pool(from: store.healthByDay)
             facts = pool
             // Asking the dispenser rather than storing the answer anywhere: it is
             // idempotent within a calendar day, so this returns the fact Today is
             // already showing and does not spend a second one.
             todaysKey = DailyFact()
-                .fact(for: Calendar.current.startOfDay(for: Date()), from: pool)
+                .fact(for: Calendar.current.startOfDay(for: Date()),
+                      record: record,
+                      from: HealthDigest.pool(from: store.healthByDay))
                 .map(DailyFact.key(for:))
         }
     }
 
     /// One topic's facts, under the group's own name.
     ///
-    /// The heading is `HealthGroup.title` — "Sleep", "Recovery", "Movement",
-    /// "Mind and light" — the same words the consent screen used, so nothing here
-    /// is a name invented for this list.
-    private func section(_ group: HealthGroup, facts inGroup: [HealthDigest.Fact]) -> some View {
+    /// The heading is the subject's own name — `HealthGroup.title` for the Health
+    /// sections ("Sleep", "Recovery", "Movement", "Mind and light"), the same
+    /// words the consent screen used, and `RecordTopic.title` for what somebody
+    /// logged. Nothing here is a name invented for this list.
+    private func section(titled title: String, facts inGroup: [HealthDigest.Fact]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow(group.title)
+            Eyebrow(title)
                 .padding(.top, Space.md)
                 .padding(.bottom, Space.xs)
 
@@ -118,15 +139,17 @@ struct AllFactsView: View {
         // No longer "most striking first" — that was true of the flat list and is
         // not true of the sections, which are ordered by topic. Within a section
         // the surprise ranking still holds, and saying so would be more precise
-        // than a reader needs.
-        return "\(facts.count) \(noun) from your own Health history, by topic."
+        // than a reader needs. "Health history" alone stopped being true once the
+        // pool grew a half that comes from what somebody logged.
+        return "\(facts.count) \(noun) from your own record and Health history, by topic."
     }
 
-    /// No Health history read yet, so there is nothing to list. Says that, rather
-    /// than suggesting logging would change it — it would not; this pool comes
-    /// from the watch, not from the record.
+    /// Nothing read and nothing logged, so there is nothing to list. Both sources
+    /// are named because both are now real: the empty state used to say logging
+    /// would not change this, which was true when the pool came only from the
+    /// watch and is not true any more.
     private var empty: some View {
-        Text("Nothing here yet. These come from your Health history.")
+        Text("Nothing here yet. These come from your Health history and what you log.")
             .textStyle(.body)
             .foregroundStyle(Color.muted)
             .fixedSize(horizontal: false, vertical: true)

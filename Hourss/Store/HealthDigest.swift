@@ -18,18 +18,93 @@ struct HealthDigest {
         var figure: String
         /// One sentence. Reads as an observation, not advice.
         var sentence: String
-        var group: HealthGroup
         var kind: Kind
-        var mark: Mark
 
         /// Which generator produced this. Three facts of the same shape read as one
         /// fact repeated, however different their subjects.
-        enum Kind { case rhythm, contrast, drift, scale }
+        ///
+        /// The first four come from Health history. `best` comes from the record
+        /// somebody logged, and gets no entry in the priors table below — which
+        /// scores it the neutral half a bit. That is deliberate, not an omission:
+        /// a prior says what is ordinarily true of people, and there is nothing
+        /// ordinary to know about whether your best session so far was this one.
+        enum Kind { case rhythm, contrast, drift, scale, best }
+        var mark: Mark
         /// Normalised effect size. Orders facts of the same kind; it no longer
         /// decides which kind leads. See `surprise`.
         var strength: Double
-        /// Which signal this is about, for the prior lookup.
-        var metric: HealthMetric
+
+        /// What this fact is about.
+        ///
+        /// Two shapes, because there are two sources and only one of them is
+        /// HealthKit. Collapsed into one value rather than left as an optional
+        /// metric beside an optional group, so a fact cannot exist with neither
+        /// or with both.
+        ///
+        /// **Why not synthetic `HealthMetric` cases.** That was the cheaper
+        /// option and it is wrong: `HealthMetric.allCases` is iterated by
+        /// `InteractionCandidates.factors` to build the engine's factor space,
+        /// and `HealthGroup` scopes what the consent screen asks permission for.
+        /// A fact about a deep-work block would have become a thing the engine
+        /// searched over and a thing the OS was asked about — a presentation
+        /// need leaking into two places that must not hear about it.
+        var subject: Subject
+
+        enum Subject {
+            case health(HealthMetric)
+            case record(RecordTopic)
+
+            /// The card's own name for what it is about.
+            ///
+            /// Both arms return a string written once, in the type that owns the
+            /// subject — `HealthMetric.title` is the same wording the consent
+            /// list shows. Nothing is authored at a render site, which is the
+            /// rule `HealthFactRow` argues for at length.
+            var title: String {
+                switch self {
+                case .health(let metric): metric.title
+                case .record(let topic): topic.title
+                }
+            }
+
+            /// The consent group this belongs to, or nil for a record fact.
+            ///
+            /// Nil rather than a fifth `HealthGroup` case. The groups are what
+            /// the OS was asked permission for, and somebody's own log needed no
+            /// permission — adding a case would have put a thing that was never
+            /// requested into the list of things that were.
+            var healthGroup: HealthGroup? {
+                switch self {
+                case .health(let metric): metric.group
+                case .record: nil
+                }
+            }
+
+            /// Stable identity, namespaced by source.
+            ///
+            /// The prefix is what lets a record fact and a Health fact share a
+            /// key space without either being mistaken for the other. Health
+            /// keys keep their bare metric spelling so the keys already sitting
+            /// in `UserDefaults` from before record facts existed keep meaning
+            /// what they meant.
+            var key: String {
+                switch self {
+                case .health(let metric): metric.rawValue
+                case .record(let topic): "record.\(topic.rawValue)"
+                }
+            }
+
+            /// The axis variety is judged on: the group for Health, the topic
+            /// for the record. Coarser than `key` on purpose — steps and active
+            /// energy are one subject to a reader, because one is a consequence
+            /// of the other.
+            var varietyKey: String {
+                switch self {
+                case .health(let metric): metric.group.rawValue
+                case .record(let topic): "record.\(topic.rawValue)"
+                }
+            }
+        }
         /// Whether the fact went up. A pattern that runs against what is ordinary
         /// is the interesting half of every prior in the table below.
         var raised: Bool
@@ -49,6 +124,35 @@ struct HealthDigest {
     let daysOfHistory: Int
 
     var isEmpty: Bool { facts.isEmpty }
+
+    /// What a record fact is about, where a Health fact would name a metric.
+    ///
+    /// Deliberately a short list. These are the topics somebody's own log can be
+    /// summarised under without asserting a relationship between any two of them
+    /// — the line the whole engine is built on. A topic that needed two things to
+    /// be true at once would be a claim, and would belong to the engine.
+    enum RecordTopic: String, CaseIterable {
+        /// How long a single logged stretch ran.
+        ///
+        /// Duration rather than rating for the first of these, and the reason is
+        /// arithmetic rather than taste. A feeling is one of five values, so on a
+        /// dozen sessions the top one is almost always tied several ways and
+        /// "your highest-rated session so far" is either false or has to name one
+        /// of six. Minutes are continuous and effectively never tie, so the
+        /// superlative is true as stated. Ratings get their own generator when
+        /// there is a formulation that does not depend on a coin toss — the
+        /// honest one is at the moment of rating, where a session can be compared
+        /// against everything logged before it.
+        case length
+
+        /// Names the subject, in the same register as `HealthMetric.title`: a
+        /// noun for what was measured, never a verdict on it.
+        var title: String {
+            switch self {
+            case .length: "Time in one stretch"
+            }
+        }
+    }
 
     // MARK: - Building
 
@@ -111,7 +215,7 @@ struct HealthDigest {
     /// How ordinary this fact is, 0…1. Unknown pairs are neutral, so a signal
     /// nobody has folk expectations about is neither promoted nor punished.
     private static func expectedness(of fact: Fact) -> Double {
-        guard let prior = priors["\(fact.metric.rawValue).\(kindKey(fact.kind))"] else { return 0.5 }
+        guard let prior = priors["\(fact.subject.key).\(kindKey(fact.kind))"] else { return 0.5 }
         // A fact running the other way is the same prior read from its
         // complement, so someone who sleeps *less* at weekends outranks the
         // ordinary case by the ratio of their surprise rather than by a bonus.
@@ -127,6 +231,7 @@ struct HealthDigest {
         case .contrast: "contrast"
         case .drift: "drift"
         case .scale: "scale"
+        case .best: "best"
         }
     }
 
@@ -177,10 +282,10 @@ struct HealthDigest {
         return candidates.sorted {
             let left = surprise(of: $0), right = surprise(of: $1)
             if left != right { return left > right }
-            // Ties fall back to size and then to the metric, so two runs over one
-            // history put the same fact first.
+            // Ties fall back to size and then to the subject's key, so two runs
+            // over one history put the same fact first.
             if $0.strength != $1.strength { return $0.strength > $1.strength }
-            return $0.metric.rawValue < $1.metric.rawValue
+            return $0.subject.key < $1.subject.key
         }
     }
 
@@ -197,17 +302,19 @@ struct HealthDigest {
         var usedKinds: Set<Fact.Kind> = []
 
         for fact in ranked where chosen.count < 3 {
-            guard !usedGroups.contains(fact.group), !usedKinds.contains(fact.kind) else { continue }
+            guard let group = fact.subject.healthGroup else { continue }
+            guard !usedGroups.contains(group), !usedKinds.contains(fact.kind) else { continue }
             chosen.append(fact)
-            usedGroups.insert(fact.group)
+            usedGroups.insert(group)
             usedKinds.insert(fact.kind)
         }
         // If variety could not be had, fill the remainder on topic alone rather
         // than showing fewer than three.
         for fact in ranked where chosen.count < 3 {
-            guard !usedGroups.contains(fact.group) else { continue }
+            guard let group = fact.subject.healthGroup else { continue }
+            guard !usedGroups.contains(group) else { continue }
             chosen.append(fact)
-            usedGroups.insert(fact.group)
+            usedGroups.insert(group)
         }
 
         return HealthDigest(facts: chosen, daysOfHistory: allDays.count)
@@ -259,11 +366,10 @@ struct HealthDigest {
         return Fact(
             figure: difference(metric, high - low),
             sentence: "\(plural(lowDay)) run \(difference(metric, high - low)) \(metric.lowerDirection) than \(plural(highDay)).",
-            group: metric.group,
             kind: .rhythm,
             mark: .weekdayRhythm(present.map { ($0 - low) / (high - low) }),
             strength: strength,
-            metric: metric,
+            subject: .health(metric),
             // A spread across seven days has no direction of its own; the prior
             // for a rhythm turns on the metric alone.
             raised: true
@@ -292,7 +398,6 @@ struct HealthDigest {
         return Fact(
             figure: "\(Int((strength * 100).rounded()))%",
             sentence: "Your \(metric.plainName) reads \(Int((strength * 100).rounded()))% \(higherAtWeekends ? "higher" : "lower") at weekends.",
-            group: metric.group,
             kind: .contrast,
             mark: .comparison(
                 highLabel: higherAtWeekends ? "Weekends" : "Weekdays",
@@ -301,7 +406,7 @@ struct HealthDigest {
                 low: min(weekendMean, weekdayMean)
             ),
             strength: strength,
-            metric: metric,
+            subject: .health(metric),
             raised: higherAtWeekends
         )
     }
@@ -324,7 +429,6 @@ struct HealthDigest {
         return Fact(
             figure: difference(metric, abs(recentMean - earlierMean)),
             sentence: "Your \(metric.plainName) has been \(recentMean > earlierMean ? "running higher" : "easing down") lately.",
-            group: metric.group,
             kind: .drift,
             mark: .comparison(
                 highLabel: "Recently",
@@ -335,7 +439,7 @@ struct HealthDigest {
             // Damped a little: a trend is the most likely of the four to be
             // measurement drift rather than the person changing.
             strength: strength * 0.7,
-            metric: metric,
+            subject: .health(metric),
             raised: recentMean > earlierMean
         )
     }
@@ -351,12 +455,11 @@ struct HealthDigest {
                 ? total.formatted(.number.precision(.fractionLength(0)))
                 : total.formatted(.number.precision(.fractionLength(0))),
             sentence: "\(metric.totalPhrase(total)) across \(byDay.count) days.",
-            group: metric.group,
             kind: .scale,
             mark: .none,
             // A total is arithmetic rather than discovery, and its prior says so.
             strength: 0.05,
-            metric: metric,
+            subject: .health(metric),
             raised: true
         )
     }

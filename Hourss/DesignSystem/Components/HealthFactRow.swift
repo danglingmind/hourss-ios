@@ -58,7 +58,7 @@ struct HealthFactRow: View {
     /// accessibility label then cannot disagree, because there is only one of
     /// these to disagree with.
     var titled: TitledFigure {
-        TitledFigure(title: fact.metric.title, figure: fact.figure, detail: fact.sentence)
+        TitledFigure(title: fact.subject.title, figure: fact.figure, detail: fact.sentence)
     }
 
     var body: some View {

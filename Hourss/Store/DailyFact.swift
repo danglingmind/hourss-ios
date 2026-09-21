@@ -38,7 +38,7 @@ struct DailyFact {
     /// generators each run at most once per metric, so the pair is unique within
     /// a pool, and it is the same spelling the prior table is keyed by.
     static func key(for fact: HealthDigest.Fact) -> String {
-        "\(fact.metric.rawValue).\(HealthDigest.kindKey(fact.kind))"
+        "\(fact.subject.key).\(HealthDigest.kindKey(fact.kind))"
     }
 
     /// Everything dispensed so far, oldest first. The last entry is the fact the
@@ -51,9 +51,27 @@ struct DailyFact {
     /// that have nothing to do with the date — a keystroke elsewhere, a session
     /// starting — and a dispenser that handed out a new fact per call would spend
     /// the year in an afternoon.
-    func fact(for day: Date, from pool: [HealthDigest.Fact]) -> HealthDigest.Fact? {
+    /// `record` is offered ahead of `health`, not merged into it.
+    ///
+    /// Merging was the obvious thing and it is wrong. `surprise` scores an
+    /// unknown prior at half a bit while a strong Health prior reaches better
+    /// than four, and a record fact has no prior by construction — so in one
+    /// ranked list record facts sort below nearly every Health fact and only
+    /// surface once the Health pool is spent, five weeks in. That is precisely
+    /// backwards: a record fact is the one that exists *because* somebody logged,
+    /// so it is the one that has to arrive while they are deciding whether
+    /// logging is worth it.
+    ///
+    /// So the record is asked first, every day, and Health fills in behind it.
+    /// Early on there is no record to draw from and Health carries the whole
+    /// thing; as the log grows the record takes over. That is the handoff this
+    /// feature was supposed to have.
+    func fact(for day: Date,
+              record: [HealthDigest.Fact] = [],
+              from health: [HealthDigest.Fact]) -> HealthDigest.Fact? {
         let today = dayKey(day)
         var spent = spentKeys
+        let pool = record + health
 
         // Already dispensed today: hand back the same fact, found by content
         // rather than by identity.
@@ -68,7 +86,10 @@ struct DailyFact {
         // going blank for the rest of the day.
 
         let alreadyShown = Set(spent)
-        // The pool arrives ranked by surprise, so "first" is "best" throughout.
+        // Record facts sit at the head of the list and the Health half arrives
+        // ranked by surprise behind them, so "first" is "best" throughout — but
+        // "best" now means "the record before the watch", not "the largest
+        // surprise". See the note on this method.
         let remaining = pool.filter { !alreadyShown.contains(Self.key(for: $0)) }
         // Exhausted. Nothing is recycled and nothing is invented to fill the
         // space: a person who has seen everything their history holds is owed
@@ -128,34 +149,52 @@ struct DailyFact {
     /// `HealthGroup` is the level at which two facts are actually about different
     /// things.
     static func pair(of fact: HealthDigest.Fact) -> String {
-        "\(fact.group.rawValue).\(HealthDigest.kindKey(fact.kind))"
+        "\(fact.subject.varietyKey).\(HealthDigest.kindKey(fact.kind))"
     }
 
-    /// The same pair recovered from a stored key, which holds a metric rather
-    /// than a group.
+    /// A stored key taken apart into the subject it names and the kind it is.
     ///
-    /// Nil when the metric no longer exists in the enum. A fact whose metric has
-    /// been removed cannot block anything, which is the right failure: the
-    /// alternative is guessing at a group and silently suppressing a fact that
-    /// has nothing to do with it. Keys stay in `metric.kind` form so what is
-    /// already on somebody's phone keeps meaning what it meant.
+    /// **Split from the end, not the front.** A Health key is `steps.drift` and
+    /// splits either way, but a record key is `record.ratings.best` — three
+    /// components, because the subject is itself namespaced. The kind is always
+    /// the last component and the subject is everything before it, so reading
+    /// backwards is the only rule that holds for both. Splitting from the front
+    /// silently produced a subject of `record` and a kind of `ratings.best`,
+    /// which matched nothing and disabled variety control for exactly the facts
+    /// that were added to improve it.
+    static func parts(ofKey key: String) -> (subject: String, kind: String)? {
+        let components = key.split(separator: ".")
+        guard components.count >= 2, let kind = components.last else { return nil }
+        return (components.dropLast().joined(separator: "."), String(kind))
+    }
+
+    /// The variety pair recovered from a stored key.
+    ///
+    /// The stored subject is a metric for Health facts, and the variety axis is
+    /// its group, so that lookup has to happen here. Nil when the metric no
+    /// longer exists in the enum: a fact whose metric has been removed cannot
+    /// block anything, which is the right failure — the alternative is guessing
+    /// at a group and silently suppressing a fact that has nothing to do with it.
+    ///
+    /// A record subject is already at group level, because a topic is the
+    /// coarsest thing it has. So `key` and its pair are the same string, and
+    /// there is nothing to look up.
     static func pair(ofKey key: String) -> String? {
-        let parts = key.split(separator: ".", maxSplits: 1)
-        guard parts.count == 2, let metric = HealthMetric(rawValue: String(parts[0])) else { return nil }
-        return "\(metric.group.rawValue).\(parts[1])"
+        guard let (subject, kind) = parts(ofKey: key) else { return nil }
+        if subject.hasPrefix("record.") { return key }
+        guard let metric = HealthMetric(rawValue: subject) else { return nil }
+        return "\(metric.group.rawValue).\(kind)"
     }
 
-    /// Whether a candidate repeats the previous fact's metric or its kind.
+    /// Whether a candidate repeats the previous fact's subject or its kind.
     ///
-    /// Compared as the two halves of the stored key rather than by decoding it
-    /// back into a metric and a kind: the key is the only thing that survives a
-    /// launch, and a metric that has since been removed from the enum should
-    /// still be recognised as the thing shown yesterday.
+    /// Compared against the stored key rather than against a decoded metric: the
+    /// key is the only thing that survives a launch, and a subject that has since
+    /// been removed from its enum should still be recognised as the thing shown
+    /// yesterday.
     private func repeats(_ previousKey: String?, with fact: HealthDigest.Fact) -> Bool {
-        guard let previousKey else { return false }
-        let parts = previousKey.split(separator: ".", maxSplits: 1)
-        guard parts.count == 2 else { return false }
-        return parts[0] == fact.metric.rawValue || parts[1] == HealthDigest.kindKey(fact.kind)
+        guard let previousKey, let (subject, kind) = Self.parts(ofKey: previousKey) else { return false }
+        return subject == fact.subject.key || kind == HealthDigest.kindKey(fact.kind)
     }
 
     /// A day as a sortable, locale-independent key — the same shape the importer

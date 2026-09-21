@@ -35,7 +35,7 @@ struct HealthDigestTests {
             .respiratoryRate: year { _, weekend in weekend ? 16.1 : 14.5 },
         ])
         let lead = try #require(digest.facts.first)
-        #expect(lead.metric != .sleepHours, Comment(rawValue:
+        #expect(lead.subject.key != HealthMetric.sleepHours.rawValue, Comment(rawValue:
                 "led with \"\(lead.sentence)\" — the one thing everybody already knows"))
     }
 
@@ -53,8 +53,8 @@ struct HealthDigestTests {
     /// A weekend contrast with a chosen direction and size.
     private func contrast(_ metric: HealthMetric, raised: Bool, strength: Double) -> HealthDigest.Fact {
         HealthDigest.Fact(
-            figure: "", sentence: "", group: metric.group, kind: .contrast,
-            mark: .none, strength: strength, metric: metric, raised: raised
+            figure: "", sentence: "", kind: .contrast,
+            mark: .none, strength: strength, subject: .health(metric), raised: raised
         )
     }
 
@@ -66,7 +66,7 @@ struct HealthDigestTests {
             .respiratoryRate: year { _, weekend in weekend ? 15.9 : 14.5 },
         ])
         let lead = try #require(digest.facts.first)
-        #expect(lead.metric == .respiratoryRate, Comment(rawValue:
+        #expect(lead.subject.key == HealthMetric.respiratoryRate.rawValue, Comment(rawValue:
                 "led with \"\(lead.sentence)\" on size alone"))
     }
 

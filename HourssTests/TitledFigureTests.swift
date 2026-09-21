@@ -74,12 +74,12 @@ struct TitledFigureTests {
     /// already shows — and not something composed for the row. A generated title
     /// would be new user-facing copy that no phrasing rule has been applied to,
     /// and it would drift from the name this person agreed to share.
-    @Test("The title is the metric's own name, never generated text")
+    @Test("The title is the subject's own name, never generated text")
     func titleComesFromTheMetric() {
         for fact in realFacts() {
             let row = HealthFactRow(fact: fact, identifier: "test-fact")
-            #expect(row.titled.title == fact.metric.title,
-                    Comment(rawValue: "\"\(row.titled.title)\" is not \"\(fact.metric.title)\""))
+            #expect(row.titled.title == fact.subject.title,
+                    Comment(rawValue: "\"\(row.titled.title)\" is not \"\(fact.subject.title)\""))
         }
     }
 
@@ -103,7 +103,7 @@ struct TitledFigureTests {
     func rowSpeaksTheTitleFirst() {
         for fact in realFacts() {
             let spoken = HealthFactRow(fact: fact, identifier: "test-fact").titled.spoken
-            #expect(spoken.hasPrefix(fact.metric.title),
+            #expect(spoken.hasPrefix(fact.subject.title),
                     Comment(rawValue: "spoken as \"\(spoken)\""))
             #expect(!spoken.hasPrefix(fact.figure),
                     Comment(rawValue: "led with the figure: \"\(spoken)\""))
