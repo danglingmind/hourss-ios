@@ -1,5 +1,26 @@
 import SwiftUI
 
+/// The warm-up readout, split into the thing being counted and the count.
+///
+/// Two strings rather than one sentence because the order matters and the order
+/// is the bug being fixed: the whole line used to be "3 of 12 days with a
+/// rating", which names its subject four words after the figure. Naming it first
+/// costs nothing — the words are the same words — and holding the halves apart
+/// lets a test assert which one leads.
+///
+/// The title is a restatement of wording already on this screen, not a new claim,
+/// so it carries no causal, clinical, population or instruction vocabulary to
+/// answer for.
+enum EvidenceReadout {
+    /// What is being counted.
+    static let title = "Days with a rating"
+
+    /// How many, against the floor the engine actually requires.
+    static func figure(days: Int, floor: Int = EvidenceFloor.days) -> String {
+        "\(days) of \(floor)"
+    }
+}
+
 /// P1 and P2. The warm-up state is not a placeholder chart — the spec forbids
 /// fake charts and premature observations, so before there is evidence the screen
 /// says so plainly.
@@ -31,7 +52,21 @@ struct PatternsView: View {
     /// three lines of generic advice. The marks are computed from real sessions,
     /// so they say what is actually thin rather than what usually is.
     private var warmingUp: some View {
-        VStack(alignment: .leading, spacing: Space.md) {
+        // Days, not sessions. The engine requires six distinct days on each side
+        // of any comparison and never counts sessions at all, so a session total
+        // told somebody they were two thirds of the way to something that was not
+        // being measured. Six sessions on one Tuesday are one day of evidence
+        // about Tuesdays.
+        //
+        // Held in a value rather than written inline so the spoken form can be
+        // taken from the same object the screen draws, and so the two halves
+        // cannot drift into the wrong order.
+        let evidence = TitledFigure(
+            title: EvidenceReadout.title,
+            figure: EvidenceReadout.figure(days: store.ratedDayCount)
+        )
+
+        return VStack(alignment: .leading, spacing: Space.md) {
             DisplayHeadline([
                 Text("Still").styled(.sectionTitle),
                 Text("listening.").styled(.emphasis(42)),
@@ -40,17 +75,17 @@ struct PatternsView: View {
 
             HRule()
 
-            // Days, not sessions. The engine requires six distinct days on each
-            // side of any comparison and never counts sessions at all, so a
-            // session total told somebody they were two thirds of the way to
-            // something that was not being measured. Six sessions on one Tuesday
-            // are one day of evidence about Tuesdays.
+            // The figure named what it counted, but only after saying how many —
+            // and at 26pt with nothing above it, the number was the whole glance.
+            // Subject on the top step, count on the second.
             VStack(alignment: .leading, spacing: Space.xs) {
-                Text("\(store.ratedDayCount) of \(EvidenceFloor.days) days with a rating")
-                    .textStyle(.stepName)
+                evidence
+                // The bar repeats the figure above it and speaks nothing of its
+                // own; combining the block keeps the count from being read twice.
                 DataBar(fraction: store.evidenceProgress, height: DataBar.progress)
-                    .accessibilityLabel("\(store.ratedDayCount) of \(EvidenceFloor.days) days carrying a rated session")
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(evidence.spoken)
 
             HRule()
 

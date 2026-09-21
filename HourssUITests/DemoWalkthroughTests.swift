@@ -96,8 +96,24 @@ final class DemoWalkthroughTests: XCTestCase {
                       "The proof beat must either show facts or say it has none")
         tapID("Continue")
 
-        // 7 — start
-        capture("onboarding-7-start")
+        // 7 — the account. The gate, walked already signed in: the Apple sheet is
+        // another process and wants a real Apple ID, so a UI test can only ever
+        // see this side of it.
+        XCTAssertTrue(app.descendants(matching: .any)["account-signed-in"].firstMatch.waitForExistence(timeout: UITest.timeout),
+                      "The account beat never appeared after the proof")
+        capture("onboarding-7-account")
+        tapID("Continue")
+
+        // 8 — reminders. The frequency rows are real state, so the walk picks one
+        // rather than accepting the default silently.
+        XCTAssertTrue(app.descendants(matching: .any)["reminder-everyTwoHours"].firstMatch.waitForExistence(timeout: UITest.timeout),
+                      "The reminders beat never appeared")
+        capture("onboarding-8-reminders")
+        tapID("reminder-everyThreeHours")
+        tapID("Continue")
+
+        // 9 — start
+        capture("onboarding-9-start")
         tapID("Skip for now")
 
         // Today. Which of T1/T3 renders depends on the hour: the seeded moments sit
@@ -182,13 +198,35 @@ final class DemoWalkthroughTests: XCTestCase {
         let days = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'day-'"))
         XCTAssertTrue(days.waitForFirstMatch(), "The journal listed no days to open")
         days.element(boundBy: 0).tapWhenReady()
+        // Sessions Hourss imported from Health are marked wherever they appear.
+        // The fixture seeds a night on every day, so the most recent one has at
+        // least that.
+        XCTAssertTrue(app.staticTexts["Health"].firstMatch.waitForExistence(timeout: UITest.timeout),
+                      "An imported session must say that it was imported")
         capture("journal-day-detail")
         tapID("back")
 
-        // You — Y1, Y3, Y6
+        // You — Y1, Y2, Y3, Y6
+        //
+        // Nothing in this list is greyed out any more, so the walk opens the two
+        // rows that used to say "needs an account" as well as the ones that
+        // always worked.
         tapID("tab-you")
-        XCTAssertTrue(app.staticTexts["NOT IN THIS BUILD"].waitForExistence(timeout: UITest.timeout))
+        XCTAssertTrue(app.staticTexts["MEMBERSHIP"].waitForExistence(timeout: UITest.timeout))
+        XCTAssertFalse(app.staticTexts["NOT IN THIS BUILD"].exists,
+                       "Profile and Account are built — nothing is left standing in for them")
+        capture("you-settings")
+
+        tapID("row-profile")
+        XCTAssertTrue(app.staticTexts["WORKDAYS"].waitForExistence(timeout: UITest.timeout))
         capture("you-profile")
+        tapID("back")
+
+        tapID("row-account")
+        XCTAssertTrue(app.descendants(matching: .any)["sign-out"].firstMatch.waitForExistence(timeout: UITest.timeout),
+                      "The account screen must offer a way out of it")
+        capture("you-account")
+        tapID("back")
 
         tapID("row-preferences")
         XCTAssertTrue(app.staticTexts["Quiet mode"].waitForExistence(timeout: UITest.timeout))
@@ -197,6 +235,8 @@ final class DemoWalkthroughTests: XCTestCase {
 
         tapID("row-privacy")
         XCTAssertTrue(app.staticTexts["Export everything"].waitForExistence(timeout: UITest.timeout))
+        XCTAssertTrue(app.descendants(matching: .any)["delete-everything"].firstMatch.exists,
+                      "Deletion is required of anything offering sign-in, and Hourss has nowhere else to do it")
         capture("you-privacy")
     }
 }

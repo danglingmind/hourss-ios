@@ -40,6 +40,19 @@ struct Session: Identifiable, Hashable, Codable {
     var note: String?
     var intention: String?
 
+    /// Which kind of Health block this was imported from, and nil for anything a
+    /// person logged themselves.
+    var healthKind: HealthKind?
+
+    /// What this block is called in Health, so a second import recognises it.
+    ///
+    /// Both of these are optional, and that is what makes them safe to add: a
+    /// synthesized `Codable` fails on a missing key for a non-optional property
+    /// however tidy its default looks, so every record written before today would
+    /// stop decoding. An optional decodes as nil instead, which is the truth about
+    /// a session logged before Hourss could import anything.
+    var externalId: String?
+
     init(
         id: UUID = UUID(),
         activityId: UUID,
@@ -47,7 +60,9 @@ struct Session: Identifiable, Hashable, Codable {
         endAt: Date? = nil,
         source: SessionSource = .manual,
         note: String? = nil,
-        intention: String? = nil
+        intention: String? = nil,
+        healthKind: HealthKind? = nil,
+        externalId: String? = nil
     ) {
         self.id = id
         self.activityId = activityId
@@ -56,7 +71,13 @@ struct Session: Identifiable, Hashable, Codable {
         self.source = source
         self.note = note
         self.intention = intention
+        self.healthKind = healthKind
+        self.externalId = externalId
     }
+
+    /// Hourss put this on the record by reading Health, rather than the person
+    /// putting it there.
+    var isImported: Bool { source == .health }
 
     var isRunning: Bool { endAt == nil }
 
@@ -70,14 +91,39 @@ struct Session: Identifiable, Hashable, Codable {
         TimeBucket.bucket(forHour: Calendar.current.component(.hour, from: startAt))
     }
 
+    /// The day this session is filed under in Today and the Journal.
+    ///
+    /// Start time for everything a person logged, because that is when they were
+    /// doing it. Sleep is the exception and has to be: a night runs from 23:40 to
+    /// 07:10 and belongs to the morning it ends on — which is how people speak
+    /// about it, and already how `HealthService` attributes sleep hours as daily
+    /// context. Filing it by its start would put the same night on a different day
+    /// depending on which part of the app was asking.
+    var recordDay: Date {
+        let calendar = Calendar.current
+        if healthKind == .sleep, let endAt {
+            return calendar.startOfDay(for: endAt)
+        }
+        return calendar.startOfDay(for: startAt)
+    }
+
     var durationBucket: DurationBucket {
         DurationBucket.bucket(forMinutes: durationMinutes)
     }
 
     /// Validity rules from the spec: under 5 minutes or over 16 hours is excluded
     /// from pattern computation.
+    ///
+    /// Imported sleep is excluded outright, and not because of its length. The
+    /// engine already reads every night as daily context through
+    /// `HealthMetric.sleepHours` — it is one of the things observations are
+    /// computed *against* — so admitting the same night a second time as a session
+    /// would let one night stand on both sides of a comparison and appear to
+    /// corroborate itself. A workout is not in that position: the daily context is
+    /// about the day, while a rated workout session is a real answer about how that
+    /// particular block felt, which is exactly what the engine is short of.
     var isEligibleForPatterns: Bool {
-        guard !isRunning else { return false }
+        guard !isRunning, healthKind != .sleep else { return false }
         return durationMinutes >= 5 && durationSeconds <= 16 * 3600
     }
 }
@@ -142,6 +188,17 @@ struct Profile: Codable {
     var workdays: Set<Int> = [2, 3, 4, 5, 6]
     var reflectionHour: Int = 20
     var quietMode: Bool = false
-    var logPrompts: Bool = true
     var weeklyReflection: Bool = true
+
+    /// How often to ask what you are doing.
+    ///
+    /// Optional because it replaced `logPrompts`, a boolean that was never wired
+    /// to anything: a record written before this existed has no value here, and
+    /// nil has to mean "never chose" rather than silently becoming a schedule
+    /// somebody did not agree to. `logPrompts` itself is simply gone — an unknown
+    /// key decodes fine, where a missing one would not.
+    var logReminder: LogReminderFrequency?
+
+    /// What the app acts on. Nobody is sent notifications they did not pick.
+    var logReminderFrequency: LogReminderFrequency { logReminder ?? .off }
 }

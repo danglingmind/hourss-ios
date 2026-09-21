@@ -52,6 +52,82 @@ enum SessionSource: String, Codable {
     case health
 }
 
+/// How often Hourss asks what you are doing.
+///
+/// Hours rather than a free interval, because the whole mechanism is daily
+/// repeating alarms at fixed times of day — see `LogReminders`. An arbitrary
+/// interval would drift across midnight and need the app to be running to correct
+/// itself, which is exactly what a phone does not guarantee.
+enum LogReminderFrequency: String, Codable, CaseIterable, Identifiable, Sendable {
+    case hourly
+    case everyTwoHours
+    case everyThreeHours
+    case twiceDaily
+    case off
+
+    var id: String { rawValue }
+
+    /// The order they are offered in: most frequent first, off last, so the list
+    /// reads as a dial being turned down rather than as an arbitrary set.
+    static var offered: [LogReminderFrequency] { allCases }
+
+    /// Two hours, and the reasoning is honest rather than flattering. Hourly is
+    /// fifteen notifications a day, which is the number at which people stop
+    /// reading them and turn the app off in Settings — a setting Hourss cannot
+    /// undo and will never be asked about again. Two hours is frequent enough to
+    /// catch an hour while it is still recent.
+    static let recommended = LogReminderFrequency.everyTwoHours
+
+    var title: String {
+        switch self {
+        case .hourly: "Every hour"
+        case .everyTwoHours: "Every two hours"
+        case .everyThreeHours: "Every three hours"
+        case .twiceDaily: "Twice a day"
+        case .off: "Don't remind me"
+        }
+    }
+
+    /// What it actually means, counted. A frequency nobody can picture is a
+    /// frequency nobody can consent to.
+    var detail: String {
+        switch self {
+        case .hourly: "15 a day, 8am to 10pm"
+        case .everyTwoHours: "8 a day, 8am to 10pm"
+        case .everyThreeHours: "5 a day, 8am to 8pm"
+        case .twiceDaily: "Midday and evening"
+        case .off: "You can turn these on later in You"
+        }
+    }
+
+    /// The hours of the day this fires at, in the person's own timezone.
+    ///
+    /// Written out rather than computed from a stride so that the last one lands
+    /// somewhere sensible: a three-hour stride from 8 through 22 would put a
+    /// reminder at 11pm, which is not a time to be asked what you are doing.
+    var hours: [Int] {
+        switch self {
+        case .hourly: Array(8...22)
+        case .everyTwoHours: [8, 10, 12, 14, 16, 18, 20, 22]
+        case .everyThreeHours: [8, 11, 14, 17, 20]
+        case .twiceDaily: [12, 20]
+        case .off: []
+        }
+    }
+}
+
+/// Which kind of Health block a session was imported from.
+///
+/// Separate from `SessionSource` because the two answer different questions, and
+/// only this one is allowed to change behaviour: a workout is a thing somebody did
+/// and may well have an opinion about, so it joins the queue for a reflection; a
+/// night's sleep is not rated in that sense, and putting it in the queue would
+/// turn a prompt that means something into one people learn to dismiss.
+enum HealthKind: String, Codable {
+    case workout
+    case sleep
+}
+
 /// Time-of-day buckets used by the pattern engine.
 enum TimeBucket: String, CaseIterable, Identifiable {
     case morning, midday, afternoon, evening

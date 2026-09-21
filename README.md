@@ -50,17 +50,129 @@ list on the detail screen always agree with each other.
 
 | Area | Screens |
 |---|---|
-| Onboarding | Welcome, What Hourss notices, Intent, Activities, First log |
+| Onboarding | Welcome, Health ask, Priorities, Intent, Mechanism, Proof, Account, Reminders, First log |
 | Today | Empty, active session, day record |
 | Logging | Start a session, log past time, end reflection |
 | Patterns | Warming up, ranked list, insight detail |
 | Journal | Archive with filters, day detail |
-| You | Profile, preferences, privacy & data |
+| You | Settings list, profile, account, preferences, privacy & data |
 
-**Not built:** Health permission, notifications, account, membership, and profile
-editing. Each needs a real integration, and a mocked permission screen would
-teach the wrong thing — the spec requires consent to precede the system prompt.
-They appear in `You` as visibly disabled rows so the scope reads as deliberate.
+**Not built:** membership purchasing. Each needs a real
+integration, and a mocked permission screen would teach the wrong thing — the spec
+requires consent to precede the system prompt. Membership appears in `You` as real
+state with no control behind it, because the only honest control is a purchase.
+
+## Signing in
+
+Sign in with Apple, and nothing else. There is no backend and no session: Apple
+returns a stable per-team user identifier, Hourss keeps it in the Keychain, and
+`AccountService` asks Apple on every launch whether it is still good — so revoking
+Hourss under Settings ▸ Apple ID signs you out here too, in the app and while it
+is open.
+
+It is a hard gate. The beat sits after the proof screen rather than before it, so
+the ask arrives on the back of three true statements about the person's own
+history rather than in front of an app nobody has seen. **Note for submission:**
+with everything on-device, a reviewer may reasonably ask what the account is for
+under guideline 5.1.1(v), which forbids requiring an account for features that
+don't need one. Deletion is in place — `Privacy & data ▸ Delete everything` clears
+the record and the Keychain item, which is what 5.1.1(v) requires of anything
+offering sign-in.
+
+Two things the capability needs outside this repo: the **Sign in with Apple**
+capability must be enabled for `com.hourss.app` in the developer portal (the
+entitlement is already in `Hourss/Hourss.entitlements`), and the simulator or
+device must be signed in to an Apple ID or the sheet returns `.unknown`.
+
+UI tests cannot drive the Apple sheet — it is another process wanting a real Apple
+ID — so `-hourss-debug-account <name>` starts the app already past the gate. It is
+`#if DEBUG` and read straight from `ProcessInfo`, so no shipped build contains a
+path that arrives signed in without Apple.
+
+## Log reminders
+
+Onboarding's eighth beat asks how often Hourss should ask what you are doing:
+hourly, every two hours (the recommendation), every three, twice a day, or not at
+all. Tapping the notification opens the activity list — the same sheet the `+`
+button opens.
+
+No server, and no background execution. The mechanism is one **repeating calendar
+alarm per hour of the day**, registered with iOS and then forgotten about: eight
+requests for the two-hour setting, fifteen for hourly, against an iOS cap of 64.
+They fire whether Hourss has been opened in a week or not, which is the whole
+requirement.
+
+`UNTimeIntervalNotificationTrigger(repeats: true)` at 7200 seconds was the obvious
+alternative and is rejected for one reason: it has no idea what the time is. It
+would fire at 3am every night forever, with no way to bound it. A calendar trigger
+is bounded by construction, because each one *is* a time of day. Hour and minute
+only — pinning a date would send an 8am reminder at 3am the moment someone flew
+anywhere.
+
+Details worth knowing before changing any of it:
+
+- **Nothing is ever scheduled outside 8am–10pm**, and there is a test that walks
+  every frequency asserting it. A 3am notification is not a reminder, it is a
+  reason to turn the app off in Settings — which Hourss cannot undo and will never
+  be asked about again.
+- **Each row states its own cost** ("15 a day", "8 a day"), and a test asserts
+  those numbers against the actual schedule, because the copy lives a long way
+  from `LogReminderFrequency.hours`.
+- **Quiet mode really silences them.** It is applied inside
+  `LogReminders.hours(for:)`, the one function every scheduling path goes through.
+- **Choosing "Don't remind me" never raises the system prompt.** Asking permission
+  to send nothing is the most irritating thing an app can do.
+- **A refusal schedules nothing.** Pending requests that can never fire would make
+  Preferences claim reminders are on when iOS has them off — so that screen reports
+  the system's answer, not ours.
+- **Dismissing a notification does not open the sheet.** Only
+  `UNNotificationDefaultActionIdentifier` counts; a dismissal is a decision not to
+  log.
+- The delegate is registered in `HourssApp.init()`, not in a view's `task`. A tap
+  that launches the app cold is delivered to whatever delegate exists at launch,
+  and the case this feature exists for is precisely "the app was not open".
+- UI tests pass `-hourss-debug-no-notifications`, which swaps in
+  `SilentLogReminderScheduler`. The system permission prompt is another process and
+  XCTest cannot dismiss it without an interruption monitor, so without this the
+  reminders beat stops every walk dead.
+
+`Profile.logPrompts` is gone — it was a toggle labelled "Max 3 a week" wired to
+nothing. It is replaced by `logReminder`, which is **optional**: nil means "never
+chose", so nobody is opted into notifications they were never offered.
+
+## What Health writes to the record
+
+Two of the eight starter activities are things a watch already records precisely,
+so Hourss reads them rather than asking anyone to retype them: **workouts become
+Exercise sessions** and **each night becomes one Personal / Rest session**. They
+carry `source: .health`, are labelled "Health" wherever they appear, and back-fill
+six weeks — enough that the Journal has something in it on day one.
+
+The rules that matter, all in `Store/HealthImport.swift` and tested without a
+device:
+
+- **A night is filed under the morning it ended on.** Health records stages, not
+  nights, so samples within 45 minutes of each other are merged into one block and
+  only the longest block of a day survives. That day is also the block's identity
+  (`health.sleep.2026-03-11`), because a block's own start moves whenever Health
+  backfills another stage sample — and an identifier that moves is one that
+  duplicates.
+- **Importing is idempotent.** It runs on every launch. A block already on the
+  record is updated in place, never added again.
+- **Nothing imported competes with a hand-logged session.** A workout overlapping
+  one somebody logged themselves is skipped — theirs has an intention and a rating
+  on it.
+- **Deleted stays deleted.** `Record.removedImports` remembers what was thrown
+  away, so the next launch does not put it back.
+- **Imported sleep is not pattern evidence.** Every night is already in the engine
+  as daily context via `HealthMetric.sleepHours`; admitting it a second time as a
+  session would let one night corroborate itself. Imported workouts *are* eligible,
+  and are the only imported thing the reflection prompt ever asks about.
+
+`applyHealthRead(from:to:)` is the single call that applies a read — daily context,
+physiology and the import together. Use it rather than calling the three by hand;
+`applyPhysiology` previously sat built and uncalled because two of the three
+screens that connect Health remembered only the other one.
 
 ## Layout
 
@@ -90,7 +202,112 @@ There is a conformance sweep in the test suite's spirit worth re-running by hand
 grep -rn "cornerRadius\|RoundedRectangle\|Capsule()\|\.shadow(\|Image(systemName" Hourss/ Shared/
 ```
 
-It should return nothing.
+It should return nothing but `Features/Account/AppleSignInButton.swift`, where the
+two hits are `cornerRadius = 0` being *set* on Apple's button. That control is the
+one exception to drawing everything in the house style — the mark and proportions
+are Apple's and may not be redrawn — and the radius is the single property Apple
+exposes, which is why the button is wrapped from UIKit rather than taken from
+SwiftUI's `SignInWithAppleButton`, which hides it.
+
+**The interaction suite is date-dependent, and it is not flaky.** Which tests in
+`InteractionCandidateTests` / `InteractionCorrectionTests` fail depends on what
+day you run them: the cohorts are generated relative to `Date()`, so the weekday
+alignment of the generated history shifts, and a threshold that cleared yesterday
+misses today. It is stable *within* a day — the same run produces the same value
+to the last decimal place — which is what makes it look like a real regression.
+Two different failures were observed on consecutive days, each reproducing exactly
+on a clean checkout of the same commit. Before blaming a change for one of these,
+run the same test on a worktree at `HEAD`; if it fails identically, the change is
+innocent. Fixing it properly means pinning the generator to a fixed reference date
+rather than `Date()`.
+
+**The activity marks are drawn, not borrowed.** `Shared/ActivityGlyph.swift` is
+eight paths on a shared 24×24 grid at one stroke weight — a target, two speech
+marks, a checklist, an open book, a spark, a dumbbell, two rings, a crescent.
+They were previously eight arrangements of rectangles, on the principle that the
+system rules out borrowed iconography; they were coherent and unreadable, and an
+icon that has to be explained is a label in a worse typeface. The discipline moved
+rather than disappeared: nothing here is an SF Symbol or a borrowed asset, which is
+also why `Image(systemName` stays in the conformance sweep.
+
+Two rules hold the set together, and both are tested in `ActivityGlyphTests`:
+
+- **`phase: 0` must be the finished mark.** Every list, chip and Lock Screen
+  renders the resting pose, so an animation has to depart from a complete icon and
+  return to it — never animate *into* completeness. Three of these got this wrong
+  first time round (admin drew two of three rows faint, exercise drew its whole
+  trace at 28%, meetings left a bubble dimmed), so the icon nearly everybody saw
+  was the unfinished one. The test measures opacity rather than ink, because
+  `creative` legitimately has more ink mid-animation as its points reach outward —
+  what separates the two is that a finished mark's only part-transparent pixels are
+  its antialiased edges.
+- **`Kind`'s raw values are a stored format.** `LiveSessionController` writes them
+  into the Live Activity's attributes and the widget reads them back, so renaming a
+  case silently blanks the icon on somebody's Lock Screen for the length of their
+  session.
+
+Coordinates are snapped to the device pixel grid before drawing (`GlyphPen.px`). A
+3-unit stroke on a 24 grid at 16pt is exactly 2pt, but the *positions* land on
+thirds of a point, and a 2pt line straddling a pixel boundary renders as two grey
+1pt lines. To look at the set while changing it, render `ActivityGlyph` through
+`ImageRenderer` at several sizes — that is how the first cut was caught.
+
+`AnimatedActivityGlyph` drives the phase at 30fps and is used on the running-session
+card, where each animation is the activity's own gesture: a ring locking on, a turn
+being taken, a page turning over the gutter, a weight dropping. Reduce Motion gets the resting pose,
+which is a real icon rather than a degraded one.
+
+**Two marks leave their box.** `Kind.runway` gives extra grid units above the
+24×24 square, because `Canvas` clips to its own frame: the weight falls from 26
+units up, and the page arcs over the book through 10. Layout still reserves the
+plain square — the runway overflows upward and is drawn over the card, which is the
+point for the dumbbell: it arrives from outside it.
+
+**The open book opens upward, and that had to be fixed.** It was drawn with the
+spine *higher* than the outer edges, so the top made a Λ and the whole thing read
+as a book held face down. Both edges dip toward the gutter now, which is the V an
+open book actually makes.
+
+Its page turn loops on the same trick as the dumbbell: at either end of a turn the
+sheet lies exactly on top of a static leaf, so it is invisible there and the jump
+back has nothing to see. Three things make it paper rather than a tween. The turn
+is fast off the flick, slows as the sheet stands up, then falls away (`t + k·sin
+2πt`) — a page is a pendulum, so the slow part belongs at the top, not at both
+ends. Its width is the cosine of the angle, because that is what a rotating sheet
+projects. And it bows sideways as it rises, which is the only thing keeping it
+visible at vertical, where projection alone would leave it exactly zero pixels
+wide.
+
+The hard part was that **a page rotating about the gutter is geometrically
+invisible in a flat front view** — its projection lies entirely within the leaf
+beneath it, and everything in a glyph is one colour. Two things fix that: the arc
+has to break the book's outline (hence the runway), and a hairline is erased along
+the sheet's own boundary with `.destinationOut`, letting the background through as
+the separation a raised page's edge actually shows. That cut widens with the lift,
+so it is absent at the two moments the sheet lies flat and would otherwise outline
+a leaf that is not moving.
+
+Its loop is a rep, and that is load-bearing rather than decorative. A drop that
+repeats needs the weight back at the top, and every other way of getting it there
+either pops or hides behind a fade that reads as a rendering bug. Throwing it up
+and letting gravity return it means the reversal happens at the apex, off-canvas,
+where there is no seam to see. Both arcs are the same parabola run in opposite
+directions — `2u - u²` climbing and slowing, `1 - u²` falling and gathering speed —
+so the motion obeys gravity rather than an easing curve. Two things learned the
+hard way while building it: the dust must be drawn *after* the weight (drawn first,
+the plates fill straight over it and the impact reads as the weight merely
+arriving), and it must start clear of the ground line, which is the same colour and
+otherwise swallows the burst into lumps on the floor.
+
+**`PastSessionTests` fails between midnight and 1am, and the app is right.**
+`StartSessionView`'s window runs back sixteen hours, so the default past slot is
+"the last hour ending now". At 00:35 that is 23:35 yesterday to 00:35 today, and a
+session is filed by when it started — so it correctly lands on *yesterday* and
+never appears on Today, which is what `testLoggingPastTimeLandsInTheRecordWithARating`
+asserts. Reproduced at `HEAD` in that window (0 rows before, 0 after) as much as on
+any branch. The fix belongs in the test, not the sheet: assert the session exists in
+the record rather than on Today, or drive the slot to a time that cannot cross
+midnight.
 
 **Display type needs negative leading.** `display` is line-height 0.91 and
 SwiftUI's `lineSpacing` clamps at zero, so headlines are authored as pre-broken

@@ -20,56 +20,54 @@ struct EnergyBar: View {
     }
 }
 
-/// The score readout beside a timeline: a large serif numeral, a small mono
-/// suffix, and a human observation rather than a verdict.
+/// The score readout beside a timeline: the session's own name, then its score,
+/// then a human observation rather than a verdict.
+///
+/// This used to set the score as a 58pt serif numeral over an 11pt mono caption.
+/// The caption was already above the number, so the reading order was right and
+/// the *weight* was wrong: at five times the size, the numeral was the only thing
+/// the eye landed on, and it was the one element that could not be understood on
+/// its own — "87" is not a reading until you know it is about a run. So the
+/// activity's name takes the top step and the score takes the second, via
+/// `TitledFigure`, which is where the app's three-step hierarchy lives.
+///
+/// Nothing is lost by dropping the lime numeral: the numeral was always lime
+/// regardless of score, so its colour never carried a value. The score's own
+/// wording still travels with it in `note`, per `colorIndependence`.
 struct EnergyReading: View {
     let score: Int?
     let caption: String
     let note: String
 
-    @Environment(\.surface) private var surface
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            HRule()
-            Text(caption)
-                .textStyle(.label)
-                .foregroundStyle(surface.secondary)
-                .padding(.top, Space.sm)
-
-            if let score {
-                Text(scoreText(score)).lineLimit(1)
-            } else {
-                Text("Not rated")
-                    .textStyle(.sectionLead)
-                    .foregroundStyle(surface.secondary)
-            }
-
-            Text(note)
-                .textStyle(.label)
-                .foregroundStyle(surface.secondary)
-                .lineSpacing(4)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            score.map { "\(caption): \($0) out of 100, \(Feeling.describe(score: $0)). \(note)" }
-                ?? "\(caption): not rated. \(note)"
+    /// Subject, figure, detail. The title is the activity's own name — nothing
+    /// new is written here, so nothing here has to clear the phrasing rules.
+    private var figure: TitledFigure {
+        TitledFigure(
+            title: caption,
+            figure: score.map { "\($0)/100" } ?? "Not rated",
+            detail: note
         )
     }
 
-    /// Large serif numeral plus a small mono `/100`, built as one attributed run so
-    /// the suffix sits on the numeral's baseline.
-    private func scoreText(_ score: Int) -> AttributedString {
-        var numeral = AttributedString("\(score)")
-        numeral.font = TypeStyle.readingScore.font
-        numeral.foregroundColor = .lime
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HRule()
+            figure
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(spoken)
+    }
 
-        var suffix = AttributedString("/100")
-        suffix.font = TypeStyle.label.font
-        suffix.foregroundColor = surface.secondary
-
-        return numeral + suffix
+    /// The same order the layout reads in, with the score spelled out rather than
+    /// punctuated: "87/100" is announced as "87 slash 100" by some voices, and the
+    /// feeling word has to be spoken because the bar beside it cannot be.
+    ///
+    /// Built here rather than taken from `TitledFigure.spoken` only because of
+    /// those two substitutions; the order is identical either way.
+    var spoken: String {
+        score.map { "\(caption). \($0) out of 100, \(Feeling.describe(score: $0)). \(note)" }
+            ?? "\(caption). Not rated. \(note)"
     }
 }
 

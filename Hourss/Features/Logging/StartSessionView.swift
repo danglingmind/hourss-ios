@@ -86,6 +86,7 @@ struct StartSessionView: View {
         .onAppear {
             selectedActivityId = store.pickableActivities.first?.id
             resetSlotToLastHour()
+            adoptPendingSlot()
         }
         .onChange(of: startMinutes) { _, _ in
             // Shortening the window from the left must not leave a slot that ends
@@ -252,6 +253,32 @@ struct StartSessionView: View {
         durationMinutes = min(60, max(Self.stepMinutes, nowMinutes))
         startMinutes = max(0, nowMinutes - durationMinutes)
         durationMinutes = min(durationMinutes, maxDuration)
+    }
+
+    /// Takes up an empty hour somebody tapped in a day's hour strip.
+    ///
+    /// The tap already said both things this sheet opens by asking: that the time
+    /// has passed, and which hour it was. So the mode switches itself and the
+    /// slot lands on that hour rather than on the generic last-hour default.
+    ///
+    /// The hour can be out of reach. `windowStart` runs back sixteen hours — the
+    /// longest session the spec allows — so an hour tapped on a day further back
+    /// than that in the Journal cannot be expressed by these sliders at all. The
+    /// mode still changes, because the tap still meant "this already happened",
+    /// and the slot stays where `resetSlotToLastHour` left it rather than being
+    /// clamped to a boundary that would read as a real answer.
+    private func adoptPendingSlot() {
+        guard let slot = store.pendingLogSlot else { return }
+        store.consumeLogSlot()
+
+        guard canLogPast else { return }
+        mode = .past
+
+        let offset = slot.timeIntervalSince(windowStart) / 60
+        guard offset >= 0, offset <= latestStart else { return }
+
+        startMinutes = (offset / Self.stepMinutes).rounded() * Self.stepMinutes
+        durationMinutes = min(60, maxDuration)
     }
 
     private func save() {

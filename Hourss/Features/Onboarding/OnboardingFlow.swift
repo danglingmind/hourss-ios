@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Onboarding, as a six-beat argument.
+/// Onboarding, as a nine-beat argument.
 ///
-/// Problem → promise → key → mechanism → proof → promo. The proof beat is the
+/// Problem → promise → priorities → key → mechanism → proof → account →
+/// reminders → promo.
+/// The proof beat is the
 /// point of the whole sequence: real statistics computed from the person's own
 /// Apple Health history, shown before they have logged a single thing.
 ///
@@ -11,16 +13,35 @@ import SwiftUI
 /// key and mechanism screens — by the time the proof beat appears, it is already
 /// computed. The narrative pays for the latency.
 ///
-/// Notifications (O7) and account (O8) remain out of the shell: they need the
-/// system notification sheet and Clerk, and a faked permission screen would teach
-/// the wrong thing.
+/// The account beat sits after the proof rather than before it, and that ordering
+/// is the argument. Asked first, signing in is a toll on an app nobody has seen
+/// yet; asked here, it comes directly after three true statements about this
+/// person's own life, and what it secures is something they have just been shown.
+///
+/// It is also the one beat with no way past it. Every other screen here can be
+/// continued through; this one advances only once Apple has answered.
+///
+/// The reminders beat sits second to last, immediately before the screen that asks
+/// someone to log for the first time — so the question "how often should we ask?"
+/// arrives next to the thing it is asking about. It states the cost of each choice
+/// in notifications per day, and it is skippable: "Don't remind me" is a real
+/// option on the list rather than a link hidden underneath it.
 struct OnboardingFlow: View {
     @Environment(HourssStore.self) private var store
     @Environment(HealthService.self) private var health
+    @Environment(AccountService.self) private var account
+    @Environment(NotificationService.self) private var notifications
 
     @State private var step = 0
     @State private var digest = DigestState.idle
     @State private var isConnecting = false
+
+    /// Starts on the recommendation rather than on nothing. "Recommended" that
+    /// still needs a tap to take effect is a label, not a recommendation — and an
+    /// unselected list would make Continue mean something different depending on
+    /// whether the person noticed the rows.
+    @State private var reminder = LogReminderFrequency.recommended
+    @State private var isSchedulingReminders = false
 
     /// Where the proof beat's data has got to.
     ///
@@ -33,7 +54,7 @@ struct OnboardingFlow: View {
         case ready(HealthDigest)
     }
 
-    private let stepCount = 7
+    private let stepCount = 9
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,6 +70,8 @@ struct OnboardingFlow: View {
                         case 3: KeyStep()
                         case 4: MechanismStep()
                         case 5: ProofStep(state: digest)
+                        case 6: AccountStep()
+                        case 7: ReminderStep(selection: $reminder)
                         default: StartStep(onFinish: finish)
                         }
                     }
@@ -119,6 +142,32 @@ struct OnboardingFlow: View {
             DirectionalLink(title: "Continue", arrow: "→") { step += 1 }
                 .disabled(store.profile.priorities.isEmpty)
 
+        case 6:
+            // The gate. Nothing at all on screen until Apple has answered, so
+            // there is no control to mistake for a way around it — and the moment
+            // it has, the ordinary Continue appears where the eye already is.
+            if account.isSignedIn {
+                DirectionalLink(title: "Continue", arrow: "→") { step += 1 }
+            } else {
+                EmptyView()
+            }
+
+        case 7:
+            // Doing the asking here rather than on the beat itself, so the system
+            // prompt is raised by the same footer action every other beat uses —
+            // and only ever after this screen has explained what it is for.
+            DirectionalLink(title: isSchedulingReminders ? "Setting up…" : "Continue", arrow: "→") {
+                isSchedulingReminders = true
+                Task {
+                    store.profile.logReminder = reminder
+                    store.persist()
+                    await notifications.enableReminders(for: store.profile)
+                    isSchedulingReminders = false
+                    step += 1
+                }
+            }
+            .disabled(isSchedulingReminders)
+
         case stepCount - 1:
             EmptyView()   // the last beat owns its own exits
 
@@ -137,8 +186,7 @@ struct OnboardingFlow: View {
             digest = .ready(HealthDigest.build(from: health.dailyValues))
             // Only now, once values actually exist. Doing this straight after
             // `connect()` used to run against an empty dictionary.
-            store.applyHealthContext(health.dailyValues)
-            store.applyPhysiology(feed: await health.readPhysiology())
+            await applyHealthRead(from: health, to: store)
         }
     }
 
@@ -263,10 +311,8 @@ private struct PromiseStep: View {
 
 /// What you want to improve, in your own order.
 ///
-/// Ranked by tapping in sequence rather than by dragging: reordering needs a
-/// `List`, which brings the rounded, inset chrome this system exists without, and
-/// a drag handle is a poor target on a first run. Tapping in order says the same
-/// thing and can be undone by tapping again.
+/// The control itself is `PriorityRanker`, shared with Profile — where the promise
+/// this screen makes at the bottom ("you can change this later") is kept.
 ///
 /// The order is not decoration. It weights which observations surface first, so a
 /// stated priority changes the product rather than sitting in a profile.
@@ -290,12 +336,7 @@ private struct PriorityStep: View {
                 .foregroundStyle(Color.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 0) {
-                HRule()
-                ForEach(Priority.allCases) { priority in
-                    row(priority)
-                }
-            }
+            PriorityRanker(ranked: $store.profile.priorities, maximum: maximum)
 
             Text(store.profile.priorities.isEmpty
                  ? "Pick at least one — you can change this later."
@@ -307,50 +348,6 @@ private struct PriorityStep: View {
         .padding(.top, Space.md)
     }
 
-    private func row(_ priority: Priority) -> some View {
-        @Bindable var store = store
-        let rank = store.profile.priorities.firstIndex(of: priority)
-
-        return Button {
-            toggle(priority)
-        } label: {
-            HStack(alignment: .top, spacing: Space.sm) {
-                // The rank number is the whole interaction, so it carries the
-                // accent and holds its column whether filled or not.
-                Text(rank.map { "\($0 + 1)" } ?? "—")
-                    .textStyle(.stepName)
-                    .foregroundStyle(rank == nil ? Color.rule : Color.orange)
-                    .frame(width: 28, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(priority.title).textStyle(.stepName)
-                    Text(priority.basis)
-                        .textStyle(.label)
-                        .foregroundStyle(Color.muted)
-                }
-                Spacer(minLength: Space.sm)
-            }
-            .padding(.vertical, Space.sm)
-            .frame(minHeight: Space.tapTarget)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("priority-\(priority.rawValue)")
-        .accessibilityLabel(rank.map { "\(priority.title), ranked \($0 + 1). \(priority.basis)" }
-                            ?? "\(priority.title), not ranked. \(priority.basis)")
-        .accessibilityAddTraits(rank != nil ? [.isSelected] : [])
-        .overlay(alignment: .bottom) { HRule() }
-    }
-
-    /// Tapping a ranked item removes it and closes the gap, so the numbers stay
-    /// 1, 2, 3 rather than leaving a hole.
-    private func toggle(_ priority: Priority) {
-        if let index = store.profile.priorities.firstIndex(of: priority) {
-            store.profile.priorities.remove(at: index)
-        } else if store.profile.priorities.count < maximum {
-            store.profile.priorities.append(priority)
-        }
-    }
 }
 
 // MARK: - 4 · The key
@@ -381,7 +378,11 @@ private struct KeyStep: View {
                     ],
                     title: "Comparison against your own history"
                 )
-                Text("There is no third bar. Hourss never compares you to anyone else.")
+                // "Reading" rather than naming the shape. The line survived the
+                // bars becoming arcs only by accident; the claim it makes is
+                // about how many things are being measured, not about what they
+                // are drawn as.
+                Text("There is no third reading. Hourss never compares you to anyone else.")
                     .textStyle(.label)
                     .foregroundStyle(Color.muted)
             }
@@ -459,7 +460,7 @@ private struct ProofStep: View {
                 VStack(spacing: 0) {
                     HRule()
                     ForEach(Array(digest.facts.enumerated()), id: \.element.id) { index, fact in
-                        factRow(fact, index: index)
+                        HealthFactRow(fact: fact, revealIndex: index, identifier: "proof-fact")
                     }
                 }
 
@@ -488,74 +489,99 @@ private struct ProofStep: View {
         .pageGutter()
         .padding(.top, Space.md)
     }
+}
 
-    private func factRow(_ fact: HealthDigest.Fact, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(fact.figure)
-                    .textStyle(.dayNumeral)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Text(fact.sentence)
+// MARK: - 7 · The account
+
+/// The gate, and the only screen in onboarding with no way through it.
+///
+/// Placed here because of what is on the screen before it: the person has just
+/// been shown three true things about their own life, computed from their own
+/// history. Signing in is asked for against that, not against a promise.
+///
+/// The signed-in branch is not dead code. Deleting everything from Privacy & data
+/// resets onboarding but deliberately leaves the account alone — deletion is about
+/// the record, not about who somebody is — so the next run through arrives here
+/// already signed in and must say so rather than asking again.
+private struct AccountStep: View {
+    @Environment(AccountService.self) private var account
+
+    var body: some View {
+        if let signedIn = account.account {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                Eyebrow("Your account")
+
+                // "Signed in" rather than "already signed in": this is also the
+                // screen somebody lands on the instant they finish signing in on
+                // it, and being told they had already done it reads as a fault.
+                DisplayHeadline([
+                    Text("Signed in").styled(.sectionTitle),
+                    Text("with ").styled(.sectionTitle).then(Text("Apple.").styled(.emphasis(42))),
+                ], style: .sectionTitle)
+
+                Text(signedIn.fullName.map { "This record is down to \($0), and stays on this iPhone. Nothing about it is sent anywhere." }
+                     ?? "This record is down to your Apple ID, and stays on this iPhone. Nothing about it is sent anywhere.")
                     .textStyle(.body)
                     .foregroundStyle(Color.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            // Only the mark draws in. Wiping the sentence too would make the
-            // screen feel like it was loading rather than like it was showing you
-            // something.
-            mark(for: fact)
-                .revealsOnAppear(index: index)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, Space.md)
-        .overlay(alignment: .bottom) { HRule() }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(fact.sentence)
-        .accessibilityIdentifier("proof-fact")
-    }
-
-    /// Lime at this person's high end, rule at their low end.
-    private func rhythmColor(_ normalised: Double) -> Color {
-        switch normalised {
-        case ..<0.34: .rule
-        case ..<0.67: .restorativeFill
-        default: .lime
-        }
-    }
-
-    @ViewBuilder
-    private func mark(for fact: HealthDigest.Fact) -> some View {
-        switch fact.mark {
-        case .weekdayRhythm(let values):
-            // Equal widths, varying colour. Weighting the widths compressed the
-            // week into seven near-identical blocks; the extremes carry it better.
-            HStack(spacing: 3) {
-                ForEach(Array(values.enumerated()), id: \.offset) { _, value in
-                    Rectangle()
-                        .fill(rhythmColor(value))
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(height: 16)
-        case .comparison(let highLabel, let high, let lowLabel, let low):
-            ComparisonMark(
-                rows: [
-                    .init(label: highLabel, value: high, count: nil, highlighted: true),
-                    .init(label: lowLabel, value: low, count: nil, highlighted: false),
+            .pageGutter()
+            .padding(.top, Space.md)
+            .accessibilityIdentifier("account-signed-in")
+        } else {
+            SignInPanel(
+                headline: [
+                    Text("One account,").styled(.sectionTitle),
+                    Text("on this ").styled(.sectionTitle).then(Text("phone.").styled(.emphasis(42))),
                 ],
-                scaleMax: max(high, low) * 1.15,
-                unit: "",
-                title: "Comparison"
+                lead: "You have just seen what your own history already says. Signing in with Apple is what makes that record yours — it stays on this iPhone, and signing in sends none of it anywhere."
             )
-        case .none:
-            EmptyView()
+            // Deliberately unidentified. `accessibilityIdentifier` propagates to
+            // every descendant, so an identifier here overwrites the one on the
+            // Apple button — the single control this screen exists for — and makes
+            // it unfindable. The button's own identifier is what says the beat
+            // arrived, and says it more precisely than a wrapper could.
         }
     }
 }
 
-// MARK: - 7 · The promo
+// MARK: - 8 · Reminders
+
+/// How often Hourss should ask what you are doing.
+///
+/// Placed immediately before the beat that asks for a first log, because that is
+/// the thing being scheduled. Nothing is requested from iOS while this is on
+/// screen — the system prompt is raised by Continue, after the choice is made and
+/// after this screen has said what each choice costs.
+private struct ReminderStep: View {
+    @Binding var selection: LogReminderFrequency
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.lg) {
+            Eyebrow("Reminders")
+            DisplayHeadline([
+                Text("How often").styled(.sectionTitle),
+                Text("should we ").styled(.sectionTitle).then(Text("ask?").styled(.emphasis(42))),
+            ], style: .sectionTitle)
+
+            Text("An hour is easiest to remember while it is still happening. Hourss can nudge you — tapping the nudge opens the list and nothing else.")
+                .textStyle(.body)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            LogReminderPicker(selection: $selection)
+
+            Text("Never overnight, and you can change or stop this at any time in You.")
+                .textStyle(.label)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .pageGutter()
+        .padding(.top, Space.md)
+    }
+}
+
+// MARK: - 9 · The promo
 
 /// Start. The activity starter set folds in here, because picking what you are
 /// doing right now is the same gesture as choosing which activities you keep.

@@ -19,6 +19,18 @@ final class HourssStore {
     /// Set when a session ends, to hand it straight to the reflection sheet.
     var pendingReflectionSessionId: UUID?
 
+    /// An hour somebody tapped in a day's hour strip that had nothing in it, and
+    /// therefore wants filling.
+    ///
+    /// Carried on the store rather than passed down because the logging sheet is
+    /// raised by `RootView` and the tap happens several views inside it — the
+    /// same shape `NotificationService.pendingLogRequest` already uses for a tap
+    /// on a reminder, and for the same reason.
+    var pendingLogSlot: Date?
+
+    func requestLog(at slotStart: Date) { pendingLogSlot = slotStart }
+    func consumeLogSlot() { pendingLogSlot = nil }
+
     /// Mirrors the running session into the Dynamic Island. Optional so tests and
     /// previews can run the store without ActivityKit.
     var live: LiveSessionController?
@@ -32,6 +44,10 @@ final class HourssStore {
     /// Suspends writing while a batch of changes lands, so loading the record
     /// does not save it straight back, field by field.
     private var isRestoring = false
+
+    /// Health identifiers the person has deleted, so the importer does not put
+    /// them back on the next launch.
+    private var removedImports: Set<String> = []
 
     init(repository: RecordRepository? = nil) {
         #if DEBUG
@@ -67,6 +83,7 @@ final class HourssStore {
         reflections = record.reflections
         profile = record.profile
         hasCompletedOnboarding = record.hasCompletedOnboarding
+        removedImports = Set(record.removedImports ?? [])
 
         // Insights are derived rather than stored, so they are recomputed here
         // and only the part that belongs to the person — saved, hidden — is
@@ -91,6 +108,7 @@ final class HourssStore {
         record.reflections = reflections
         record.profile = profile
         record.hasCompletedOnboarding = hasCompletedOnboarding
+        record.removedImports = removedImports.isEmpty ? nil : removedImports.sorted()
         record.insightStatus = Dictionary(
             insights.filter { $0.status == .saved || $0.status == .hidden }
                 .map { ($0.id, $0.status) },
@@ -112,10 +130,14 @@ final class HourssStore {
     func feeling(for sessionId: UUID) -> Int? { reflections[sessionId]?.feelingScore }
 
     /// Completed sessions on a given day, oldest first.
+    ///
+    /// Filed by `recordDay` rather than by start time, which is the same thing for
+    /// everything except an imported night — that belongs to the morning it ended
+    /// on, not to the evening it began in.
     func sessions(on day: Date) -> [Session] {
         let cal = Calendar.current
         return sessions
-            .filter { !$0.isRunning && cal.isDate($0.startAt, inSameDayAs: day) }
+            .filter { !$0.isRunning && cal.isDate($0.recordDay, inSameDayAs: day) }
             .sorted { $0.startAt < $1.startAt }
     }
 
@@ -125,19 +147,17 @@ final class HourssStore {
 
     /// Days that have at least one session, newest first.
     var loggedDays: [Date] {
-        let cal = Calendar.current
-        let days = Set(sessions.filter { !$0.isRunning }.map { cal.startOfDay(for: $0.startAt) })
+        let days = Set(sessions.filter { !$0.isRunning }.map(\.recordDay))
         return days.sorted(by: >)
     }
 
     /// Mean feeling per day, for the heat calendar. Days with sessions but no
     /// ratings are absent rather than zero — unrated stays unknown.
     var meanFeelingByDay: [Date: Double] {
-        let calendar = Calendar.current
         var totals: [Date: (sum: Int, count: Int)] = [:]
         for session in sessions where !session.isRunning {
             guard let rating = feeling(for: session.id) else { continue }
-            let day = calendar.startOfDay(for: session.startAt)
+            let day = session.recordDay
             let current = totals[day] ?? (0, 0)
             totals[day] = (current.sum + rating, current.count + 1)
         }
@@ -146,8 +166,14 @@ final class HourssStore {
 
     /// Sessions that ended without a feeling rating. Drives the "complete a missing
     /// reflection" prompt on Today.
+    ///
+    /// Imported nights never appear here. An imported workout does: it is a thing
+    /// somebody did and may well have an opinion about, and a rating on it is
+    /// evidence the engine can actually use. A night is not rated in that sense,
+    /// and queueing one every single morning would turn a prompt that means
+    /// something into one people learn to dismiss without reading.
     func unratedSessions(on day: Date) -> [Session] {
-        sessions(on: day).filter { feeling(for: $0.id) == nil }
+        sessions(on: day).filter { feeling(for: $0.id) == nil && $0.healthKind != .sleep }
     }
 
     /// Activities the person has kept. Nothing sets `isFavorite` today: the
@@ -246,9 +272,178 @@ final class HourssStore {
     }
 
     func deleteSession(_ id: UUID) {
+        // Noted before the removal, because afterwards there is nothing left to
+        // ask which Health block this was.
+        if let externalId = sessions.first(where: { $0.id == id })?.externalId {
+            removedImports.insert(externalId)
+        }
         sessions.removeAll { $0.id == id }
         reflections[id] = nil
             persist()
+    }
+
+    // MARK: - The day's context card
+
+    private static let contextCardDayKey = "hourss.reflection.lastContextCardDay"
+
+    /// Whether today's first rating still owes a context card.
+    ///
+    /// Persisted as a day stamp rather than derived from the reflections, and the
+    /// reason is directly above: `saveReflection` re-stamps `submittedAt` on every
+    /// save. Counting today's reflections would therefore count an edit to a
+    /// reflection written three weeks ago as today's first rating, and the card
+    /// would reappear every time somebody tidied their journal.
+    ///
+    /// A day string rather than a `Date` because the question is "is this the same
+    /// calendar day", and comparing stored instants means re-deciding that in the
+    /// reader. `UserDefaults`, following `Membership`: a scalar that has to survive
+    /// a launch and belongs to nothing else.
+    var isContextCardDue: Bool {
+        UserDefaults.standard.string(forKey: Self.contextCardDayKey) != Self.dayStamp(Date())
+    }
+
+    /// Claims the day. Called when a card is actually shown, never when one is
+    /// merely considered — a day with no standout in it must not burn the slot
+    /// and leave somebody with nothing.
+    func markContextCardShown(on day: Date = Date()) {
+        UserDefaults.standard.set(Self.dayStamp(day), forKey: Self.contextCardDayKey)
+    }
+
+    private static func dayStamp(_ date: Date) -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+    }
+
+    // MARK: - Health import
+
+    /// Put Health's own record of the last six weeks onto ours.
+    ///
+    /// Idempotent, which is the whole requirement: this runs on every launch and
+    /// after every connection, and the same night must not become a second row
+    /// because Health backfilled one more stage sample into it. Identity comes
+    /// from `externalId` alone — a candidate already on the record is updated in
+    /// place rather than added, so a block whose bounds moved converges on the
+    /// truth instead of duplicating.
+    ///
+    /// Nothing imported ever competes with something already there. A workout that
+    /// overlaps a session somebody logged by hand is the same hour told twice, and
+    /// of the two tellings theirs is the one with an intention and a rating on it.
+    @discardableResult
+    func importFromHealth(_ candidates: [HealthImport.Candidate]) -> Int {
+        var added = 0
+        var changed = false
+        var skippedForOverlap = 0
+
+        for candidate in candidates {
+            // Deleted once is deleted. The importer does not get a second opinion.
+            guard !removedImports.contains(candidate.externalId) else { continue }
+
+            if let index = sessions.firstIndex(where: { $0.externalId == candidate.externalId }) {
+                guard sessions[index].startAt != candidate.startAt
+                        || sessions[index].endAt != candidate.endAt else { continue }
+                sessions[index].startAt = candidate.startAt
+                sessions[index].endAt = candidate.endAt
+                changed = true
+                continue
+            }
+
+            guard sessionsOverlapping(start: candidate.startAt, end: candidate.endAt).isEmpty else {
+                skippedForOverlap += 1
+                continue
+            }
+
+            sessions.append(Session(
+                activityId: importActivityId(for: candidate.kind),
+                startAt: candidate.startAt,
+                endAt: candidate.endAt,
+                source: .health,
+                healthKind: candidate.kind,
+                externalId: candidate.externalId
+            ))
+            added += 1
+        }
+
+        #if DEBUG
+        // The overlap count is the one that answers the question people actually
+        // ask, which is why fewer things arrived than Health shows.
+        print("[Hourss.import] \(candidates.count) candidates → \(added) added, \(skippedForOverlap) already covered by a logged session")
+        #endif
+
+        guard added > 0 || changed else { return 0 }
+        sessions.sort { $0.startAt < $1.startAt }
+        // An imported workout can be rated later and become evidence, so the feed
+        // is rebuilt rather than left to catch up whenever something else happens
+        // to touch it.
+        rebuildInsights()
+        persist()
+        return added
+    }
+
+    /// Which activity an imported block is filed under.
+    ///
+    /// By name, against the starter set, because that is what the person sees and
+    /// what they would expect a workout to land in. Creating the activity when it
+    /// is genuinely absent is the one alternative to importing nothing and leaving
+    /// somebody to work out why — and the starter set always contains both, so in
+    /// practice this only fires for a record edited beyond what any screen in the
+    /// app can currently do.
+    private func importActivityId(for kind: HealthKind) -> UUID {
+        let name = switch kind {
+        case .workout: "Exercise"
+        case .sleep: "Personal / Rest"
+        }
+
+        if let existing = activities.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return existing.id
+        }
+
+        let created = Activity(
+            name: name,
+            category: kind == .workout ? "body" : "life",
+            sortOrder: (activities.map(\.sortOrder).max() ?? 0) + 1
+        )
+        activities.append(created)
+        return created.id
+    }
+
+    // MARK: - The account
+
+    /// Take the name Apple just shared, if there is nowhere else it has come from.
+    ///
+    /// Only fills a blank. Apple's name is a starting value, not the authority on
+    /// what somebody wants to be called, and overwriting an existing one would
+    /// undo a decision every time a credential was re-authorized.
+    func adoptDisplayName(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard profile.displayName.isEmpty, !trimmed.isEmpty else { return }
+        profile.displayName = trimmed
+        persist()
+    }
+
+    /// Erase everything Hourss holds about this person, at their request.
+    ///
+    /// The whole record, not a flag over it. Hourss has no server, so this *is*
+    /// the deletion — there is no copy elsewhere to reconcile with — and anything
+    /// left behind would be data somebody has explicitly asked to be rid of.
+    ///
+    /// Onboarding is reset with the rest. The alternative drops them into an app
+    /// with no activities, no priorities and no history, which is a broken app
+    /// rather than a fresh one.
+    func deleteEverything() {
+        sessions = []
+        reflections = [:]
+        insights = []
+        interactions = []
+        engineObservations = []
+        activities = Activity.defaults
+        profile = Profile()
+        healthByDay = [:]
+        physiologyReadings = [:]
+        pendingReflectionSessionId = nil
+        hasCompletedOnboarding = false
+        removedImports = []
+        live?.endAll()
+        persist()
     }
 
 

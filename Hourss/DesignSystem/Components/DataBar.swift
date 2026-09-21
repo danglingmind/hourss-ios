@@ -99,12 +99,18 @@ struct CoverageMark: View {
     }
 }
 
-/// Two or more labelled bars on a shared scale — the evidence behind a claim.
+/// Two or more labelled values on a shared scale — the evidence behind a claim.
+///
+/// A pair draws as `ComparisonArc`; three or more fall back to the stacked bars
+/// below, because concentric rings stop being legible about there and a
+/// comparison of many things is a list, not a meter. Every caller in the app
+/// currently passes two.
 ///
 /// Carries an `AXChartDescriptor` so VoiceOver can walk the values rather than
 /// hearing one summary string. That matters here: this mark replaces a sentence
 /// that used to state the same numbers in prose, and the information cannot be
-/// allowed to disappear along with the sentence.
+/// allowed to disappear along with the sentence. The descriptor is on this type
+/// rather than on either drawing, so it cannot vary with which one ran.
 struct ComparisonMark: View {
     struct Row: Identifiable {
         let id = UUID()
@@ -121,13 +127,30 @@ struct ComparisonMark: View {
     var title: String = "Average feeling"
 
     var body: some View {
+        Group {
+            if rows.count == 2 {
+                ComparisonArc(
+                    rows: rows,
+                    scaleMax: scaleMax,
+                    format: Self.formatted,
+                    spoken: spokenLabel(for:)
+                )
+            } else {
+                bars
+            }
+        }
+        .accessibilityChartDescriptor(self)
+    }
+
+    /// The original drawing, kept for three or more values.
+    private var bars: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             ForEach(rows) { row in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(row.label).textStyle(.body)
                         Spacer()
-                        Text(String(format: "%.1f", row.value)).textStyle(.label)
+                        Text(Self.formatted(row.value)).textStyle(.label)
                         if let count = row.count {
                             Text("· \(count)").textStyle(.label).foregroundStyle(Color.muted)
                         }
@@ -142,11 +165,16 @@ struct ComparisonMark: View {
                 .accessibilityLabel(spokenLabel(for: row))
             }
         }
-        .accessibilityChartDescriptor(self)
+    }
+
+    /// One spelling of a value, so the two drawings and the spoken form cannot
+    /// disagree about what the number is.
+    static func formatted(_ value: Double) -> String {
+        String(format: "%.1f", value)
     }
 
     private func spokenLabel(for row: Row) -> String {
-        let base = "\(row.label): \(String(format: "%.1f", row.value)) \(unit)"
+        let base = "\(row.label): \(Self.formatted(row.value)) \(unit)"
         guard let count = row.count else { return base }
         return "\(base), from \(count) sessions"
     }

@@ -49,7 +49,11 @@ struct JournalView: View {
 
     private var filters: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            Eyebrow("\(store.loggedDays.count) days recorded")
+            // Named before counted, like every other figure in the app. Same
+            // words, and no size hierarchy to fix here — an eyebrow sets its
+            // number at the same 11pt as its noun, so the flip is about the
+            // reading order alone.
+            Eyebrow("Days recorded · \(store.loggedDays.count)")
                 .padding(.top, Space.md)
 
             HeatCalendar(feelingByDay: store.meanFeelingByDay) { day in
@@ -73,8 +77,8 @@ struct JournalView: View {
 
 }
 
-/// One day, summarised: the date, the total, and a compact strip of the day's
-/// feelings so the shape of it reads at a glance.
+/// One day, summarised: the date, a compact strip of the day's feelings so the
+/// shape of it reads at a glance, then what was done and how long it took.
 private struct DayRow: View {
     @Environment(HourssStore.self) private var store
     let day: Date
@@ -104,10 +108,30 @@ private struct DayRow: View {
                             ?? Color.ink.opacity(0.1)
                     )
                 })
-                Text(summary)
-                    .textStyle(.label)
-                    .foregroundStyle(Color.muted)
-                    .lineLimit(1)
+
+                // What was done, then how long it took — the reverse of the old
+                // "1h 30m · Running, Yoga", where the first thing in the row's
+                // only sentence was a duration belonging to nothing named yet.
+                //
+                // Two texts rather than one interpolation so the names can
+                // truncate without taking the total with them: the total is the
+                // shorter half and the one a single line can always afford. This
+                // is the same left-subject / right-figure idiom the coverage rows
+                // on Patterns use, which is why it is not a `TitledFigure` — the
+                // row's own subject is the date at the head of it, and a second
+                // 34pt title inside a list row would compete with it.
+                HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+                    Text(summary.names)
+                        .textStyle(.label)
+                        .foregroundStyle(Color.muted)
+                        .lineLimit(1)
+                    Spacer(minLength: Space.xs)
+                    Text(summary.total)
+                        .textStyle(.label)
+                        .foregroundStyle(Color.muted)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
             }
 
             Spacer(minLength: 0)
@@ -116,15 +140,37 @@ private struct DayRow: View {
         .frame(minHeight: Space.tapTarget)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(day.formatted(.dateTime.weekday(.wide).day().month(.wide))), \(summary)")
+        .accessibilityLabel(
+            "\(day.formatted(.dateTime.weekday(.wide).day().month(.wide))), \(summary.spoken)"
+        )
     }
 
-    private var summary: String {
-        let total = formatMinutesShort(sessions.reduce(0) { $0 + $1.durationMinutes })
-        let names = Set(sessions.map { store.activityName($0.activityId) })
-            .sorted()
-            .prefix(3)
-            .joined(separator: ", ")
-        return "\(total) · \(names)"
+    private var summary: DaySummaryLine {
+        DaySummaryLine(
+            activityNames: sessions.map { store.activityName($0.activityId) },
+            minutes: sessions.reduce(0) { $0 + $1.durationMinutes }
+        )
     }
+}
+
+/// The two halves of a day row's summary, in reading order.
+///
+/// A value rather than one interpolated string because the order is the point: a
+/// row that opens with "1h 30m" has put a figure in front of everything that
+/// would explain it, and a test can only hold that line if the halves are
+/// separable. Both halves are drawn from what is already on the row — activity
+/// names and a duration — so no new copy exists here to phrase wrongly.
+struct DaySummaryLine: Equatable {
+    /// Up to three distinct activity names, alphabetical.
+    let names: String
+    /// The day's logged total.
+    let total: String
+
+    init(activityNames: [String], minutes: Int) {
+        names = Set(activityNames).sorted().prefix(3).joined(separator: ", ")
+        total = formatMinutesShort(minutes)
+    }
+
+    /// Subject before figure, the same way the row is laid out.
+    var spoken: String { "\(names), \(total)" }
 }

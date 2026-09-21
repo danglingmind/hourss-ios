@@ -25,6 +25,18 @@ struct Record: Codable {
     var profile: Profile = Profile()
     var insightStatus: [UUID: InsightStatus] = [:]
     var hasCompletedOnboarding = false
+
+    /// Imported blocks the person deleted, by their Health identifier.
+    ///
+    /// Kept because the importer runs again on every launch, and without this the
+    /// next run puts back exactly what somebody just threw away — which reads as
+    /// the app overruling them, and is the fastest way to make an automatic
+    /// feature feel like something being done *to* you.
+    ///
+    /// Optional so that records written before the importer existed still decode:
+    /// a synthesized `Codable` fails on a missing key for a non-optional property
+    /// however sensible its default looks.
+    var removedImports: [String]?
 }
 
 /// Where the record lives.

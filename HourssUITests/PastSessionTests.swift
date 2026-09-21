@@ -26,9 +26,11 @@ final class PastSessionTests: XCTestCase {
         // "Continue" is the same element on four consecutive beats, so waiting
         // for it to exist again cannot tell a beat that moved from a tap the
         // transition swallowed. The header counts the beats; wait on that.
-        for beat in 4...7 {
+        // Beat 7 is the account gate, which the launch argument has already
+        // been through, so it carries an ordinary Continue like the rest.
+        for beat in 4...9 {
             app.descendants(matching: .any)["Continue"].firstMatch.tapWhenReady()
-            XCTAssertTrue(app.staticTexts["\(beat) / 7"].waitForExistence(timeout: UITest.timeout),
+            XCTAssertTrue(app.staticTexts["\(beat) / 9"].waitForExistence(timeout: UITest.timeout),
                           "Onboarding did not reach beat \(beat)")
         }
 
@@ -140,6 +142,7 @@ final class PastSessionTests: XCTestCase {
         attach("27-past-session-reflection")
         app.descendants(matching: .any)["feeling-5"].firstMatch.tapWhenReady()
         app.descendants(matching: .any)["Save"].firstMatch.tapWhenReady()
+        dismissDayContextCardIfShown()
 
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: UITest.timeout))
         _ = rows.waitUntilCountSettles()
@@ -176,4 +179,20 @@ final class PastSessionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["NOW"].exists,
                       "Backdating stopped the session that was still running")
     }
+
+    /// Saving the first rating of a day can raise a one-fact card over the
+    /// reflection, and the reflection is not dismissed until it is acknowledged.
+    ///
+    /// Conditional, and it has to be. The card only appears when Apple Health has
+    /// a settled deviation to report, which a simulator with no Health data never
+    /// does — and it appears at most once per calendar day, so the second test to
+    /// run on the same device would not see it either. Asserting on it here would
+    /// be asserting on the machine rather than on the app; what this guards is
+    /// only that the suite still gets past the reflection when it does appear.
+    private func dismissDayContextCardIfShown() {
+        let card = app.descendants(matching: .any)["day-context-card"].firstMatch
+        guard card.waitForExistence(timeout: UITest.settle) else { return }
+        app.descendants(matching: .any)["Done"].firstMatch.tapWhenReady()
+    }
+
 }

@@ -26,7 +26,10 @@ final class ActivitySelectionTests: XCTestCase {
         let focus = app.descendants(matching: .any)["priority-focus"].firstMatch
         XCTAssertTrue(focus.waitForExistence(timeout: 10))
         focus.tap()
-        for _ in 0..<4 {
+        // Four beats of prose, then the account gate and the reminders beat —
+        // both of which the launch arguments have already settled, so each
+        // carries an ordinary Continue too.
+        for _ in 0..<6 {
             let next = app.descendants(matching: .any)["Continue"].firstMatch
             XCTAssertTrue(next.waitForExistence(timeout: 10))
             next.tap()

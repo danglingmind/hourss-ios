@@ -53,7 +53,7 @@ final class LiveActivityTests: XCTestCase {
     /// particular awaits a read of a year of history before it advances — so on a
     /// loaded machine a tap arrived before its screen and was dropped, the flow
     /// stalled several beats back, and the failure surfaced much later as
-    /// "priority-focus never appeared". The header's "n / 7" counter is the app's
+    /// "priority-focus never appeared". The header's "n / 9" counter is the app's
     /// own statement of which beat it is on, so each tap waits for that number to
     /// move before the next one is sent.
     private func walkOnboarding() {
@@ -64,7 +64,8 @@ final class LiveActivityTests: XCTestCase {
         reachBeat(3)
         // Beat 3 ranks priorities and gates Continue on at least one.
         tap("priority-focus")
-        for beat in 4...7 {
+        // Beat 7 is the account gate, already passed via the launch argument.
+        for beat in 4...9 {
             tap("Continue")
             reachBeat(beat)
         }
@@ -72,7 +73,7 @@ final class LiveActivityTests: XCTestCase {
     }
 
     private func reachBeat(_ number: Int) {
-        XCTAssertTrue(app.staticTexts["\(number) / 7"].waitForExistence(timeout: UITest.timeout),
+        XCTAssertTrue(app.staticTexts["\(number) / 9"].waitForExistence(timeout: UITest.timeout),
                       "Onboarding never reached beat \(number)")
     }
 
@@ -271,6 +272,7 @@ final class LiveActivityTests: XCTestCase {
                       "Stopping did not raise the reflection")
         tap("feeling-4")
         tap("Save")
+        dismissDayContextCardIfShown()
 
         // The sheet has to be gone before "nothing is running" means anything —
         // otherwise this reads Today through a reflection that is still dismissing.
@@ -279,4 +281,20 @@ final class LiveActivityTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: UITest.timeout))
         XCTAssertFalse(app.staticTexts["NOW"].exists, "A session is still shown as running")
     }
+
+    /// Saving the first rating of a day can raise a one-fact card over the
+    /// reflection, and the reflection is not dismissed until it is acknowledged.
+    ///
+    /// Conditional, and it has to be. The card only appears when Apple Health has
+    /// a settled deviation to report, which a simulator with no Health data never
+    /// does — and it appears at most once per calendar day, so the second test to
+    /// run on the same device would not see it either. Asserting on it here would
+    /// be asserting on the machine rather than on the app; what this guards is
+    /// only that the suite still gets past the reflection when it does appear.
+    private func dismissDayContextCardIfShown() {
+        let card = app.descendants(matching: .any)["day-context-card"].firstMatch
+        guard card.waitForExistence(timeout: UITest.settle) else { return }
+        app.descendants(matching: .any)["Done"].firstMatch.tapWhenReady()
+    }
+
 }

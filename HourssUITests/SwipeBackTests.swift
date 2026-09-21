@@ -18,7 +18,7 @@ final class SwipeBackTests: XCTestCase {
     /// Each beat is a state change the app has to finish first — the Health beat
     /// awaits a read of a year of history before it advances — so on a loaded
     /// machine a tap arrived before its screen, was dropped, and the flow stalled
-    /// several beats back. The header's "n / 7" counter is the app's own statement
+    /// several beats back. The header's "n / 9" counter is the app's own statement
     /// of which beat it is on, so each tap waits for that number to move before the
     /// next one is sent.
     private func launchPastOnboarding() {
@@ -33,7 +33,8 @@ final class SwipeBackTests: XCTestCase {
         reachBeat(3)
         // Beat 3 ranks priorities and gates Continue on at least one.
         tapID("priority-focus")
-        for beat in 4...7 {
+        // Beat 7 is the account gate, already passed via the launch argument.
+        for beat in 4...9 {
             tapID("Continue")
             reachBeat(beat)
         }
@@ -43,7 +44,7 @@ final class SwipeBackTests: XCTestCase {
     }
 
     private func reachBeat(_ number: Int) {
-        XCTAssertTrue(app.staticTexts["\(number) / 7"].waitForExistence(timeout: UITest.timeout),
+        XCTAssertTrue(app.staticTexts["\(number) / 9"].waitForExistence(timeout: UITest.timeout),
                       "Onboarding never reached beat \(number)")
     }
 

@@ -140,6 +140,42 @@ extension XCUIApplication {
     /// empty app.
     func launchWithHistory() {
         launchArguments += ["-hourss-seed-fixture"]
+        signedIn()
+        silentNotifications()
+        launch()
+    }
+
+    /// Never raise the system notification prompt.
+    ///
+    /// It belongs to another process and XCTest cannot dismiss it without an
+    /// interruption monitor, so the reminders beat would stop every walk dead
+    /// waiting on an alert the test cannot see. This also keeps a test run from
+    /// registering real repeating alarms on the simulator it borrowed.
+    func silentNotifications() {
+        launchArguments += ["-hourss-debug-no-notifications"]
+    }
+
+    /// Start already past the account gate.
+    ///
+    /// Onboarding's account beat is a hard gate, and the sheet behind it belongs
+    /// to another process and wants a real Apple ID — neither of which a UI test
+    /// has. Without this every test that walks onboarding stops there forever.
+    ///
+    /// The strings are duplicated from `AccountService` rather than shared, for
+    /// the same reason the fixture argument is: a UI test drives the app from
+    /// another process and cannot import its types. If either changes, the walk
+    /// fails loudly at the gate rather than quietly skipping it.
+    func signedIn(as name: String = "Ren") {
+        launchArguments += ["-hourss-debug-account", name]
+    }
+
+    /// Launch with history but *without* an account, to see the gate itself.
+    ///
+    /// The only way to reach the real sign-in beat from a test. Nothing past it
+    /// can be walked, which is the point of the one test that uses this.
+    func launchWithHistorySignedOut() {
+        launchArguments += ["-hourss-seed-fixture"]
+        silentNotifications()
         launch()
     }
 }

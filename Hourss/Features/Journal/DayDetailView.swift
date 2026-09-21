@@ -26,7 +26,7 @@ struct DayDetailView: View {
                 }
                 .padding(.top, Space.md)
 
-                DayTimeline(sessions: sessions, selectedSessionId: $selectedSessionId)
+                DayTimeline(sessions: sessions, day: day, selectedSessionId: $selectedSessionId)
 
                 if let id = selectedSessionId, let session = sessions.first(where: { $0.id == id }) {
                     sessionActions(session)

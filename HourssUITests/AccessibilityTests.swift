@@ -15,8 +15,12 @@ final class AccessibilityTests: XCTestCase {
         return app
     }
 
-    /// Walks the six beats. Each control is waited for rather than assumed — at
+    /// Walks the nine beats. Each control is waited for rather than assumed — at
     /// accessibility type sizes the layout reflows and controls move.
+    ///
+    /// The account beat is walked rather than skipped: the launch argument puts
+    /// the app past the gate already signed in, so the beat shows its signed-in
+    /// state and carries an ordinary Continue like the rest.
     private func walkOnboarding(_ app: XCUIApplication) {
         func tap(_ identifier: String) {
             let element = app.descendants(matching: .any)[identifier].firstMatch
@@ -26,7 +30,7 @@ final class AccessibilityTests: XCTestCase {
         tap("Start")
         tap("health-connect")
         tap("priority-focus")          // beat 3 gates on at least one
-        for _ in 0..<4 { tap("Continue") }
+        for _ in 0..<6 { tap("Continue") }
         let skip = app.buttons["Skip for now"].firstMatch
         XCTAssertTrue(skip.waitForExistence(timeout: 12))
         skip.tap()

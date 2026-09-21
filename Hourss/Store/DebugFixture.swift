@@ -120,6 +120,43 @@ enum DebugFixture {
             let weekday = cal.component(.weekday, from: day)
             let isWorkday = store.profile.workdays.contains(weekday)
 
+            // What Health already knew about this day, imported rather than logged.
+            //
+            // Seeded *before* the sparse-day skip below, and that is the whole
+            // point: a day nobody logged anything on is exactly the day the
+            // importer exists for, and the Journal should show a night on it
+            // rather than a blank. Both land in the 6–8am gap the hand-logged plans
+            // leave free, so nothing here overlaps a manual session and quietly
+            // drops it out of pattern computation.
+            if let restId = byName["Personal / Rest"],
+               let wake = cal.date(bySettingHour: 6, minute: Int.random(in: 0...45, using: &rng), second: 0, of: day) {
+                let asleep = Int.random(in: 380...500, using: &rng)
+                sessions.append(Session(
+                    activityId: restId,
+                    startAt: wake.addingTimeInterval(TimeInterval(-asleep * 60)),
+                    endAt: wake,
+                    source: .health,
+                    healthKind: .sleep,
+                    externalId: "health.sleep.fixture.\(dayOffset)"
+                ))
+            }
+
+            // Unrated on purpose. An imported workout is the one imported thing the
+            // reflection prompt does ask about, so leaving these unanswered is what
+            // puts that prompt in a state worth looking at.
+            if Int.random(in: 0...5, using: &rng) == 0,
+               let exerciseId = byName["Exercise"],
+               let start = cal.date(bySettingHour: 7, minute: Int.random(in: 0...15, using: &rng), second: 0, of: day) {
+                sessions.append(Session(
+                    activityId: exerciseId,
+                    startAt: start,
+                    endAt: start.addingTimeInterval(TimeInterval(Int.random(in: 25...45, using: &rng) * 60)),
+                    source: .health,
+                    healthKind: .workout,
+                    externalId: "health.workout.fixture.\(dayOffset)"
+                ))
+            }
+
             // A few days are deliberately sparse — real logs have gaps, and the
             // Journal reads as a record rather than a generated grid.
             if Int.random(in: 0...9, using: &rng) < 2 { continue }
@@ -168,6 +205,24 @@ enum DebugFixture {
                     )
                 }
             }
+        }
+
+        // Last night, as Health would have it.
+        //
+        // The six-week loop above covers yesterday back to day 42 and stops, so
+        // without this the one day somebody is most likely to be looking at is the
+        // one day with no imported night on it — which is exactly backwards.
+        // Fixed rather than seeded, like the rest of today's record.
+        if let restId = byName["Personal / Rest"],
+           let wake = cal.date(bySettingHour: 6, minute: 40, second: 0, of: today) {
+            sessions.append(Session(
+                activityId: restId,
+                startAt: wake.addingTimeInterval(-7.5 * 3600),
+                endAt: wake,
+                source: .health,
+                healthKind: .sleep,
+                externalId: "health.sleep.fixture.0"
+            ))
         }
 
         // Today's record echoes the four moments from the landing page, so the app

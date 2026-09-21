@@ -39,7 +39,7 @@ final class HealthAndMarksTests: XCTestCase {
     private func advance(through beats: ClosedRange<Int>) {
         for beat in beats {
             app.descendants(matching: .any)["Continue"].firstMatch.tapWhenReady()
-            XCTAssertTrue(app.staticTexts["\(beat) / 7"].waitForExistence(timeout: UITest.timeout),
+            XCTAssertTrue(app.staticTexts["\(beat) / 9"].waitForExistence(timeout: UITest.timeout),
                           "Onboarding did not reach beat \(beat)")
         }
     }
@@ -49,7 +49,8 @@ final class HealthAndMarksTests: XCTestCase {
         app.descendants(matching: .any)["health-connect"].firstMatch.tapWhenReady()
         // Beat 3 ranks priorities and gates Continue on at least one.
         app.descendants(matching: .any)["priority-focus"].firstMatch.tapWhenReady()
-        advance(through: 4...7)
+        // Beat 7 is the account gate, already passed via the launch argument.
+        advance(through: 4...9)
         app.buttons["Skip for now"].firstMatch.tapWhenReady()
         XCTAssertTrue(app.descendants(matching: .any)["tab-log"].firstMatch.waitForExistence(timeout: UITest.timeout))
     }

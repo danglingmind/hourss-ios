@@ -118,7 +118,10 @@ struct HealthDigest {
         return fact.raised == prior.raised ? prior.share : 1 - prior.share
     }
 
-    private static func kindKey(_ kind: Fact.Kind) -> String {
+    /// A kind's stable spelling. Internal rather than private because the daily
+    /// dispenser keys its memory of spent facts on metric and kind, and a second
+    /// switch over the same four cases is a second table to keep in step.
+    static func kindKey(_ kind: Fact.Kind) -> String {
         switch kind {
         case .rhythm: "rhythm"
         case .contrast: "contrast"
@@ -141,12 +144,28 @@ struct HealthDigest {
         return bits * size
     }
 
-    static func build(from dailyValues: [HealthMetric: [Date: Double]]) -> HealthDigest {
-        let allDays = Set(dailyValues.values.flatMap(\.keys))
-        guard !allDays.isEmpty else { return HealthDigest(facts: [], daysOfHistory: 0) }
-
+    /// Every fact this history yields, most surprising first and nothing dropped.
+    ///
+    /// `build` is the onboarding screen: three facts, one per topic, one per
+    /// shape, and the rest of the year thrown away. That curation is right for a
+    /// screen somebody sees once and wrong for everything after it — what it
+    /// discards is every other true thing in that year, and no other surface has
+    /// any of them. The pool is where the daily fact draws from, and it is a
+    /// sibling of `build` rather than a replacement: onboarding's selection is a
+    /// tested contract and this does not touch it.
+    ///
+    /// Deduping is left to the caller, because the two callers want different
+    /// rules. One screen holding three facts has to vary its topics or it reads
+    /// as one idea repeated; one fact a day has yesterday to be unlike, and no
+    /// reason to refuse a rhythm today because a rhythm was shown in March.
+    static func pool(from dailyValues: [HealthMetric: [Date: Double]]) -> [Fact] {
         var candidates: [Fact] = []
-        for (metric, byDay) in dailyValues where byDay.count >= minimumDaysPerSide * 2 {
+        // Sorted rather than iterated in dictionary order: the order candidates
+        // are generated in survives into the sort below as the resting order of
+        // anything that ties, and dictionary order is not stable between
+        // launches. The same history has to rank the same way every time.
+        for metric in dailyValues.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let byDay = dailyValues[metric], byDay.count >= minimumDaysPerSide * 2 else { continue }
             candidates.append(contentsOf: [
                 weekdayRhythm(metric, byDay),
                 weekendContrast(metric, byDay),
@@ -155,10 +174,7 @@ struct HealthDigest {
             ].compactMap { $0 })
         }
 
-        // Strongest first, but never the same shape twice and never the same
-        // topic twice: three weekday rhythms about three metrics still reads as
-        // one idea, and the screen has to feel like three discoveries.
-        let ranked = candidates.sorted {
+        return candidates.sorted {
             let left = surprise(of: $0), right = surprise(of: $1)
             if left != right { return left > right }
             // Ties fall back to size and then to the metric, so two runs over one
@@ -166,6 +182,16 @@ struct HealthDigest {
             if $0.strength != $1.strength { return $0.strength > $1.strength }
             return $0.metric.rawValue < $1.metric.rawValue
         }
+    }
+
+    static func build(from dailyValues: [HealthMetric: [Date: Double]]) -> HealthDigest {
+        let allDays = Set(dailyValues.values.flatMap(\.keys))
+        guard !allDays.isEmpty else { return HealthDigest(facts: [], daysOfHistory: 0) }
+
+        // Strongest first, but never the same shape twice and never the same
+        // topic twice: three weekday rhythms about three metrics still reads as
+        // one idea, and the screen has to feel like three discoveries.
+        let ranked = pool(from: dailyValues)
         var chosen: [Fact] = []
         var usedGroups: Set<HealthGroup> = []
         var usedKinds: Set<Fact.Kind> = []

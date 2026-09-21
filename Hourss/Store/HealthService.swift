@@ -26,8 +26,66 @@ final class HealthService {
     /// Groups the person chose. Selection is what we asked for, not what was
     /// granted — iOS never reports read authorization back, by design.
     var selectedGroups: Set<HealthGroup> = Set(HealthGroup.allCases)
-    private(set) var isConnected = false
+
+    /// Whether the person has been through the connect flow, remembered across
+    /// launches.
+    ///
+    /// It used to reset to false on every launch, which meant `refresh()` returned
+    /// at its own guard and Health context was only ever as fresh as the last time
+    /// somebody happened to open the connection screen. Harmless while the only
+    /// consumer was the insight engine — which recomputes from sessions anyway —
+    /// and not harmless at all now that a read is what puts last night on the
+    /// record.
+    private(set) var isConnected = false {
+        didSet { UserDefaults.standard.set(isConnected, forKey: Self.connectedKey) }
+    }
+    private static let connectedKey = "hourss.health.connected"
+
     private(set) var lastSyncedAt: Date?
+
+    init() {
+        isConnected = UserDefaults.standard.bool(forKey: Self.connectedKey)
+    }
+
+    /// Whether the connection predates Hourss remembering connections.
+    ///
+    /// The flag above was added after people were already using the app, and
+    /// onboarding — the only screen that asks for Health — never runs again once
+    /// it is complete. So an existing person upgrading into that build had a
+    /// connection Hourss had no record of and no route back to: no daily context,
+    /// no physiology, no import, and nothing on any screen saying why.
+    ///
+    /// The absence of the key is the signal, and it is asked exactly once. Note
+    /// that `.unnecessary` means the sheet has been answered, not that anything
+    /// was granted — which is precisely what `isConnected` has always meant here,
+    /// since iOS never reports a read grant either way.
+    func restoreConnectionIfNeeded() async {
+        // Keyed on the state rather than on whether the flag was ever written.
+        //
+        // The first version of this guarded on the key being absent and wrote
+        // `false` when the answer was no — which permanently disabled the very
+        // recovery it existed for, because one launch before somebody connected
+        // was enough to make the key present forever. Asking "are we disconnected"
+        // is self-healing: it costs one local query per launch until the answer
+        // changes, and never runs again afterwards.
+        guard !isConnected, isAvailable else { return }
+
+        let types = Set(selectedMetrics.compactMap(\.objectType))
+        guard !types.isEmpty else { return }
+
+        let status = try? await store.statusForAuthorizationRequest(toShare: [], read: types)
+        guard Self.wasAlreadyAsked(status) else { return }
+
+        #if DEBUG
+        print("[Hourss.health] restored a connection made before it was remembered")
+        #endif
+        isConnected = true
+    }
+
+    /// The rule, separated so it can be tested without a device or a permission.
+    static func wasAlreadyAsked(_ status: HKAuthorizationRequestStatus?) -> Bool {
+        status == .unnecessary
+    }
 
     /// One value per metric per day, which is the only shape the pattern engine
     /// can use.
@@ -277,6 +335,87 @@ final class HealthService {
             byDay[day, default: 0] += workout.duration / 60
         }
         return byDay
+    }
+
+    // MARK: - Importable blocks
+
+    /// How far back the importer fills in.
+    ///
+    /// Six weeks, not the year `historyDays` reads. The year exists for the
+    /// onboarding digest, which is hunting a weekday rhythm and needs the length;
+    /// sessions are a record of what somebody did, and the engine never compares
+    /// beyond six weeks. Filling a year of Journal with rows nobody was there for
+    /// would make the archive look lived-in without being lived in.
+    static let importDays = 42
+
+    /// Workouts and nights, as blocks ready to become sessions.
+    ///
+    /// Consent is respected group by group, the same way reading is: somebody who
+    /// left Movement off has not agreed to have their workouts written onto their
+    /// own record, and an importer that ignored that would be taking more than the
+    /// screen asked for.
+    func readImportableSessions() async -> [HealthImport.Candidate] {
+        guard isConnected, isAvailable else { return [] }
+        async let workouts = readWorkoutBlocks()
+        async let sleep = readSleepBlocks()
+
+        let workoutCandidates = HealthImport.candidates(workouts: await workouts)
+        let sleepCandidates = HealthImport.candidates(sleep: await sleep)
+
+        #if DEBUG
+        // Kept, in DEBUG only. Whether Health hands anything over is invisible
+        // from inside the app — an empty read and a refused one look identical —
+        // and without a count here the difference between "no workouts recorded"
+        // and "the importer never ran" cannot be told apart from the Journal.
+        print("[Hourss.import] read \(workoutCandidates.count) workouts, \(sleepCandidates.count) nights")
+        #endif
+
+        return workoutCandidates + sleepCandidates
+    }
+
+    private var importWindow: NSPredicate {
+        let start = Calendar.current.date(byAdding: .day, value: -Self.importDays, to: Date()) ?? Date()
+        return HKQuery.predicateForSamples(withStart: start, end: Date())
+    }
+
+    private func readWorkoutBlocks() async -> [HealthImport.Workout] {
+        guard selectedGroups.contains(.movement) else { return [] }
+        let workouts: [HKWorkout] = await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: .workoutType(), predicate: importWindow,
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, results, _ in
+                continuation.resume(returning: results as? [HKWorkout] ?? [])
+            }
+            store.execute(query)
+        }
+        return workouts.map {
+            HealthImport.Workout(
+                id: $0.uuid,
+                span: HealthImport.Span(start: $0.startDate, end: $0.endDate)
+            )
+        }
+    }
+
+    /// Every stretch Health scored as asleep. Clustering them into nights is
+    /// `HealthImport`'s job, not this one's.
+    private func readSleepBlocks() async -> [HealthImport.Span] {
+        guard selectedGroups.contains(.sleep),
+              let type = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) else { return [] }
+
+        let samples: [HKCategorySample] = await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: type, predicate: importWindow,
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, results, _ in
+                continuation.resume(returning: results as? [HKCategorySample] ?? [])
+            }
+            store.execute(query)
+        }
+
+        return samples.compactMap { sample in
+            // "In bed" is not sleep, and counting it would hand somebody a Rest
+            // block for the hour they spent reading.
+            guard let value = HKCategoryValueSleepAnalysis(rawValue: sample.value),
+                  HKCategoryValueSleepAnalysis.allAsleepValues.contains(value) else { return nil }
+            return HealthImport.Span(start: sample.startDate, end: sample.endDate)
+        }
     }
 
     // MARK: - Sample-level reading

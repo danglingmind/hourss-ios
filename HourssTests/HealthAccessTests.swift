@@ -76,3 +76,47 @@ struct HealthAccessTests {
                 "heart rate is what the physiology layer runs on")
     }
 }
+
+/// A connection made before Hourss remembered connections.
+///
+/// The bug this exists for was invisible from inside the app and permanent from
+/// outside it. Remembering the connection was added after people were already
+/// using Hourss, and onboarding — the only screen that asks for Health — never
+/// runs again once it is complete. So anyone upgrading had a live Health
+/// permission that the app believed did not exist: no daily context, no
+/// physiology, no imported sessions, and no screen anywhere saying why.
+@Suite("Restoring a Health connection")
+@MainActor
+struct HealthConnectionRestoreTests {
+
+    /// `.unnecessary` is HealthKit saying it would not need to ask — which is the
+    /// only evidence available that this person has been through the sheet before.
+    @Test("Only an answered sheet counts as an existing connection")
+    func onlyAnsweredSheetsRestore() {
+        #expect(HealthService.wasAlreadyAsked(.unnecessary))
+        #expect(HealthService.wasAlreadyAsked(.shouldRequest) == false)
+        #expect(HealthService.wasAlreadyAsked(.unknown) == false)
+    }
+
+    /// It must survive the query failing, because the failure mode being guarded
+    /// against is somebody silently losing Health — and inventing a connection
+    /// from a failed lookup would be the same bug pointing the other way.
+    @Test("An unanswerable query restores nothing")
+    func failureRestoresNothing() {
+        #expect(HealthService.wasAlreadyAsked(nil) == false)
+    }
+
+    /// The first version of this guarded on "was the flag ever written" and wrote
+    /// `false` when the answer was no — so a single launch before somebody
+    /// connected made the flag present forever and permanently disabled the
+    /// recovery. Keying on the state instead is what makes it self-healing.
+    @Test("A connected service does not go looking again")
+    func connectedServiceSkipsTheCheck() async {
+        let health = HealthService()
+        await health.connect()
+        #expect(health.isConnected)
+
+        await health.restoreConnectionIfNeeded()
+        #expect(health.isConnected, "The check must never be able to undo a live connection")
+    }
+}
