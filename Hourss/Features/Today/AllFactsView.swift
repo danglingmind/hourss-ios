@@ -30,17 +30,20 @@ struct AllFactsView: View {
                 if facts.isEmpty {
                     empty
                 } else {
-                    ForEach(Array(facts.enumerated()), id: \.element.id) { index, fact in
-                        VStack(alignment: .leading, spacing: 0) {
-                            if DailyFact.key(for: fact) == todaysKey {
-                                Eyebrow("Today's")
-                                    .padding(.top, Space.sm)
-                            }
-                            HealthFactRow(
-                                fact: fact,
-                                revealIndex: min(index, 3),
-                                identifier: "all-facts-row"
-                            )
+                    // Grouped by topic rather than run as one ranked list.
+                    //
+                    // The pool is four generators against eleven metrics, and the
+                    // metrics inside a group are correlated by construction —
+                    // four ways of noticing the same movement, three of noticing
+                    // the same recovery. Ranked flat by surprise they interleave
+                    // into what reads as the same card written out several times.
+                    // Under a heading the same facts read as depth: four things
+                    // known about sleep is a section, where four sleep cards
+                    // scattered through a list is a stutter.
+                    ForEach(HealthGroup.allCases) { group in
+                        let inGroup = facts.filter { $0.group == group }
+                        if !inGroup.isEmpty {
+                            section(group, facts: inGroup)
                         }
                     }
                 }
@@ -60,6 +63,35 @@ struct AllFactsView: View {
             todaysKey = DailyFact()
                 .fact(for: Calendar.current.startOfDay(for: Date()), from: pool)
                 .map(DailyFact.key(for:))
+        }
+    }
+
+    /// One topic's facts, under the group's own name.
+    ///
+    /// The heading is `HealthGroup.title` — "Sleep", "Recovery", "Movement",
+    /// "Mind and light" — the same words the consent screen used, so nothing here
+    /// is a name invented for this list.
+    private func section(_ group: HealthGroup, facts inGroup: [HealthDigest.Fact]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Eyebrow(group.title)
+                .padding(.top, Space.md)
+                .padding(.bottom, Space.xs)
+
+            ForEach(Array(inGroup.enumerated()), id: \.element.id) { index, fact in
+                VStack(alignment: .leading, spacing: 0) {
+                    if DailyFact.key(for: fact) == todaysKey {
+                        Eyebrow("Today's")
+                            .padding(.top, Space.sm)
+                    }
+                    HealthFactRow(
+                        fact: fact,
+                        // Capped, so the last row of a long group does not wait
+                        // two seconds to draw itself in.
+                        revealIndex: min(index, 3),
+                        identifier: "all-facts-row"
+                    )
+                }
+            }
         }
     }
 
@@ -83,7 +115,11 @@ struct AllFactsView: View {
 
     private var summary: String {
         let noun = facts.count == 1 ? "observation" : "observations"
-        return "\(facts.count) \(noun) from your own Health history, most striking first."
+        // No longer "most striking first" — that was true of the flat list and is
+        // not true of the sections, which are ordered by topic. Within a section
+        // the surprise ranking still holds, and saying so would be more precise
+        // than a reader needs.
+        return "\(facts.count) \(noun) from your own Health history, by topic."
     }
 
     /// No Health history read yet, so there is nothing to list. Says that, rather

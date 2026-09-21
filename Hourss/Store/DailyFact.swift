@@ -75,23 +75,74 @@ struct DailyFact {
         // silence, not a fact they have already read or one that is not a fact.
         guard !remaining.isEmpty else { return nil }
 
-        // Unlike yesterday in both topic and shape. Two weekend contrasts on
-        // consecutive mornings read as the app having one thing to say, however
-        // different the two signals are — the same failure onboarding's
-        // group-and-kind rule exists to avoid, one day apart instead of one
-        // screen apart.
+        // Variety as a cascade, strongest preference first.
+        //
+        // Yesterday alone was not enough. Avoiding only the previous fact stops
+        // two sleep facts landing on consecutive mornings but does nothing about
+        // day one and day five, and nothing at all about the real duplication:
+        // the four movement metrics are correlated by construction, so
+        // "your step count has been running higher lately" and "your active
+        // energy has been running higher lately" are one fact told twice, and a
+        // metric-level rule sees two different metrics and lets both through.
+        //
+        // So the hard axis is the pair (group, kind) — the topic and the shape —
+        // which is the same rule `build` applies to onboarding's three, extended
+        // over the whole run. Sixteen combinations exist, so sixteen genuinely
+        // distinct days come first, and what remains after that is the
+        // repetitive tail, arriving when the engine has its own things to say.
         let previous = spent.last
-        let chosen = remaining.first { !repeats(previous, with: $0) } ?? remaining[0]
-        // The fallback is deliberate and matches how `build` fills its third row:
-        // when variety cannot be had, variety is what gets dropped. Holding the
-        // rule absolutely would mean showing nothing on a day facts still exist
-        // for, and — because the rule looks at the last fact *shown* — never
-        // showing anything again.
+        let seenPairs = Set(spent.compactMap(Self.pair(ofKey:)))
+
+        func isNewPair(_ fact: HealthDigest.Fact) -> Bool {
+            !seenPairs.contains(Self.pair(of: fact))
+        }
+        func unlikeYesterday(_ fact: HealthDigest.Fact) -> Bool {
+            !repeats(previous, with: fact)
+        }
+
+        // Written as a list rather than a chain of `??`: four trailing closures
+        // joined by nil-coalescing is also what the type checker gave up on.
+        let preferences: [(HealthDigest.Fact) -> Bool] = [
+            { isNewPair($0) && unlikeYesterday($0) },
+            { isNewPair($0) },
+            { unlikeYesterday($0) },
+        ]
+        let chosen = preferences.lazy.compactMap { remaining.first(where: $0) }.first ?? remaining[0]
+        // The final fallback is deliberate and matches how `build` fills its
+        // third row: when variety cannot be had, variety is what gets dropped.
+        // Holding any of these absolutely would mean showing nothing on a day
+        // facts still exist for, and the pool is finite — a person who has run
+        // out of new shapes has not run out of true things about themselves.
 
         spent.append(Self.key(for: chosen))
         defaults.set(spent, forKey: Self.spentStorageKey)
         defaults.set(today, forKey: Self.dayStorageKey)
         return chosen
+    }
+
+    /// Topic and shape — what makes two facts feel like one.
+    ///
+    /// Group rather than metric on purpose. Metric says steps and active energy
+    /// are different subjects; a reader looking at both cards knows they are the
+    /// same day being described twice, because one is a consequence of the other.
+    /// `HealthGroup` is the level at which two facts are actually about different
+    /// things.
+    static func pair(of fact: HealthDigest.Fact) -> String {
+        "\(fact.group.rawValue).\(HealthDigest.kindKey(fact.kind))"
+    }
+
+    /// The same pair recovered from a stored key, which holds a metric rather
+    /// than a group.
+    ///
+    /// Nil when the metric no longer exists in the enum. A fact whose metric has
+    /// been removed cannot block anything, which is the right failure: the
+    /// alternative is guessing at a group and silently suppressing a fact that
+    /// has nothing to do with it. Keys stay in `metric.kind` form so what is
+    /// already on somebody's phone keeps meaning what it meant.
+    static func pair(ofKey key: String) -> String? {
+        let parts = key.split(separator: ".", maxSplits: 1)
+        guard parts.count == 2, let metric = HealthMetric(rawValue: String(parts[0])) else { return nil }
+        return "\(metric.group.rawValue).\(parts[1])"
     }
 
     /// Whether a candidate repeats the previous fact's metric or its kind.

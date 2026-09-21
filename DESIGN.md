@@ -50,9 +50,15 @@ It now marks **the thing you are looking at**, and only that:
 
 - the selected row's rule in `DayTimeline`'s gutter
 - the current time on `DayHours` — line and label
+- the selected tab's underline in `EditorialTabBar`
 
 Everything else it does is still navigational (arrows, the back chevron). Do not
 spend it on a third job.
+
+The tab underline is that same one job at the largest scale the app has for it —
+the screen you are on is the thing you are looking at — which is why it is an
+application of this rule and not an exception to it. A different accent for
+navigation chrome would have been the exception.
 
 **One collision to know about.** `Color.orange` is `#E65837` and
 `Color.drainingFill` is `#E66645` — near enough the same hue that a draining
@@ -227,3 +233,77 @@ finished state directly; it never gets a shortened version.
 **It is wrong for an arc**, where it drags a straight edge across a curve, so
 `ComparisonArc` animates its own trim and `HealthFactRow` opts comparison marks
 out of the shared modifier. Any future non-linear mark needs the same treatment.
+
+---
+
+## The selected tab is a rule that travels
+
+Selection in `EditorialTabBar` was a text colour swap and nothing else — ink on
+the selected label, muted on the other three. At eyebrow size that is a few dozen
+pixels of contrast difference at the bottom of the screen, and it failed the same
+way `DayTimeline`'s opacity failed: with nothing beside it to compare against, a
+muted label just looks like a label. Which tab you were on was recoverable by
+reading all four and deciding which was darkest.
+
+Now an **orange rule, 2pt, on the bottom edge of the 54pt row**, the width of the
+slot it marks. Not a fixed width: the four tabs divide whatever is left after the
+`+` takes its 60pt, so the mark is derived from the bar's own geometry and stays
+matched to the tab if the bar's width ever changes.
+
+**2pt, and not 3.** `DayTimeline`'s gutter mark is 3pt, but it is vertical and
+about 40pt long. The same weight run across ~79pt of tab stops being a rule and
+becomes a bar — and this sits 1pt away from the `.rule` hairline that closes the
+content area, so the two weights have to stay legible as different things.
+
+**The text distinction stays.** Ink-vs-muted is still there under the rule. The
+standing rule that colour never carries meaning alone is not suspended because
+the colour got bigger.
+
+### It slides, and that needed a spring
+
+`Motion` held only ease-out at 160/200ms, and neither works here. Those tokens
+are for a thing that appears, recolours, or shifts by a few points — a curve that
+leaves at full speed and decays is right when the eye has nothing to track. This
+is one object crossing up to 140pt with the eye following it, and an ease-out
+spends its last third slowing to a crawl, which reads as the line being dragged
+into place rather than thrown there.
+
+So `Motion.travel(reduced:)` — `.spring(response: 0.32, dampingFraction: 0.80)`,
+tuned against the system tab bar's own transition, which is a spring and not an
+ease. `.snappy` (0.3 / 0.85) was the other candidate and is nearly the same
+animation; 0.80 damping was picked over it for the ~1.5% of overshoot, one or two
+points at this distance, which makes the line settle rather than stop dead.
+**It is a token, not a call-site spring**, for the reason the whole file exists:
+the next thing that travels should feel like this one without anyone having to go
+and read this component.
+
+Reduce Motion gets `nil`, as everything else does — the line is simply already
+under the new tab. Never a shortened spring.
+
+The label crossfade still uses the ease-out `fast` token. A colour change is not
+a journey and does not want a spring.
+
+### Crossing the `+`
+
+Patterns to Journal takes the rule straight through the middle, where there is a
+lime 60pt square that is not a tab and must never look underlined.
+
+**It passes below it, continuously.** The geometry allows this outright rather
+than by luck: the lime square is 38pt tall inside a 44pt button inside a 54pt
+row, so its lower edge is 8pt above the row's, and the rule occupies the bottom
+2pt. The two never share a pixel — the line is not behind the `+` or through it,
+it is under the whole row, on its way past.
+
+Rejected, and why:
+
+- **Skipping the middle** — the rule jumping the 60pt gap — puts a discontinuity
+  in the one motion whose entire job is to be followed by the eye.
+- **Fading or contracting while crossing** removes the mark at exactly the moment
+  the reader is hunting for where it went, and buys nothing: a rule in flight is
+  read as in flight, not as underlining whatever it is momentarily over.
+
+What makes both unnecessary is that nothing ever comes to rest in the middle. The
+`+` opens a sheet; it is never a selection, so there is no state in which the rule
+sits under it. The elegant handling of the middle case turned out to be to let the
+layout be honest about the fact that the `+` is not on the same row of the
+hierarchy as the tabs, and put the mark in a band the `+` does not reach.

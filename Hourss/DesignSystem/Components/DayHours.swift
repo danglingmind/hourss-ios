@@ -182,9 +182,14 @@ struct DayHours: View {
                 .fill(color(forHour: hour))
                 .frame(maxWidth: .infinity)
                 .frame(maxHeight: .infinity)
-                // The band is 30pt and an hour is about fourteen wide, so the
-                // target is padded out to the full tap height and the cells are
-                // flush — no dead ground between two hours to miss into.
+                // Cells are flush, so there is no dead ground between two hours
+                // to miss into. The target is the band itself: about 14 × 30pt,
+                // which is under the 44pt this system asks for and is the known
+                // cost of putting a whole day on one row. Nothing here pads it
+                // out — an earlier version of this comment claimed it did, which
+                // was not true and is the kind of claim that stops anybody
+                // checking. Widening it means fewer hours or a drag gesture, and
+                // a drag loses the per-hour VoiceOver labels below.
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)

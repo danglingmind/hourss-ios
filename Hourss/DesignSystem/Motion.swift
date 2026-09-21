@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// Port of the `motion` block: 160ms fast, 200ms default, ease-out.
+/// Port of the `motion` block: 160ms fast, 200ms default, ease-out — plus one
+/// spring, for the case the ease-out tokens get wrong (see `travel`).
 ///
-/// Every animation in the app routes through `Motion.animation(reduced:)` so the
-/// system principle — "respect prefers-reduced-motion by removing nonessential
-/// transition" — holds in one place instead of per call site.
+/// Every animation in the app routes through this type so the system principle —
+/// "respect prefers-reduced-motion by removing nonessential transition" — holds
+/// in one place instead of per call site. Both entry points return an optional
+/// `Animation` and both return `nil` when Reduce Motion is on: the finished state
+/// arrives directly, never a shortened version of the transition.
 enum Motion {
     static let fast: Double = 0.16
     static let standard: Double = 0.20
@@ -21,5 +24,26 @@ enum Motion {
 
     static func animation(reduced: Bool, duration: Double = standard) -> Animation? {
         reduced ? nil : .easeOut(duration: duration)
+    }
+
+    /// A mark travelling from one place on screen to another.
+    ///
+    /// The ease-out tokens above are for things that appear, recolour or shift by
+    /// a few points — a curve that starts at full speed and decays is right when
+    /// the eye has nothing to track. A rule crossing the width of the tab bar is
+    /// the opposite case: it is one object moving a long way, the eye follows it,
+    /// and an ease-out arrives by slowing to a crawl over the last third, which
+    /// reads as the line being dragged rather than thrown.
+    ///
+    /// So: a spring, tuned against the system tab bar's own transition. `response`
+    /// is the half-period — 0.32s is quick enough that the line is already there
+    /// when the new screen paints. `dampingFraction` 0.8 leaves roughly 1.5% of
+    /// overshoot, a point or two at this travel distance: enough that the line
+    /// settles rather than stopping dead, not enough to read as a wobble.
+    static let springResponse: Double = 0.32
+    static let springDamping: Double = 0.80
+
+    static func travel(reduced: Bool) -> Animation? {
+        reduced ? nil : .spring(response: springResponse, dampingFraction: springDamping)
     }
 }
