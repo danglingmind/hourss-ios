@@ -19,11 +19,11 @@ untested*, which is not the same statement.
 Ordered by what earns most per hour, not by importance. The first three are
 genuinely small.
 
-1. **Seed Health into the debug fixture** (*small*). `store.healthByDay` is empty
+1. ~~**Seed Health into the debug fixture**~~ — DONE. Wired into `DebugFixture.seed(into:)`. `store.healthByDay` is empty
    in the simulator, so neither shipped feature can render there. Both UI suites
    already admit this in a comment and work around it. Everything visual below is
    blocked behind this, including looking at your own work.
-2. **The sweep** (*small*). One dead local the compiler already warns about, one
+2. ~~**The sweep**~~ — DONE. Build is warning-free. One dead local the compiler already warns about, one
    no-op ternary, three stale doc comments, two unused spacing tokens, one dead
    enum. None of it changes behaviour; all of it is currently lying to the next
    reader.

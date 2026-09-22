@@ -89,8 +89,6 @@ extension TypeStyle {
     // Derived styles used by more than one screen.
     static let wordmark = TypeStyle(family: .sans, weight: 700, size: 17, lineHeight: 1.0, trackingEm: -0.07, relativeTo: nil)
     static let stepName = TypeStyle(family: .sans, weight: 500, size: 26, lineHeight: 1.0, trackingEm: -0.045, relativeTo: .title2)
-    /// The large `/100` numeral in an energy reading. Serif, upright, not italic.
-    static let readingScore = TypeStyle(family: .serif, weight: 400, size: 58, lineHeight: 0.9, trackingEm: -0.06, relativeTo: nil)
     static let dayNumeral = TypeStyle(family: .sans, weight: 500, size: 34, lineHeight: 0.95, trackingEm: -0.055, relativeTo: nil)
 }
 

@@ -195,8 +195,15 @@ enum RecordFacts {
 
         return HealthDigest.Fact(
             figure: formatMinutes(top.value),
-            sentence: "That is the most you have logged in one day, "
-                + "across \(totals.count) days with anything in them.",
+            // Says what it left out, because the screen it lands on contradicts
+            // it otherwise. The date heading above reads "10h 45m logged across
+            // 4 sessions" from `totalLoggedMinutes`, which counts every session
+            // on the day including a night the watch recorded; this counts only
+            // what somebody logged. Two different numbers both called "logged in
+            // one day" read as a fault in the app, and the cheaper half of the
+            // fix is the sentence that knows which one it is.
+            sentence: "That is the most you have logged in one day, not counting "
+                + "nights read from Health, across \(totals.count) days.",
             kind: .best,
             mark: .none,
             strength: 0.05,

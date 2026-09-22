@@ -214,8 +214,6 @@ final class HealthService {
             return result
         }
 
-        let anythingReal = collected.values.contains { !$0.isEmpty }
-
         // An empty read stays empty, on a simulator as much as on a phone.
         //
         // This used to substitute generated values whenever HealthKit returned

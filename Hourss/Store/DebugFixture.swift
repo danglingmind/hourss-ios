@@ -257,6 +257,27 @@ enum DebugFixture {
 
         store.sessions = sessions.sorted { $0.startAt < $1.startAt }
         store.reflections = reflections
+
+        // Health, which until now was generated and then never handed to anybody.
+        //
+        // `seededDaily` and `seededFeed` were both written, both deterministic,
+        // and both had zero callers — so `healthByDay` and `physiologyReadings`
+        // were empty on a simulator no matter what the launch argument said.
+        // Three features shipped behind that: the daily fact, the post-rating
+        // card, and the session residual all render only when health exists, so
+        // none of them could be seen by running the app, and both UI suites had
+        // to write their assertions around the absence rather than through it.
+        //
+        // Ordered deliberately. Daily context first, because `applyPhysiology`
+        // rebuilds observations and those read the day's health. The feed second,
+        // because scoring needs the sessions above to already be in place.
+        store.applyHealthContext(Dictionary(
+            uniqueKeysWithValues: HealthMetric.allCases
+                .filter(\.isDailyContext)
+                .map { ($0, seededDaily(for: $0)) }
+        ))
+        store.applyPhysiology(feed: seededFeed())
+
         store.rebuildInsights()
     }
 

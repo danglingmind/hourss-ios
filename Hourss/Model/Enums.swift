@@ -272,7 +272,3 @@ enum Confidence {
         }
     }
 }
-
-enum InsightFeedback: String, Codable {
-    case resonated, notMe, hide, experimentStarted, experimentCompleted
-}

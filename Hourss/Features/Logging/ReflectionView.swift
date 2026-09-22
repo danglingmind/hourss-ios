@@ -2,9 +2,18 @@ import SwiftUI
 
 /// L3 — the end-of-session reflection.
 ///
-/// Feeling saves the moment it is tapped, performance is optional and never
-/// blocks the save, and a note is never required. Nothing here defaults to a
-/// middle value: an unanswered scale stays unanswered.
+/// Performance is optional and never blocks the save, and a note is never
+/// required. Nothing here defaults to a middle value: an unanswered scale stays
+/// unanswered.
+///
+/// **A feeling does not save the moment it is tapped.** This comment used to say
+/// it did, and it has not been true since the card arrived: `save` and the sheet
+/// header both route through `rate()`, which decides whether a card is owed
+/// *before* anything is written, because `store.saveReflection` clears the very
+/// binding this sheet is presented through and would tear the view down under
+/// the card. So the rating lives in `@State` until `commit()`, which is what the
+/// interactive-dismiss guard and the `onDisappear` fallback below are protecting.
+/// The residual risk is a hard process kill while the card is up.
 ///
 /// The first rating of each day also gets something back — see `DayContextCard`,
 /// which this view raises over itself rather than presenting.

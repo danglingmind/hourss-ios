@@ -8,8 +8,6 @@ enum Space {
     static let md: CGFloat = 24
     static let lg: CGFloat = 40
     static let xl: CGFloat = 64
-    static let xxl: CGFloat = 96
-    static let xxxl: CGFloat = 150
 
     static let gutter: CGFloat = 18
 
