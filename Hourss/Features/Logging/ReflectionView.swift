@@ -20,7 +20,7 @@ struct ReflectionView: View {
 
     /// The day's fact, once it has been earned. Held here rather than in the
     /// store because of the ordering problem described on `rate()`.
-    @State private var card: DayDeviation.Standout?
+    @State private var card: DayContextCard.Content?
     @State private var hasSaved = false
 
     private var session: Session? { store.sessions.first { $0.id == sessionId } }
@@ -95,7 +95,7 @@ struct ReflectionView: View {
         // on screen, and the save is what waits instead — see `rate()`.
         .overlay {
             if let card {
-                DayContextCard(standout: card) { finish() }
+                DayContextCard(content: card) { finish() }
                     .transition(.opacity)
             }
         }
@@ -128,8 +128,35 @@ struct ReflectionView: View {
     /// and gets nothing back. It must be the first rating of the calendar day.
     /// And there must be something true to say, which most days there is not.
     private func rate() {
-        guard feeling != nil,
-              store.isContextCardDue,
+        guard let feeling else {
+            finish()
+            return
+        }
+
+        // A milestone first, and not subject to the once-a-day gate.
+        //
+        // The gate exists so a card does not appear on every rating. A milestone
+        // cannot: it requires a rating strictly above everything logged before
+        // it, so on a five-point scale it is rare by construction and gets rarer
+        // the longer somebody uses the app. Gating it would mean earning the one
+        // moment the record can produce and then not being told, because a sleep
+        // figure had already used the slot that morning.
+        if let milestone = RatingMilestone.earned(
+            by: sessionId,
+            rating: feeling,
+            sessions: store.sessions,
+            feeling: { store.feeling(for: $0) },
+            activityName: store.activityName
+        ) {
+            // Still marks the day, so a milestone in the morning does not leave a
+            // health card to arrive in the afternoon. One card a day either way;
+            // which one it is depends on what there was to say.
+            store.markContextCardShown()
+            card = .milestone(milestone)
+            return
+        }
+
+        guard store.isContextCardDue,
               let standout = DayDeviation.standout(on: Date(), history: store.healthByDay)
         else {
             finish()
@@ -138,7 +165,7 @@ struct ReflectionView: View {
         // Claimed only now, with a card in hand. Claiming it at the check above
         // would spend the day's one card on a day that had no fact in it.
         store.markContextCardShown()
-        card = standout
+        card = .health(standout)
     }
 
     private func finish() {

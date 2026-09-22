@@ -27,7 +27,24 @@ import SwiftUI
 /// comparison and needs no cohort — "your longest night in eleven days" is
 /// arithmetic on their own nights.
 struct DayContextCard: View {
-    let standout: DayDeviation.Standout
+
+    /// The two things this card can be, and never both at once.
+    ///
+    /// Either-or is the load-bearing part. A milestone is about the rating and a
+    /// standout is about the day, and a card carrying both would be pairing a
+    /// rating with something measured separately from it — the exact
+    /// juxtaposition the rule above forbids, arrived at by addition rather than
+    /// by phrasing. An enum makes that unrepresentable instead of relying on
+    /// nobody putting the two in the same `VStack`.
+    enum Content: Equatable {
+        /// A superlative about the day, which the rating cannot move.
+        case health(DayDeviation.Standout)
+        /// A rating that beat everything logged before it. One measurement, so
+        /// no relationship is asserted — see `RatingMilestone`.
+        case milestone(RatingMilestone)
+    }
+
+    let content: Content
     let onDismiss: () -> Void
 
     /// The three lines the card leads with.
@@ -47,10 +64,23 @@ struct DayContextCard: View {
     /// card — the order is the whole point of the change.
     var titled: TitledFigure {
         TitledFigure(
-            title: DayContextCopy.title(standout),
-            figure: DayContextCopy.figure(standout),
-            detail: DayContextCopy.sentence(standout)
+            title: DayContextCopy.title(content),
+            figure: DayContextCopy.figure(content),
+            detail: DayContextCopy.sentence(content)
         )
+    }
+
+    /// The eyebrow says which question the card is answering.
+    ///
+    /// "Today" for a standout, because that is the window it is a superlative
+    /// over. A milestone is not about today at all — it is about the whole
+    /// record — and labelling it "Today" would have narrowed a claim that is
+    /// deliberately wider.
+    private var eyebrow: String {
+        switch content {
+        case .health: "Today"
+        case .milestone: "In your record"
+        }
     }
 
     var body: some View {
@@ -58,7 +88,7 @@ struct DayContextCard: View {
             Spacer(minLength: 0)
 
             VStack(alignment: .leading, spacing: Space.md) {
-                Eyebrow("Today")
+                Eyebrow(eyebrow)
 
                 titled
                     .accessibilityElement(children: .combine)
@@ -67,21 +97,32 @@ struct DayContextCard: View {
                     // the thing it measures.
                     .accessibilityLabel(titled.spoken)
 
-                HRule()
+                // Health only, and the asymmetry is the rule rather than an
+                // oversight. `EngineContracts` calls the caveat never optional
+                // for anything built on a health metric, because a health number
+                // invites a medical reading it cannot support. A milestone is
+                // arithmetic on the person's own ratings — there is no metric
+                // behind it and no second variable to be cautious about, which is
+                // why `RecordFacts` ships its superlatives without one either.
+                // Inventing a caveat here would mean authoring one beside a
+                // sentence, which is the drift the note below warns against.
+                if case .health(let standout) = content {
+                    HRule()
 
-                // Straight from the metric, never written here. A caveat authored
-                // beside a particular sentence drifts from the one the engine
-                // shows for the same metric, and then the app is quietly making
-                // two different promises about the same number.
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Eyebrow("Bear in mind")
-                    Text(standout.metric.caveat)
-                        .textStyle(.label)
-                        .foregroundStyle(Color.muted)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // Straight from the metric, never written here. A caveat
+                    // authored beside a particular sentence drifts from the one
+                    // the engine shows for the same metric, and then the app is
+                    // quietly making two different promises about one number.
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        Eyebrow("Bear in mind")
+                        Text(standout.metric.caveat)
+                            .textStyle(.label)
+                            .foregroundStyle(Color.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Bear in mind: \(standout.metric.caveat)")
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Bear in mind: \(standout.metric.caveat)")
             }
             .pageGutter()
 
@@ -123,15 +164,29 @@ enum DayContextCopy {
     /// prior. It is still routed through this enum and still swept, because the
     /// rule is that *every* word the card says is swept, and an exemption is the
     /// kind of thing that quietly grows.
-    static func title(_ standout: DayDeviation.Standout) -> String {
-        standout.metric.title
+    static func title(_ content: DayContextCard.Content) -> String {
+        switch content {
+        case .health(let standout): standout.metric.title
+        // The same register as a metric name: a noun for what was measured. Kept
+        // identical to `HealthDigest.RecordTopic.ratings.title` would be better
+        // still, but that case does not exist — a ratings superlative cannot live
+        // in the dispensed pool at all, for the reason `RatingMilestone` gives.
+        case .milestone: "How sessions felt"
+        }
     }
 
     /// The figure, in the metric's own unit. Deliberately its own formatter
     /// rather than a widened `HealthDigest.difference`, which is private and
     /// phrases *differences between two groups* — a different sentence, and the
     /// two should be free to diverge.
-    static func figure(_ standout: DayDeviation.Standout) -> String {
+    static func figure(_ content: DayContextCard.Content) -> String {
+        switch content {
+        case .milestone(let milestone): return "\(milestone.rating) / 5"
+        case .health(let standout): return healthFigure(standout)
+        }
+    }
+
+    private static func healthFigure(_ standout: DayDeviation.Standout) -> String {
         switch standout.metric {
         case .sleepHours:
             // Hours and minutes, because nobody reads "8.03 hours" as a night.
@@ -154,8 +209,17 @@ enum DayContextCopy {
     /// Never better or worse: the README is explicit that this app does not know
     /// which direction of a metric is the good one, and saying so would be a
     /// medical opinion it has no basis for.
-    static func sentence(_ standout: DayDeviation.Standout) -> String {
-        "\(superlative(standout)) in \(spelled(standout.spanDays)) days."
+    static func sentence(_ content: DayContextCard.Content) -> String {
+        switch content {
+        case .health(let standout):
+            return "\(superlative(standout)) in \(spelled(standout.spanDays)) days."
+        case .milestone(let milestone):
+            // Names what it beat, for the same reason every other superlative
+            // here does: a reader told "the highest so far" with no sample in
+            // front of them will assume a longer record than exists.
+            return "\(milestone.name) is the highest you have rated anything, "
+                + "out of \(milestone.beatCount) rated sessions."
+        }
     }
 
     private static func superlative(_ standout: DayDeviation.Standout) -> String {

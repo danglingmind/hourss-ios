@@ -283,9 +283,9 @@ struct DayContextCardCopyTests {
     /// tests remembered to. One helper instead: a fourth line added to the card
     /// tomorrow is swept by every rule below the moment it is added here.
     private func everyWord(_ standout: DayDeviation.Standout) -> String {
-        [DayContextCopy.title(standout),
-         DayContextCopy.figure(standout),
-         DayContextCopy.sentence(standout)].joined(separator: " ").lowercased()
+        [DayContextCopy.title(.health(standout)),
+         DayContextCopy.figure(.health(standout)),
+         DayContextCopy.sentence(.health(standout))].joined(separator: " ").lowercased()
     }
 
     /// Nothing causal, clinical, population-relative, instructional, or promissory.
@@ -354,11 +354,11 @@ struct DayContextCardCopyTests {
         for metric in DayDeviation.eligibleMetrics {
             let standout = DayDeviation.Standout(
                 metric: metric, value: 8, z: 2.4, daysSinceMoreExtreme: 11, historyDays: 400)
-            #expect(DayContextCopy.title(standout) == metric.title)
-            #expect(!DayContextCopy.title(standout).isEmpty)
+            #expect(DayContextCopy.title(.health(standout)) == metric.title)
+            #expect(!DayContextCopy.title(.health(standout)).isEmpty)
         }
-        #expect(DayContextCopy.title(DayDeviation.Standout(
-            metric: .sleepHours, value: 8, z: 2.4, daysSinceMoreExtreme: 11, historyDays: 400))
+        #expect(DayContextCopy.title(.health(DayDeviation.Standout(
+            metric: .sleepHours, value: 8, z: 2.4, daysSinceMoreExtreme: 11, historyDays: 400)))
             == "Time asleep")
     }
 
@@ -369,8 +369,8 @@ struct DayContextCardCopyTests {
     func titleIsIndependentOfDirection() {
         for metric in DayDeviation.eligibleMetrics {
             func title(z: Double, span: Int) -> String {
-                DayContextCopy.title(DayDeviation.Standout(
-                    metric: metric, value: 8, z: z, daysSinceMoreExtreme: span, historyDays: 400))
+                DayContextCopy.title(.health(DayDeviation.Standout(
+                    metric: metric, value: 8, z: z, daysSinceMoreExtreme: span, historyDays: 400)))
             }
             #expect(title(z: 2.4, span: 7) == title(z: -2.4, span: 312))
         }
@@ -386,8 +386,8 @@ struct DayContextCardCopyTests {
     @Test("Figures read in the metric's own unit")
     func figuresAreFormatted() {
         func figure(_ metric: HealthMetric, _ value: Double) -> String {
-            DayContextCopy.figure(DayDeviation.Standout(
-                metric: metric, value: value, z: 2, daysSinceMoreExtreme: 11, historyDays: 40))
+            DayContextCopy.figure(.health(DayDeviation.Standout(
+                metric: metric, value: value, z: 2, daysSinceMoreExtreme: 11, historyDays: 40)))
         }
         #expect(figure(.sleepHours, 8.033) == "8h 02m")
         #expect(figure(.sleepHours, 0.5) == "30m")
@@ -399,8 +399,8 @@ struct DayContextCardCopyTests {
     @Test("Small spans are spelled, large ones are not")
     func sentencesReadAsSentences() {
         func sentence(_ metric: HealthMetric, z: Double, span: Int) -> String {
-            DayContextCopy.sentence(DayDeviation.Standout(
-                metric: metric, value: 8, z: z, daysSinceMoreExtreme: span, historyDays: 400))
+            DayContextCopy.sentence(.health(DayDeviation.Standout(
+                metric: metric, value: 8, z: z, daysSinceMoreExtreme: span, historyDays: 400)))
         }
         #expect(sentence(.sleepHours, z: 2, span: 11) == "Your longest night in eleven days.")
         #expect(sentence(.sleepHours, z: -2, span: 11) == "Your shortest night in eleven days.")

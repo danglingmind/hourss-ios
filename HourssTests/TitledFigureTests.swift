@@ -122,11 +122,11 @@ struct TitledFigureTests {
             let standout = DayDeviation.Standout(
                 metric: metric, value: metric == .sleepHours ? 8.03 : 58,
                 z: 2.4, daysSinceMoreExtreme: 11, historyDays: 400)
-            let card = DayContextCard(standout: standout, onDismiss: {})
+            let card = DayContextCard(content: .health(standout), onDismiss: {})
             #expect(card.titled.spoken.hasPrefix(metric.title),
                     Comment(rawValue: "spoken as \"\(card.titled.spoken)\""))
-            #expect(card.titled.spoken.contains(DayContextCopy.figure(standout)))
-            #expect(card.titled.spoken.contains(DayContextCopy.sentence(standout)))
+            #expect(card.titled.spoken.contains(DayContextCopy.figure(.health(standout))))
+            #expect(card.titled.spoken.contains(DayContextCopy.sentence(.health(standout))))
         }
     }
 
@@ -138,9 +138,9 @@ struct TitledFigureTests {
     func cardTitleIsStable() {
         for metric in DayDeviation.eligibleMetrics {
             func card(z: Double) -> DayContextCard {
-                DayContextCard(standout: DayDeviation.Standout(
+                DayContextCard(content: .health(DayDeviation.Standout(
                     metric: metric, value: 58, z: z,
-                    daysSinceMoreExtreme: 11, historyDays: 400), onDismiss: {})
+                    daysSinceMoreExtreme: 11, historyDays: 400)), onDismiss: {})
             }
             #expect(card(z: 2.4).titled.title == card(z: -2.4).titled.title)
             #expect(card(z: 2.4).titled.title == metric.title)
