@@ -38,7 +38,13 @@ struct DailyFact {
     /// generators each run at most once per metric, so the pair is unique within
     /// a pool, and it is the same spelling the prior table is keyed by.
     static func key(for fact: HealthDigest.Fact) -> String {
-        "\(fact.subject.key).\(HealthDigest.kindKey(fact.kind))"
+        let base = "\(fact.subject.key).\(HealthDigest.kindKey(fact.kind))"
+        guard let revision = fact.revision else { return base }
+        // `#` rather than another dot, so `parts(ofKey:)` can strip the
+        // discriminator before it goes looking for the kind at the end. A dot
+        // would have made the kind no longer last and quietly broken the parse
+        // for exactly the facts that carry a revision.
+        return "\(base)#\(revision)"
     }
 
     /// Everything dispensed so far, oldest first. The last entry is the fact the
@@ -162,8 +168,18 @@ struct DailyFact {
     /// silently produced a subject of `record` and a kind of `ratings.best`,
     /// which matched nothing and disabled variety control for exactly the facts
     /// that were added to improve it.
+    /// A key's revision suffix removed, if it has one.
+    ///
+    /// Everything that reasons about *what a fact is about* wants the key without
+    /// it: two facts naming different longest sessions are the same subject and
+    /// the same shape, and should be treated as a repeat by the variety rules
+    /// even though they are two distinct entries in the spent list.
+    static func base(ofKey key: String) -> String {
+        key.split(separator: "#", maxSplits: 1).first.map(String.init) ?? key
+    }
+
     static func parts(ofKey key: String) -> (subject: String, kind: String)? {
-        let components = key.split(separator: ".")
+        let components = base(ofKey: key).split(separator: ".")
         guard components.count >= 2, let kind = components.last else { return nil }
         return (components.dropLast().joined(separator: "."), String(kind))
     }
@@ -181,7 +197,11 @@ struct DailyFact {
     /// there is nothing to look up.
     static func pair(ofKey key: String) -> String? {
         guard let (subject, kind) = parts(ofKey: key) else { return nil }
-        if subject.hasPrefix("record.") { return key }
+        // The base, never the raw key: two facts naming different longest
+        // sessions differ only by revision, and they are the same topic and the
+        // same shape. Returning the raw key would have made every new record
+        // holder a fresh pair and defeated the variety rule entirely.
+        if subject.hasPrefix("record.") { return base(ofKey: key) }
         guard let metric = HealthMetric(rawValue: subject) else { return nil }
         return "\(metric.group.rawValue).\(kind)"
     }

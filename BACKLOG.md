@@ -65,92 +65,28 @@ control for exactly the facts added to improve it. `AllFactsView` leads with the
 record sections. `build(from:)` is untouched and still Health-only, which is
 right: on day one there is no record.
 
-**Still to do.** More generators — the obvious next ones are a logging streak, a
-first-of-its-kind ("first afternoon you have rated"), and a ratings superlative.
-Ratings needs care: on a five-point scale the top value is usually tied several
-ways, so the honest formulation is at the moment of rating, comparing one session
-against everything logged before it, which makes it a `DayContextCard` fact
-rather than a pool fact. `RecordTopic` has one case; each new generator either
-joins `.length` or adds a topic, and topics are the variety axis, so adding one
-widens the distinct-day count.
+**Still to do.** `RecordTopic` now has three cases — `.length`, `.coverage`,
+`.dayTotal` — and each is a variety axis, so each one widens the distinct-day
+count. Facts also carry a `revision`: a record fact keyed on subject and kind
+alone was dispensed once and never again, so beating your own longest stretch
+went unmentioned, which is the single most obvious thing the feature exists to
+do. The discriminator sits after a `#` so the kind stays readable off the end of
+the key, and `pair(ofKey:)` strips it so two holders of one record are still one
+topic for variety purposes.
 
-**Why it matters.** `HealthDigest.pool(from:)`
-(`Hourss/Store/HealthDigest.swift:161`) takes exactly one argument —
-`[HealthMetric: [Date: Double]]` — and runs four generators over it:
-`weekdayRhythm`, `weekendContrast`, `drift`, `scale`
-(`HealthDigest.swift:169-174`). `DayDeviation` is the same shape and says so
-outright: *"Nothing here knows about sessions, ratings or HealthKit"*
-(`Hourss/Store/DayDeviation.swift:14`). Neither type can see a session or a
-reflection, and that is verified, not assumed.
+The remaining generator worth writing is a ratings superlative, and it does not
+belong in this pool. On a five-point scale the top value is usually tied several
+ways, so the honest formulation compares one session against everything logged
+before it at the moment of rating — which makes it a `DayContextCard` fact, not a
+dispensed one.
 
-The consequence is a ceiling. Ten metrics reach a digest (`heartRate` is
-authorized for and never read daily — `HealthService.swift:246-250`), four
-generators, and `scale` only fires for the seven cumulative metrics: **37 facts
-maximum**, computed once from a year of Health history, with no path by which
-logging adds to them. `DailyFact` rations one a day, so the pool is exhausted in
-about five weeks and the app then goes quiet again — which is precisely the
-silence the feature was built to fill, arriving a month later.
-
-The intent was that insights get better day by day from what somebody logs. What
-is buildable without touching an evidence gate is **descriptive facts about the
-record itself**: *"that's your highest-rated work session so far"*, *"you've
-logged a morning four days running"*, *"your longest unbroken deep-work block
-this month"*, *"first afternoon you've rated"*. Each is a superlative inside
-somebody's own record — arithmetic on their own rows — so it claims no
-relationship and needs no gate, by exactly the argument `DayContextCard`'s header
-already makes for the sleep card (`Hourss/Features/Logging/DayContextCard.swift:25-28`).
-Unlike the Health pool, this one gets richer every time somebody logs.
-
-**What it would take.**
-
-`pool(from:)` grows a second input and a second generator set. `build(from:)`
-(`HealthDigest.swift:187`) calls `pool` and is a tested onboarding contract, so
-it needs an overload or a default rather than a changed signature — and it should
-probably *not* receive record facts at all, since on day one there is no record
-to draw from and onboarding's three-fact selection is already spent.
-
-Then four real problems, in order of how much they cost:
-
-- **`Fact.metric` and `Fact.group` are Health-shaped and non-optional**
-  (`HealthDigest.swift:21-32`). This is the design question, and it is a real one.
-  `HealthFactRow` renders the title as `fact.metric.title`
-  (`Hourss/DesignSystem/Components/HealthFactRow.swift:61`) and argues at length
-  that nothing may be authored at the call site. A fact about a deep-work block
-  has no `HealthMetric` and no `HealthGroup`. Three options, none free: widen
-  `Fact` with an optional subject and a title source (touches every render path
-  and the "nothing is authored here" rule); add synthetic metric/group cases
-  (pollutes the consent scope, the priors table, and `HealthMetric.allCases`,
-  which `InteractionCandidates.factors` iterates); or make `Fact` an enum of two
-  shapes (cleanest, biggest diff). **Decide this before writing a generator.**
-- **`DailyFact`'s dedupe keys are metric- and group-shaped.** `key(for:)` is
-  `"\(metric.rawValue).\(kindKey(kind))"` (`Hourss/Store/DailyFact.swift:40`) and
-  the variety axis is `pair(of:)` = `"\(group.rawValue).\(kindKey(kind))"`
-  (`DailyFact.swift:130`). Worse, `pair(ofKey:)` (`DailyFact.swift:142`) recovers
-  the group by decoding the stored key back through `HealthMetric(rawValue:)` and
-  returns `nil` for anything unrecognised — so a record fact's key would be
-  unparseable and, by the documented failure at `DailyFact.swift:136-141`, would
-  block nothing. That is the safe direction to fail, but it means record facts
-  get no variety control at all until the key format grows a namespace. Keys are
-  persisted in `UserDefaults`, so the old format has to keep meaning what it
-  means.
-- **`Fact.Kind` has four cases and two switches over them.** `kindKey`
-  (`HealthDigest.swift:124`) is exhaustive, and the priors table is keyed on
-  `"metric.kind"` (`HealthDigest.swift:86-109`). Record kinds get no prior, which
-  scores them the neutral 0.5 (`HealthDigest.swift:113-119`) — acceptable, and
-  worth a comment saying it is deliberate rather than an omission.
-- **`strength` has to mean something comparable.** `surprise(of:)`
-  (`HealthDigest.swift:141`) mixes a prior in bits with an effect-size term, and
-  ranks the whole pool on it. "Highest-rated session so far" has no effect size.
-  Either record facts get a hand-set `strength` the way `scale` does (0.05,
-  `HealthDigest.swift:358`) and are ranked by kind alone, or they are dispensed
-  from a separate pool with their own turn. The second is probably right: a
-  record fact and a Health fact are not competing to be the most surprising thing,
-  they are two different offers.
-
-**Open question.** Does a record fact belong in `AllFactsView`? That screen is
-grouped by `HealthGroup` (`Hourss/Features/Today/AllFactsView.swift:43`) and its
-summary line says *"from your own Health history"* (`AllFactsView.swift:122`).
-Record facts need a fifth section and a reworded summary, or their own screen.
+**Deliberately not built: a logging streak.** It is descriptive and would pass
+every rule in `RecordFacts`, and it is still the wrong fact for this app. A
+streak is a thing somebody can break, so the moment it exists the app has an
+opinion about how often you log — on a screen whose empty state reads "Whatever
+you're doing right now is enough." Every other fact here reports something that
+happened; a streak reports something you are at risk of losing. Adopting it is a
+product decision somebody should make out loud.
 
 ---
 

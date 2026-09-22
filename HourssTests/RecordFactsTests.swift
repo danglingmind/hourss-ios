@@ -121,7 +121,12 @@ struct RecordFactsTests {
         let fact = try #require(RecordFacts.pool(sessions: sessions, activityName: name).first)
         #expect(fact.subject.healthGroup == nil)
         #expect(fact.subject.key == "record.length")
-        #expect(DailyFact.key(for: fact) == "record.length.best")
+        // The spent key carries a revision, so the stored entry names *which*
+        // session holds the record. The subject and kind are still the whole of
+        // its identity for variety purposes — see `pair(ofKey:)`.
+        #expect(DailyFact.key(for: fact).hasPrefix("record.length.best#"), Comment(rawValue:
+            "keyed \(DailyFact.key(for: fact))"))
+        #expect(DailyFact.pair(ofKey: DailyFact.key(for: fact)) == "record.length.best")
     }
 
     /// The key format has three components for a record fact and two for a
@@ -158,5 +163,96 @@ struct RecordFactsTests {
             .fact(for: Calendar.current.startOfDay(for: Date()), record: record, from: health))
         #expect(chosen.subject.healthGroup == nil, Comment(rawValue:
             "led with \"\(chosen.sentence)\" — a Health fact ahead of the record"))
+    }
+}
+
+/// The half that has to keep growing after it has been read once.
+@Suite("Record facts as the record changes")
+struct RecordFactRevisionTests {
+
+    private let activity = UUID()
+    private func name(_: UUID) -> String { "Deep work" }
+
+    private func session(minutes: Int, hoursAgo: Int) -> Session {
+        let start = Date().addingTimeInterval(-Double(hoursAgo) * 3600)
+        return Session(activityId: activity, startAt: start,
+                       endAt: start.addingTimeInterval(Double(minutes) * 60))
+    }
+
+    private func scratch() -> UserDefaults {
+        UserDefaults(suiteName: "record-revision-\(UUID().uuidString)")!
+    }
+
+    private func day(_ back: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: -back,
+                              to: Calendar.current.startOfDay(for: Date()))!
+    }
+
+    /// The whole point of the record half: beating your own longest stretch is
+    /// news, and a key that ignored which session held it would have said so once
+    /// and then never again.
+    @Test("Beating a record makes it a fact again")
+    func beatingARecordIsANewFact() throws {
+        let base = (1...5).map { session(minutes: 20 * $0, hoursAgo: $0 * 5) }
+        let before = try #require(
+            RecordFacts.pool(sessions: base, activityName: name)
+                .first { $0.subject.key == "record.length" })
+
+        let beaten = base + [session(minutes: 400, hoursAgo: 2)]
+        let after = try #require(
+            RecordFacts.pool(sessions: beaten, activityName: name)
+                .first { $0.subject.key == "record.length" })
+
+        #expect(DailyFact.key(for: before) != DailyFact.key(for: after), Comment(rawValue:
+            "both keyed \(DailyFact.key(for: before)) — the new record could never be shown"))
+    }
+
+    /// And the converse, which is what stops it becoming a nag: rebuilding the
+    /// pool over an unchanged record has to produce the same key.
+    @Test("An unchanged record is the same fact")
+    func unchangedRecordIsTheSameFact() throws {
+        let sessions = (1...6).map { session(minutes: 20 * $0, hoursAgo: $0 * 5) }
+        let first = try #require(RecordFacts.pool(sessions: sessions, activityName: name).first)
+        let second = try #require(RecordFacts.pool(sessions: sessions, activityName: name).first)
+        #expect(DailyFact.key(for: first) == DailyFact.key(for: second))
+    }
+
+    /// Two facts about different longest sessions are still one topic and one
+    /// shape, so the variety rules must treat them as a repeat even though they
+    /// are distinct entries in the spent list.
+    @Test("A revision does not buy a second turn at the same topic")
+    func revisionsShareAVarietyPair() {
+        let a = "record.length.best#one"
+        let b = "record.length.best#two"
+        #expect(DailyFact.pair(ofKey: a) == DailyFact.pair(ofKey: b))
+        #expect(DailyFact.pair(ofKey: a) == "record.length.best")
+        #expect(DailyFact.base(ofKey: a) == "record.length.best")
+    }
+
+    /// The kind still has to be readable off the end once a revision is attached,
+    /// which is why the discriminator uses a separator the key never otherwise
+    /// contains.
+    @Test("A revision does not break the parse")
+    func revisionSurvivesParsing() throws {
+        let parts = try #require(DailyFact.parts(ofKey: "record.length.best#ABC-123"))
+        #expect(parts.subject == "record.length")
+        #expect(parts.kind == "best")
+
+        let health = try #require(DailyFact.parts(ofKey: "steps.drift"))
+        #expect(health.subject == "steps" && health.kind == "drift")
+    }
+
+    /// A record holder that has already been shown is not shown again, and the
+    /// dispenser moves on to something else rather than repeating itself.
+    @Test("A spent record fact is not dispensed twice")
+    func spentRecordFactIsNotRepeated() throws {
+        let sessions = (1...6).map { session(minutes: 20 * $0, hoursAgo: $0 * 5) }
+        let record = RecordFacts.pool(sessions: sessions, activityName: name)
+        #expect(record.count > 1, "this test needs more than one record fact to be meaningful")
+
+        let dispenser = DailyFact(defaults: scratch())
+        let first = try #require(dispenser.fact(for: day(1), record: record, from: []))
+        let second = try #require(dispenser.fact(for: day(0), record: record, from: []))
+        #expect(DailyFact.key(for: first) != DailyFact.key(for: second))
     }
 }

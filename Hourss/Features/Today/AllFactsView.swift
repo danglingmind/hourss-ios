@@ -72,6 +72,7 @@ struct AllFactsView: View {
         .safeAreaInset(edge: .top, spacing: 0) { header }
         .task(id: [store.healthByDay.count, store.sessions.count]) {
             let record = RecordFacts.pool(sessions: store.sessions,
+                                          feeling: { store.feeling(for: $0) },
                                           activityName: store.activityName)
             let pool = record + HealthDigest.pool(from: store.healthByDay)
             facts = pool

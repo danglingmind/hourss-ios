@@ -109,6 +109,22 @@ struct HealthDigest {
         /// is the interesting half of every prior in the table below.
         var raised: Bool
 
+        /// What makes this a *different* fact from the last one of its shape.
+        ///
+        /// Nil for a Health fact, and correctly so: a weekend contrast in sleep
+        /// is one fact about a year of history, and computing it again tomorrow
+        /// gives the same answer. Subject and kind are its whole identity.
+        ///
+        /// A record fact is not like that. "Your longest single stretch" is about
+        /// whichever session currently holds it, and the point of the record half
+        /// of the pool is that logging changes the answer. Keyed on subject and
+        /// kind alone it would be dispensed once and never again — so somebody
+        /// who logged a four-hour block would never be told they had beaten the
+        /// two-hour one, which is the single most obvious thing the feature was
+        /// supposed to do. The discriminator goes into the spent key, so a new
+        /// holder of a record is a new fact, and the same holder is not.
+        var revision: String?
+
         enum Mark {
             /// Seven weekday means, normalised 0–1, Monday first.
             case weekdayRhythm([Double])
@@ -145,11 +161,19 @@ struct HealthDigest {
         /// against everything logged before it.
         case length
 
+        /// Which parts of the day have been rated at all.
+        case coverage
+
+        /// How much was logged in a single day.
+        case dayTotal
+
         /// Names the subject, in the same register as `HealthMetric.title`: a
         /// noun for what was measured, never a verdict on it.
         var title: String {
             switch self {
             case .length: "Time in one stretch"
+            case .coverage: "Times of day"
+            case .dayTotal: "A day's total"
             }
         }
     }

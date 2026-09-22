@@ -86,6 +86,7 @@ struct TodayView: View {
             dailyFact = DailyFact().fact(
                 for: today,
                 record: RecordFacts.pool(sessions: store.sessions,
+                                         feeling: { store.feeling(for: $0) },
                                          activityName: store.activityName),
                 from: HealthDigest.pool(from: store.healthByDay))
         }
@@ -196,7 +197,11 @@ struct TodayView: View {
     /// cold launch; the two health counts catch a sync that changed what the
     /// history holds.
     private var dailyFactInputs: [Int] {
-        [Int(today.timeIntervalSinceReferenceDate), store.sessions.count,
+        // Reflections as well as sessions: the coverage generator reads only
+        // rated sessions, so somebody rating a session they logged this morning
+        // changes the answer without changing any of the other counts.
+        [Int(today.timeIntervalSinceReferenceDate),
+         store.sessions.count, store.reflections.count,
          store.healthByDay.count,
          store.healthByDay.values.reduce(0) { $0 + $1.count }]
     }
