@@ -84,6 +84,13 @@ final class HourssStore {
         profile = record.profile
         hasCompletedOnboarding = record.hasCompletedOnboarding
         removedImports = Set(record.removedImports ?? [])
+        // Before the rebuild below, not after: a residual is an input to an
+        // observation, and restoring it afterwards would leave the first rebuild
+        // of every launch running on a record with no heart rate in it.
+        physiologyReadings = Dictionary(
+            (record.physiology ?? []).map { ($0.sessionId, $0.reading) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         // Insights are derived rather than stored, so they are recomputed here
         // and only the part that belongs to the person — saved, hidden — is
@@ -109,6 +116,9 @@ final class HourssStore {
         record.profile = profile
         record.hasCompletedOnboarding = hasCompletedOnboarding
         record.removedImports = removedImports.isEmpty ? nil : removedImports.sorted()
+        record.physiology = physiologyReadings.isEmpty ? nil : physiologyReadings
+            .map { Physiology.StoredReading(sessionId: $0.key, reading: $0.value) }
+            .sorted { $0.sessionId.uuidString < $1.sessionId.uuidString }
         record.insightStatus = Dictionary(
             insights.filter { $0.status == .saved || $0.status == .hidden }
                 .map { ($0.id, $0.status) },
@@ -279,6 +289,10 @@ final class HourssStore {
         }
         sessions.removeAll { $0.id == id }
         reflections[id] = nil
+        // The residual goes with the session. It is keyed by an id that will never
+        // be handed out again, so leaving it behind would grow the record by a row
+        // nothing can ever look up.
+        physiologyReadings[id] = nil
             persist()
     }
 
@@ -477,6 +491,9 @@ final class HourssStore {
     /// silently drop it.
     private(set) var healthByDay: [HealthMetric: [Date: Double]] = [:]
     /// Per-session heart-rate readings from the physiology layer, when available.
+    ///
+    /// Restored from the record rather than recomputed, and frozen once written —
+    /// see `applyPhysiology(_:)`.
     private(set) var physiologyReadings: [UUID: Physiology.Reading] = [:]
 
     /// Recomputes observations with Health context folded in.
@@ -489,31 +506,122 @@ final class HourssStore {
         rebuildInsights()
     }
 
+    /// Take readings for sessions that do not have one yet, and only those.
+    ///
+    /// **The first non-nil reading for a session wins, and is never recomputed.**
+    /// This reverses what this method used to do — replace the lot on every read —
+    /// and the reason is the one written on `Record.physiology`: the residual is
+    /// measured against a curve fitted from a rolling sixty-day window, so the same
+    /// session scores differently next week for reasons that have nothing to do
+    /// with the session. Somebody who saw "9 bpm above expected" on Tuesday and "4"
+    /// on Friday, for a meeting that happened once, has been shown a number that is
+    /// about our arithmetic rather than about their morning. Freezing is what makes
+    /// the figure showable at all.
+    ///
+    /// Two consequences that read as surprising and are deliberate:
+    ///
+    /// - An empty dictionary changes nothing. Disconnecting Health stops the app
+    ///   reading, and "no data removed unless the user chooses" — a frozen residual
+    ///   is part of the record now, like the session it belongs to, not a cache of
+    ///   something HealthKit still holds. This is where it parts company with
+    ///   `applyHealthContext`, which clears on disconnect precisely because that
+    ///   context *is* re-readable and so would linger as a stale claim.
+    /// - A session with no stored reading stays eligible forever. Nil is not a
+    ///   decision that there is nothing to find; it is four different "not yet"s
+    ///   (too few samples, a spoiled lead-in, no curve, an unseen pace), and three
+    ///   of them resolve on their own as history accumulates.
     func applyPhysiology(_ readings: [UUID: Physiology.Reading]) {
-        physiologyReadings = readings
+        // Sorted, so that what lands is the same on every run. The dictionary is
+        // keyed by id and the writes below are order-independent today, but a
+        // rebuild reading it is not, and unordered iteration is how determinism
+        // stops being a property of this store one small change from now.
+        let arriving = readings
+            .filter { physiologyReadings[$0.key] == nil }
+            .sorted { $0.key.uuidString < $1.key.uuidString }
+        guard !arriving.isEmpty else { return }
+
+        for (id, reading) in arriving { physiologyReadings[id] = reading }
+        // Rebuilt before the write, so the statuses `persist` reads are the ones
+        // belonging to the claims that survived this rebuild rather than the
+        // previous one's.
         rebuildInsights()
+        persist()
     }
 
-    /// Score every eligible session against a movement curve fitted from the feed.
+    /// Sessions that could still gain a reading, oldest first.
+    ///
+    /// Three filters, each cutting out something that can never produce one:
+    ///
+    /// - Not eligible for patterns — running, sleep, under five minutes — is a
+    ///   session the analyzer will not score under any circumstances.
+    /// - Already frozen, by the rule above.
+    /// - Older than the feed. `HealthService.physiologyDays` is how far back the
+    ///   read reaches, so a session that has fallen out the back of that window has
+    ///   no samples to be scored from and will never have any again. Without this
+    ///   filter every foreground would find the same permanently unscorable
+    ///   sessions and pay for a sixty-day refit to learn nothing — which is exactly
+    ///   the cost the skip below exists to avoid.
+    func sessionsAwaitingPhysiology(now: Date = Date(), calendar: Calendar = .current) -> [Session] {
+        let horizon = calendar.date(byAdding: .day, value: -HealthService.physiologyDays, to: now)
+            ?? .distantPast
+        return sessions
+            .filter { $0.isEligibleForPatterns && physiologyReadings[$0.id] == nil && $0.startAt >= horizon }
+            .sorted { ($0.startAt, $0.id.uuidString) < ($1.startAt, $1.id.uuidString) }
+    }
+
+    /// Score the sessions that are still waiting for a reading, against a movement
+    /// curve fitted from the feed.
     ///
     /// One place, so the three screens that connect Health cannot drift into
     /// applying daily context and forgetting physiology — which is exactly what
     /// happened while `applyPhysiology` had no caller and the layer sat built,
     /// tested, and unreachable.
     ///
+    /// The curve is still fitted from *everything* the feed covers, including
+    /// sessions that already have a frozen reading: the fit is a description of the
+    /// person, and thinning it to the unscored sessions would make the curve worse
+    /// for no gain. Only the scoring is narrowed.
+    ///
     /// A session with no reading stays absent rather than arriving as zero. Zero
     /// is a real value here — a heart rate exactly where movement predicts — and
     /// must not be how "we could not tell" is spelled.
     func applyPhysiology(feed: Physiology.Feed) {
-        guard !feed.isEmpty else {
-            applyPhysiology([:])
-            return
-        }
+        // An empty feed is a read that found nothing, not a finding that there is
+        // nothing. It used to clear everything; now it leaves the record alone, or
+        // one launch with Health switched off in Settings would erase a year of
+        // frozen residuals that cannot be recomputed.
+        guard !feed.isEmpty else { return }
+        let pending = sessionsAwaitingPhysiology()
+        // The whole point of freezing: in the steady state there is nothing here,
+        // and the sixty-day fit below — which runs on the main actor — never
+        // happens. See `PhysiologyCatchUp`, which asks the same question before it
+        // even goes to HealthKit.
+        guard !pending.isEmpty else { return }
+
+        // Nothing is scored until its window has finished arriving.
+        //
+        // This is the failure the freeze rule creates and does not solve on its
+        // own. A watch hands heart rate to the phone in batches minutes behind the
+        // wrist, so a session opened a minute after it ended may have only the
+        // five samples that clear the floor rather than the forty it will have by
+        // the hour. Frozen, that thin reading is the one shown forever — and it is
+        // not merely noisier. Samples arrive in time order, so a half-synced
+        // window is the *first half of the session*, which moves the median rather
+        // than widening its error bar. The catch-up trigger makes this more likely
+        // rather than less, because it gets a read in early.
+        //
+        // A settling delay would be the obvious fix and would be a guess. The feed
+        // answers it exactly: if the newest heart-rate sample the phone holds is
+        // later than the session ended, then everything inside that window which
+        // is ever going to arrive has arrived. Sessions failing this stay pending
+        // and are scored on a later pass, which is what `nil` already means here.
+        let newestSample = feed.heartRate.map(\.at).max()
         let analyzer = Physiology.Analyzer(
             feed: feed, sessions: sessions, workdays: profile.workdays
         )
         var readings: [UUID: Physiology.Reading] = [:]
-        for session in sessions where session.isEligibleForPatterns {
+        for session in pending {
+            guard let end = session.endAt, let newestSample, newestSample >= end else { continue }
             if let reading = analyzer.reading(for: session) {
                 readings[session.id] = reading
             }

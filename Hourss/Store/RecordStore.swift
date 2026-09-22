@@ -4,8 +4,17 @@ import Foundation
 ///
 /// Deliberately small. Insights are absent because they are derived — the engine
 /// recomputes them from these sessions on every launch, and storing a claim
-/// alongside the data it came from is how the two drift apart. Health is absent
-/// because HealthKit already holds it and re-reads it.
+/// alongside the data it came from is how the two drift apart. Health *readings*
+/// are absent because HealthKit already holds them and re-reads them.
+///
+/// The heart-rate residual is the one exception, and it is not a reversal of that
+/// rule but the same rule applied honestly. A reading is a fact HealthKit can hand
+/// back unchanged tomorrow. A residual is not a reading: it is a session measured
+/// against a curve fitted from a rolling sixty-day window of that person's own
+/// history, so re-deriving it next week gives a *different number for the same
+/// session* — the window has moved, the curve has moved, and nothing about the
+/// session has. A figure that changes between launches cannot be shown to anybody,
+/// which is why the first one computed is written down here and kept.
 ///
 /// What survives of an insight is only what belongs to the person rather than to
 /// the computation: whether they saved or hid it, keyed by the stable hypothesis
@@ -17,7 +26,8 @@ struct Record: Codable {
     /// is needed is the moment somebody already has a file without it. Migration
     /// then becomes a decision rather than a discovery.
     var schemaVersion: Int = Record.currentSchemaVersion
-    static let currentSchemaVersion = 1
+    /// 2 added `physiology`.
+    static let currentSchemaVersion = 2
 
     var activities: [Activity] = []
     var sessions: [Session] = []
@@ -37,6 +47,20 @@ struct Record: Codable {
     /// a synthesized `Codable` fails on a missing key for a non-optional property
     /// however sensible its default looks.
     var removedImports: [String]?
+
+    /// Frozen heart-rate residuals, one per session that has one.
+    ///
+    /// An array rather than a `[UUID: StoredReading]` because `JSONEncoder` writes
+    /// a dictionary with non-string keys as a flat alternating array, in whatever
+    /// order the hash seed produced that launch — so the same record would encode
+    /// to different bytes on every save, and nothing about the file would be
+    /// diffable or reproducible. Written sorted, for the same reason.
+    ///
+    /// Optional for the reason `removedImports` above already gives: a synthesized
+    /// `Codable` fails on a missing key for a non-optional property however
+    /// sensible its default looks, and every record written before this field
+    /// existed is missing it.
+    var physiology: [Physiology.StoredReading]?
 }
 
 /// Where the record lives.

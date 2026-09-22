@@ -56,6 +56,23 @@ struct DayTimeline: View {
                     caption: store.activityName(selected.activityId),
                     note: note(for: selected)
                 )
+
+                // The same session's heart rate, when there is a reading for it
+                // that clears its own error bar. Nil the rest of the time, and
+                // `ResidualReading` draws nothing — which is most of the time,
+                // because a window needs enough samples, a clean lead-in and a
+                // fitted curve before it produces anything at all.
+                //
+                // Here rather than at the rating moment, and the reason is the
+                // watch. watchOS hands heart-rate samples to the phone
+                // opportunistically, so the window that closed a minute ago
+                // usually has nothing in it yet; anything shown at the tap would
+                // be empty for most people most of the time and would look
+                // broken rather than absent. This surface makes no promise about
+                // when: it shows the reading for whichever session is selected,
+                // whenever the samples have arrived, attached to the session it
+                // is about.
+                ResidualReading(SessionResidual(store.physiologyReadings[selected.id]))
             }
         }
     }

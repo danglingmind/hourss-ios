@@ -448,6 +448,66 @@ enum Physiology {
         var movementContext: String { cadenceBin.context }
     }
 
+    // MARK: - A result that survives a relaunch
+
+    /// One session's reading, in the form the record keeps.
+    ///
+    /// A separate type rather than `Codable` on `Reading`, for two reasons that
+    /// both come down to the record being a format rather than a snapshot of a
+    /// struct. First, `Reading` is an internal result type and will grow terms as
+    /// the layer does; a synthesized conformance would make every such change a
+    /// silent format change, and the next one would fail to decode somebody's
+    /// history. Second, `CadenceBin` is an `Int`-backed enum whose raw values are
+    /// positions in an ordering — inserting a band between two existing ones would
+    /// renumber the rest and quietly reinterpret every stored reading as a
+    /// neighbouring pace.
+    ///
+    /// The bin is therefore not stored at all. It is a pure function of cadence
+    /// (`CadenceBin.containing`), so storing it would create a second source of
+    /// truth that can disagree with the first. Everything else is stored as given:
+    /// `expected` could be recovered from `observed − residual` and vice versa, but
+    /// recovering a term through floating-point subtraction means the number shown
+    /// after a relaunch is not the number that was frozen, which is the whole
+    /// property this type exists to provide.
+    struct StoredReading: Codable, Sendable, Equatable {
+        /// The session this was measured for. Also the reading's `windowId`: a
+        /// session's window is built with the session's own id, so the two are the
+        /// same value and storing both would be storing it twice.
+        let sessionId: UUID
+        let observed: Double
+        let expected: Double
+        let explainedByMovement: Double
+        let residual: Double
+        let cadence: Double
+        let sampleCount: Int
+        let uncertainty: Double
+
+        init(sessionId: UUID, reading: Reading) {
+            self.sessionId = sessionId
+            self.observed = reading.observed
+            self.expected = reading.expected
+            self.explainedByMovement = reading.explainedByMovement
+            self.residual = reading.residual
+            self.cadence = reading.cadence
+            self.sampleCount = reading.sampleCount
+            self.uncertainty = reading.uncertainty
+        }
+
+        var reading: Reading {
+            Reading(
+                windowId: sessionId,
+                observed: observed,
+                expected: expected,
+                explainedByMovement: explainedByMovement,
+                residual: residual,
+                cadence: cadence,
+                cadenceBin: .containing(cadence),
+                sampleCount: sampleCount,
+                uncertainty: uncertainty
+            )
+        }
+    }
+
     // MARK: - The analyzer
 
     /// Turns a feed plus a person's windows into residuals.

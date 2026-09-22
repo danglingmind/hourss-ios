@@ -127,6 +127,14 @@ struct ReflectionView: View {
     /// recorded — a Skip, or a save carrying only a note, has not rated anything
     /// and gets nothing back. It must be the first rating of the calendar day.
     /// And there must be something true to say, which most days there is not.
+    ///
+    /// Three things can be said, in this order: a milestone, then the day's
+    /// standout, then the session's heart-rate residual. The order is by how
+    /// rare each one is and how much of the record it speaks for — a milestone
+    /// is a fact about everything logged so far, a standout about a whole day, a
+    /// residual about one window of one afternoon. Whichever wins, only one is
+    /// shown; `DayContextCard.Content` is an enum so that is not a matter of
+    /// remembering.
     private func rate() {
         guard let feeling else {
             finish()
@@ -156,16 +164,44 @@ struct ReflectionView: View {
             return
         }
 
-        guard store.isContextCardDue,
-              let standout = DayDeviation.standout(on: Date(), history: store.healthByDay)
-        else {
+        guard store.isContextCardDue else {
             finish()
             return
         }
-        // Claimed only now, with a card in hand. Claiming it at the check above
-        // would spend the day's one card on a day that had no fact in it.
-        store.markContextCardShown()
-        card = .health(standout)
+
+        // The day's standout next. It is about the whole day, so it is the
+        // wider claim of the two that remain, and a card is worth more the less
+        // often it says something the person could have worked out themselves.
+        if let standout = DayDeviation.standout(on: Date(), history: store.healthByDay) {
+            // Claimed only now, with a card in hand. Claiming it at the guard
+            // above would spend the day's one card on a day that had no fact in
+            // it.
+            store.markContextCardShown()
+            card = .health(standout)
+            return
+        }
+
+        // The session's own heart rate last, and it will almost never fire here.
+        //
+        // That is expected and is not a reason to move it earlier. watchOS hands
+        // heart-rate samples to the phone opportunistically, so the window that
+        // closed a minute ago usually holds nothing yet, and a reading also needs
+        // a clean lead-in and a fitted curve before it exists at all. Where this
+        // does fire is the case where the data has long since arrived: a
+        // backdated log, or a rating given from the Journal days later. The
+        // timeline's session detail is the surface that shows a residual
+        // reliably — this is the one that shows it at the moment somebody is
+        // already looking.
+        //
+        // `SessionResidual.init?` is the uncertainty gate. There is no second
+        // check here because there is no way to build one of these without it.
+        if let residual = SessionResidual(store.physiologyReadings[sessionId]) {
+            store.markContextCardShown()
+            card = .residual(residual)
+            return
+        }
+
+        finish()
     }
 
     private func finish() {

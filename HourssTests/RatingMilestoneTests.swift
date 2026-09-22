@@ -122,37 +122,114 @@ struct RatingMilestoneTests {
     // MARK: - The card's rule
 
     /// The rule is that the card never pairs a rating with something measured
-    /// separately from it. An enum with two cases is how that is made
-    /// unrepresentable rather than merely avoided.
-    @Test("A card is a milestone or a standout, never both")
-    func contentIsExclusive() {
+    /// separately from it. An enum whose cases are mutually exclusive is how that
+    /// is made unrepresentable rather than merely avoided.
+    ///
+    /// Each arm added is one more pairing the sweep has to rule out, so the sweep
+    /// is written as every arm against every other arm's vocabulary rather than
+    /// as a list of pairs. The residual arm is the one worth being careful about:
+    /// it is measured over the very session that was just rated, so it is the
+    /// closest the card comes to the failure it exists to prevent, and the only
+    /// thing keeping it honest is that its copy never mentions the rating and
+    /// never moves with it.
+    @Test("A card is a milestone, a standout or a residual, never two")
+    func contentIsExclusive() throws {
         let milestone = RatingMilestone(rating: 5, name: "Deep work", beatCount: 9)
         let standout = DayDeviation.Standout(
             metric: .sleepHours, value: 8.4, z: 2.1,
             daysSinceMoreExtreme: 11, historyDays: 200)
+        let residual = try #require(SessionResidual(Physiology.Reading(
+            windowId: UUID(), observed: 76, expected: 70, explainedByMovement: 1,
+            residual: 6, cadence: 4, cadenceBin: .minimal,
+            sampleCount: 22, uncertainty: 3)))
 
         let asMilestone = DayContextCard.Content.milestone(milestone)
         let asHealth = DayContextCard.Content.health(standout)
+        let asResidual = DayContextCard.Content.residual(residual)
         #expect(asMilestone != asHealth)
+        #expect(asMilestone != asResidual)
+        #expect(asHealth != asResidual)
 
-        // A milestone card says nothing about sleep, and a health card says
-        // nothing about a rating. Checked on the copy, because the copy is what
-        // a person actually receives.
-        let milestoneWords = [DayContextCopy.title(asMilestone),
-                              DayContextCopy.figure(asMilestone),
-                              DayContextCopy.sentence(asMilestone)].joined(separator: " ").lowercased()
-        for word in ["night", "sleep", "heart", "breathing", "hrv"] {
-            #expect(!milestoneWords.contains(word), Comment(rawValue:
-                "\"\(milestoneWords)\" mentions \(word) — a health reading beside a rating"))
+        /// Everything one arm prints, as one lowercased string. The copy is what
+        /// a person actually receives, so the copy is what gets swept.
+        func words(_ content: DayContextCard.Content) -> String {
+            [DayContextCopy.title(content),
+             DayContextCopy.figure(content),
+             DayContextCopy.sentence(content)].joined(separator: " ").lowercased()
         }
 
-        let healthWords = [DayContextCopy.title(asHealth),
-                           DayContextCopy.figure(asHealth),
-                           DayContextCopy.sentence(asHealth)].joined(separator: " ").lowercased()
-        for word in ["rated", "rating", "/ 5", "out of 5"] {
-            #expect(!healthWords.contains(word), Comment(rawValue:
-                "\"\(healthWords)\" mentions \(word) — the standout must not move with a score"))
+        // The vocabulary that belongs to each arm and must not appear in either
+        // of the others. A card carrying two of these would be asserting a
+        // relationship between two separately-measured things on a sample of one.
+        let vocabulary: [(name: String, content: DayContextCard.Content, words: [String])] = [
+            ("the rating", asMilestone, ["rated", "rating", "/ 5", "out of 5"]),
+            // "heart" is deliberately not here: a resting-heart-rate standout is
+            // a legitimate health card, and the residual arm is separated from it
+            // by "expected" and "movement" instead.
+            ("the day", asHealth, ["night", "sleep", "breathing", "hrv", "longest", "shortest"]),
+            ("the body's own reading", asResidual, ["expected", "movement", "bpm above", "bpm below"]),
+        ]
+
+        for subject in vocabulary {
+            for other in vocabulary where other.name != subject.name {
+                let printed = words(other.content)
+                for word in subject.words {
+                    #expect(!printed.contains(word), Comment(rawValue:
+                        "the \(other.name) card says \"\(printed)\" — \"\(word)\" belongs to "
+                            + "\(subject.name), and the two must never share a card"))
+                }
+            }
         }
+    }
+
+    /// The residual card must be byte-identical whatever was rated, which is the
+    /// card's governing rule stated for the one arm that is measured over the
+    /// same session as the rating. Heart rate is not an input to the rating
+    /// scale, so there is nothing here for a score to change — and the way that
+    /// stays true is that the score is not reachable from a `SessionResidual` at
+    /// all.
+    @Test("A residual card cannot vary with the score")
+    func residualCardDoesNotMoveWithTheRating() throws {
+        let residual = try #require(SessionResidual(Physiology.Reading(
+            windowId: UUID(), observed: 76, expected: 70, explainedByMovement: 1,
+            residual: 6, cadence: 4, cadenceBin: .minimal,
+            sampleCount: 22, uncertainty: 3)))
+        let content = DayContextCard.Content.residual(residual)
+        let printed = [DayContextCopy.title(content),
+                       DayContextCopy.figure(content),
+                       DayContextCopy.sentence(content)].joined(separator: " ")
+
+        // Nothing in the printed card names a session either. The doc says the
+        // card "does not name the session", and an activity name would make it a
+        // sentence about the thing that was just rated.
+        for leak in ["Deep work", "session", "Session"] {
+            #expect(!printed.contains(leak), Comment(rawValue: "\"\(printed)\" names \(leak)"))
+        }
+    }
+
+    /// `EngineContracts` calls the caveat never optional for anything built on a
+    /// health metric. Both body arms are; the milestone is arithmetic on the
+    /// person's own ratings and is not.
+    /// `@MainActor` because it builds the card, and a SwiftUI view is not safe
+    /// to initialise anywhere else.
+    @Test("Body readings carry a caveat and a milestone does not")
+    @MainActor
+    func caveatFollowsTheMeasurement() throws {
+        let residual = try #require(SessionResidual(Physiology.Reading(
+            windowId: UUID(), observed: 76, expected: 70, explainedByMovement: 1,
+            residual: 6, cadence: 4, cadenceBin: .minimal,
+            sampleCount: 22, uncertainty: 3)))
+
+        #expect(DayContextCard(content: .residual(residual), onDismiss: {}).caveat
+            == ResidualCopy.caveat)
+        #expect(DayContextCard(
+            content: .health(DayDeviation.Standout(
+                metric: .sleepHours, value: 8.4, z: 2.1,
+                daysSinceMoreExtreme: 11, historyDays: 200)),
+            onDismiss: {}).caveat == HealthMetric.sleepHours.caveat)
+        #expect(DayContextCard(
+            content: .milestone(RatingMilestone(rating: 5, name: "Deep work", beatCount: 9)),
+            onDismiss: {}).caveat == nil)
     }
 
     /// The same sweep the health card's copy is held to, applied to the arm that

@@ -28,20 +28,46 @@ import SwiftUI
 /// arithmetic on their own nights.
 struct DayContextCard: View {
 
-    /// The two things this card can be, and never both at once.
+    /// The three things this card can be, and never two at once.
     ///
-    /// Either-or is the load-bearing part. A milestone is about the rating and a
-    /// standout is about the day, and a card carrying both would be pairing a
-    /// rating with something measured separately from it — the exact
-    /// juxtaposition the rule above forbids, arrived at by addition rather than
-    /// by phrasing. An enum makes that unrepresentable instead of relying on
-    /// nobody putting the two in the same `VStack`.
+    /// Either-or is the load-bearing part. A milestone is about the rating, a
+    /// standout is about the day, and a residual is about the body; a card
+    /// carrying two of them would be pairing a rating with something measured
+    /// separately from it — the exact juxtaposition the rule above forbids,
+    /// arrived at by addition rather than by phrasing. An enum makes that
+    /// unrepresentable instead of relying on nobody putting two in the same
+    /// `VStack`.
+    ///
+    /// Adding a third arm does not weaken that. The rule is about what may
+    /// appear *together*, not about how many things may appear alone, and each
+    /// new arm is one more thing the exclusivity has to be checked against —
+    /// which is why `RatingMilestoneTests.contentIsExclusive` sweeps every arm
+    /// for every other arm's vocabulary rather than sweeping a pair.
     enum Content: Equatable {
         /// A superlative about the day, which the rating cannot move.
         case health(DayDeviation.Standout)
         /// A rating that beat everything logged before it. One measurement, so
         /// no relationship is asserted — see `RatingMilestone`.
         case milestone(RatingMilestone)
+        /// How this session's heart rate ran against what this person's own pace
+        /// and hour predict.
+        ///
+        /// This one is measured over the very session that was just rated, which
+        /// is the closest any arm comes to the failure the card exists to
+        /// prevent, so be exact about why it is allowed. The rule is that the
+        /// card must not *assert a relationship* between a rating and something
+        /// measured separately from it on a sample of one. The defence is the
+        /// same one the health arm uses and it has two halves: the residual does
+        /// not move with the score — swap the 5 for a 2 and every word is
+        /// identical, because heart rate is not an input to the rating scale —
+        /// and the copy says nothing whatever about the rating. What is not
+        /// allowed, and what `ResidualCopy` is written to make impossible, is any
+        /// sentence that puts the two in one breath.
+        ///
+        /// It is a `SessionResidual` rather than a `Physiology.Reading` because
+        /// only the failable init can make one, and it refuses any residual
+        /// inside its own error bar.
+        case residual(SessionResidual)
     }
 
     let content: Content
@@ -80,6 +106,49 @@ struct DayContextCard: View {
         switch content {
         case .health: "Today"
         case .milestone: "In your record"
+        // The window the number was measured over, which for a residual is the
+        // session's own stretch of clock. "Today" would widen a claim that is
+        // about forty minutes, and "In your record" would widen it further
+        // still. Past tense and "that" rather than "this" on purpose: it names
+        // the measurement window and not the thing the person just did, which is
+        // the difference between saying where a number came from and inviting it
+        // to be read as a comment on the rating.
+        case .residual: "During that session"
+        }
+    }
+
+    /// The caution under the rule, for the arms that are built on a body
+    /// measurement — and nil for the one that is not.
+    ///
+    /// The asymmetry is the rule rather than an oversight. `EngineContracts`
+    /// calls the caveat never optional for anything built on a health metric,
+    /// because a health number invites a medical reading it cannot support. Both
+    /// the health standout and the residual are that; a milestone is arithmetic
+    /// on the person's own ratings, with no metric behind it and no second
+    /// variable to be cautious about, which is why `RecordFacts` ships its
+    /// superlatives without one either.
+    ///
+    /// A residual arguably needs one *more* than a daily standout does. "You
+    /// slept 8h 02m" is a plain reading of a plain number; "your heart rate ran
+    /// 6 bpm above expected" is the output of a fitted curve and a subtraction,
+    /// and a figure that has been through arithmetic reads as more authoritative
+    /// than one that has not. The caveat is what says the arithmetic did not
+    /// remove everything it would need to.
+    ///
+    /// Neither string is authored here. The health one is the metric's; the
+    /// residual's is `ResidualCopy.caveat`, which is `HypothesisRegistry`'s own
+    /// caveat for `Outcome.heartRateResidual` held to that text by a test. A
+    /// caveat written beside a particular sentence drifts from the one the engine
+    /// shows for the same number, and then the app is making two different
+    /// promises about one thing.
+    ///
+    /// Not private, so a test can assert which arms carry one without rendering
+    /// the card — the asymmetry is a rule, and a rule nobody checks is a habit.
+    var caveat: String? {
+        switch content {
+        case .health(let standout): standout.metric.caveat
+        case .milestone: nil
+        case .residual: ResidualCopy.caveat
         }
     }
 
@@ -97,31 +166,26 @@ struct DayContextCard: View {
                     // the thing it measures.
                     .accessibilityLabel(titled.spoken)
 
-                // Health only, and the asymmetry is the rule rather than an
-                // oversight. `EngineContracts` calls the caveat never optional
-                // for anything built on a health metric, because a health number
-                // invites a medical reading it cannot support. A milestone is
-                // arithmetic on the person's own ratings — there is no metric
-                // behind it and no second variable to be cautious about, which is
-                // why `RecordFacts` ships its superlatives without one either.
-                // Inventing a caveat here would mean authoring one beside a
-                // sentence, which is the drift the note below warns against.
-                if case .health(let standout) = content {
+                // Present for the body measurements and absent for the
+                // milestone — see `caveat` above for why that asymmetry is the
+                // rule rather than an oversight.
+                if let caveat {
                     HRule()
 
-                    // Straight from the metric, never written here. A caveat
-                    // authored beside a particular sentence drifts from the one
-                    // the engine shows for the same metric, and then the app is
-                    // quietly making two different promises about one number.
+                    // Never written here — the metric's own for a standout, the
+                    // registry's own for a residual. A caveat authored beside a
+                    // particular sentence drifts from the one the engine shows
+                    // for the same number, and then the app is quietly making two
+                    // different promises about one thing.
                     VStack(alignment: .leading, spacing: Space.xs) {
                         Eyebrow("Bear in mind")
-                        Text(standout.metric.caveat)
+                        Text(caveat)
                             .textStyle(.label)
                             .foregroundStyle(Color.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Bear in mind: \(standout.metric.caveat)")
+                    .accessibilityLabel("Bear in mind: \(caveat)")
                 }
             }
             .pageGutter()
@@ -172,6 +236,10 @@ enum DayContextCopy {
         // still, but that case does not exist — a ratings superlative cannot live
         // in the dispensed pool at all, for the reason `RatingMilestone` gives.
         case .milestone: "How sessions felt"
+        // The name of the thing measured, held in one place with the timeline's
+        // copy of the same reading. Two surfaces show a residual and they must
+        // not call it two different things.
+        case .residual: ResidualCopy.title
         }
     }
 
@@ -183,6 +251,7 @@ enum DayContextCopy {
         switch content {
         case .milestone(let milestone): return "\(milestone.rating) / 5"
         case .health(let standout): return healthFigure(standout)
+        case .residual(let residual): return ResidualCopy.figure(residual)
         }
     }
 
@@ -219,6 +288,14 @@ enum DayContextCopy {
             // front of them will assume a longer record than exists.
             return "\(milestone.name) is the highest you have rated anything, "
                 + "out of \(milestone.beatCount) rated sessions."
+        // Whose baseline it is, and how much movement there was. Nothing about
+        // the rating, and no direction word past "higher" and "lower" — the same
+        // discipline this file already applies to `superlative`, for the harder
+        // version of the same reason: `Outcome.heartRateResidual.higherIsBetter`
+        // is nil because a heart rate above what movement explains is not "bad",
+        // and calling it so would be a medical claim rather than an opinion.
+        case .residual(let residual):
+            return ResidualCopy.sentence(residual)
         }
     }
 

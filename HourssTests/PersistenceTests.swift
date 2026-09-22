@@ -118,7 +118,8 @@ struct PersistenceTests {
         defer { try? FileManager.default.removeItem(at: url) }
         try FileRecordRepository(url: url).save(Record())
         let raw = try String(contentsOf: url, encoding: .utf8)
-        #expect(raw.contains("\"schemaVersion\" : 1"))
+        #expect(raw.contains("\"schemaVersion\" : \(Record.currentSchemaVersion)"))
+        #expect(Record.currentSchemaVersion == 2, "version 2 added the frozen physiology readings")
     }
 
     @Test("A record round-trips through the file unchanged")
