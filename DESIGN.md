@@ -69,6 +69,21 @@ of orange over a fill needs its own non-colour distinction.
 
 ---
 
+## One rule weight, and why a second was tried
+
+`HRule` at 1pt is the only rule in the system. It separates a heading from what
+it heads and one list row from the next, at the same weight, which does mean a
+screen offers the eye nothing to rank.
+
+A 2pt ink `SectionRule` was built to fix exactly that and applied at nine places
+— heading | fact, fact | day, claim | evidence — then removed after being looked
+at on a device. It worked: the breaks became findable. It also made the screens
+look *ruled*, which is a worse thing to be than flat. The flatness is a real
+cost and this was not the way to pay it; if it is revisited, the lever is
+probably space rather than more lines.
+
+---
+
 ## Readouts name their subject first
 
 **`TitledFigure`** — title 34pt (`.dayNumeral`) → figure 26pt (`.stepName`,

@@ -26,7 +26,7 @@ struct DayTimeline: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.md) {
-            SectionRule()
+            HRule()
 
             // Above the rows, because it answers a question the rows cannot: the
             // list says what happened, and this says which of the day's hours are

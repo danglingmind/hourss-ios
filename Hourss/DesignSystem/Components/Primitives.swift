@@ -33,38 +33,12 @@ struct Eyebrow: View {
     }
 }
 
-/// A 2pt rule in the foreground colour, for a break between sections.
-///
-/// **Why a second weight exists.** `HRule` was doing two different jobs at one
-/// weight across ninety call sites: separating a heading from the thing it heads,
-/// and separating two rows of a list. Both read identically, so a screen arrived
-/// as one undifferentiated stack of things with no way to tell which lines were
-/// structure and which were punctuation. The eye had nothing to rank.
-///
-/// Two points and full-strength ink rather than the rule grey, because the
-/// difference has to survive a glance — 1pt against 1.5pt in the same colour is a
-/// distinction only a designer with a loupe would find, and the whole point is
-/// that nobody should have to look for it.
-///
-/// **Use it sparingly.** A screen with six section rules has six sections and no
-/// hierarchy again. If two blocks belong to the same idea, `HRule` between them
-/// is the honest mark.
-struct SectionRule: View {
-    @Environment(\.surface) private var surface
-
-    var body: some View {
-        Rectangle()
-            .fill(surface.foreground)
-            .frame(height: 2)
-            .accessibilityHidden(true)
-    }
-}
-
 /// A 1pt rule. Hierarchy in this system comes from lines, not surfaces, so this
 /// is doing the job a card border would do elsewhere.
 ///
-/// The lighter of the two weights, and the default: this separates items that
-/// belong to the same idea. `SectionRule` separates the ideas.
+/// One weight, deliberately. A second, heavier rule for section breaks was tried
+/// and taken back out: it made the breaks findable and made the screens look
+/// ruled, which is a worse trade than the flatness it was meant to fix.
 struct HRule: View {
     var color: Color?
     @Environment(\.surface) private var surface
@@ -78,8 +52,6 @@ struct HRule: View {
     }
 }
 
-/// Bold text plus an oversized orange arrow. The token file explicitly bans
-/// filled capsules here — the shift on press is the entire affordance.
 /// One filled action per screen, and never a second.
 ///
 /// **This overrules a standing rule, deliberately.** `DirectionalLink`'s note
@@ -144,6 +116,8 @@ struct PrimaryAction: View {
     }
 }
 
+/// Bold text plus an oversized orange arrow — every action that is not the one
+/// primary action on its screen.
 struct DirectionalLink: View {
     let title: String
     var arrow: String = "↘"

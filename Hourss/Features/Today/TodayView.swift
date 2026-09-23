@@ -100,7 +100,7 @@ struct TodayView: View {
     private var dailyFactRow: some View {
         if let fact = dailyFact {
             VStack(alignment: .leading, spacing: 0) {
-                SectionRule()
+                HRule()
                 HealthFactRow(fact: fact, identifier: "today-fact")
 
                 // Under the fact rather than beside it. The one-a-day pacing is
@@ -158,7 +158,7 @@ struct TodayView: View {
     /// T1 — nothing logged yet. An invitation, not an empty-state illustration.
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: Space.md) {
-            SectionRule()
+            HRule()
             DisplayHeadline([
                 Text("Nothing logged").styled(.sectionTitle),
                 Text("yet ").styled(.sectionTitle).then(Text("today.").styled(.emphasis(42))),

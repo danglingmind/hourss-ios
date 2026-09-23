@@ -73,7 +73,7 @@ struct PatternsView: View {
             ], style: .sectionTitle)
             .padding(.top, Space.md)
 
-            SectionRule()
+            HRule()
 
             // The figure named what it counted, but only after saying how many —
             // and at 26pt with nothing above it, the number was the whole glance.
@@ -87,7 +87,7 @@ struct PatternsView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(evidence.spoken)
 
-            SectionRule()
+            HRule()
 
             VStack(alignment: .leading, spacing: Space.md) {
                 coverageRow(
