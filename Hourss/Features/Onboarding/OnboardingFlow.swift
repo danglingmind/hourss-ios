@@ -102,15 +102,19 @@ struct OnboardingFlow: View {
     private var footer: some View {
         VStack(spacing: 0) {
             HRule()
-            HStack {
+            VStack(spacing: 0) {
+                primaryAction
+                    .padding(.top, Space.xs)
+                // Under the way forward rather than beside it, so the filled
+                // block spans the column and Back reads as the quieter of the
+                // two rather than as its equal.
                 if step > 0 && step != 1 {
                     Button("Back") { step -= 1 }
                         .buttonStyle(.plain)
                         .textStyle(.action)
+                        .frame(maxWidth: .infinity)
                         .frame(minHeight: Space.tapTarget)
                 }
-                Spacer()
-                primaryAction
             }
             .pageGutter()
             .padding(.bottom, Space.xs)
@@ -127,7 +131,7 @@ struct OnboardingFlow: View {
     private var primaryAction: some View {
         switch step {
         case 1:
-            DirectionalLink(title: isConnecting ? "Reading…" : "Connect Health", arrow: "→") {
+            PrimaryAction(title: isConnecting ? "Reading…" : "Connect Health") {
                 isConnecting = true
                 Task {
                     await health.connect()
@@ -139,7 +143,7 @@ struct OnboardingFlow: View {
             .accessibilityIdentifier("health-connect")
 
         case 2:
-            DirectionalLink(title: "Continue", arrow: "→") { step += 1 }
+            PrimaryAction(title: "Continue") { step += 1 }
                 .disabled(store.profile.priorities.isEmpty)
 
         case 6:
@@ -147,7 +151,7 @@ struct OnboardingFlow: View {
             // there is no control to mistake for a way around it — and the moment
             // it has, the ordinary Continue appears where the eye already is.
             if account.isSignedIn {
-                DirectionalLink(title: "Continue", arrow: "→") { step += 1 }
+                PrimaryAction(title: "Continue") { step += 1 }
             } else {
                 EmptyView()
             }
@@ -156,7 +160,7 @@ struct OnboardingFlow: View {
             // Doing the asking here rather than on the beat itself, so the system
             // prompt is raised by the same footer action every other beat uses —
             // and only ever after this screen has explained what it is for.
-            DirectionalLink(title: isSchedulingReminders ? "Setting up…" : "Continue", arrow: "→") {
+            PrimaryAction(title: isSchedulingReminders ? "Setting up…" : "Continue") {
                 isSchedulingReminders = true
                 Task {
                     store.profile.logReminder = reminder
@@ -172,7 +176,7 @@ struct OnboardingFlow: View {
             EmptyView()   // the last beat owns its own exits
 
         default:
-            DirectionalLink(title: step == 0 ? "Start" : "Continue", arrow: "→") { step += 1 }
+            PrimaryAction(title: step == 0 ? "Start" : "Continue") { step += 1 }
         }
     }
 

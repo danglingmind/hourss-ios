@@ -79,19 +79,18 @@ struct ReflectionView: View {
                 .padding(.vertical, Space.md)
             }
 
-            VStack(spacing: 0) {
+            VStack(spacing: Space.xs) {
                 HRule()
-                HStack {
-                    Button("Skip") { dismiss() }
-                        .buttonStyle(.plain)
-                        .textStyle(.action)
-                        .foregroundStyle(Color.muted)
-                        .frame(minHeight: Space.tapTarget)
-                    Spacer()
-                    DirectionalLink(title: "Save", arrow: "→") { rate() }
-                }
-                .pageGutter()
+                PrimaryAction(title: "Save") { rate() }
+                    .padding(.top, Space.xs)
+                Button("Skip") { dismiss() }
+                    .buttonStyle(.plain)
+                    .textStyle(.action)
+                    .foregroundStyle(Color.muted)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: Space.tapTarget)
             }
+            .pageGutter()
         }
         .surface(.canvas)
         // An overlay, not a sheet and not a second screen.
@@ -181,7 +180,20 @@ struct ReflectionView: View {
         // The day's standout next. It is about the whole day, so it is the
         // wider claim of the two that remain, and a card is worth more the less
         // often it says something the person could have worked out themselves.
-        if let standout = DayDeviation.standout(on: Date(), history: store.healthByDay) {
+        //
+        // The session's day, not today. Rating something from last Tuesday in the
+        // Journal used to produce a card about last night, because this asked
+        // what was unusual about the moment of rating rather than about the day
+        // being rated. The two coincide for a session logged and rated the same
+        // day, which is the common case and is why it went unnoticed; on every
+        // other path it was a non-sequitur — a sleep figure from a day the reader
+        // is not looking at, attached to a session from one they are.
+        //
+        // `recordDay` rather than `startAt`, so a night that ended this morning
+        // is asked about under the morning it belongs to, exactly as the timeline
+        // and the journal file it.
+        let ratedDay = store.sessions.first { $0.id == sessionId }?.recordDay ?? Date()
+        if let standout = DayDeviation.standout(on: ratedDay, history: store.healthByDay) {
             // Claimed only now, with a card in hand. Claiming it at the guard
             // above would spend the day's one card on a day that had no fact in
             // it.

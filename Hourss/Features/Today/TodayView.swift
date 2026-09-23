@@ -100,7 +100,7 @@ struct TodayView: View {
     private var dailyFactRow: some View {
         if let fact = dailyFact {
             VStack(alignment: .leading, spacing: 0) {
-                HRule()
+                SectionRule()
                 HealthFactRow(fact: fact, identifier: "today-fact")
 
                 // Under the fact rather than beside it. The one-a-day pacing is
@@ -158,7 +158,7 @@ struct TodayView: View {
     /// T1 — nothing logged yet. An invitation, not an empty-state illustration.
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: Space.md) {
-            HRule()
+            SectionRule()
             DisplayHeadline([
                 Text("Nothing logged").styled(.sectionTitle),
                 Text("yet ").styled(.sectionTitle).then(Text("today.").styled(.emphasis(42))),
@@ -264,17 +264,9 @@ private struct ActiveSessionPanel: View {
                     .accessibilityIdentifier("live-activity-unavailable")
             }
 
-            Button {
+            PrimaryAction(title: "Stop and reflect") {
                 store.stopSession(session.id)
-            } label: {
-                HStack(spacing: 6) {
-                    Text("Stop and reflect").textStyle(.action)
-                    Text("→").font(.custom("DMSans-Bold", fixedSize: 18)).foregroundStyle(Color.orange)
-                }
-                .frame(minHeight: Space.tapTarget)
-                .contentShape(.rect)
             }
-            .buttonStyle(.plain)
             .accessibilityIdentifier("stop-session")
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -199,7 +199,7 @@ struct DayContextCard: View {
                 HRule()
                 HStack {
                     Spacer()
-                    DirectionalLink(title: "Done", arrow: "→", action: onDismiss)
+                    PrimaryAction(title: "Done", action: onDismiss)
                 }
                 .pageGutter()
             }

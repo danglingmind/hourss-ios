@@ -237,12 +237,10 @@ struct StartSessionView: View {
     private var footer: some View {
         VStack(spacing: 0) {
             HRule()
-            HStack {
-                Spacer()
-                DirectionalLink(title: mode == .now ? "Start" : "Log it", arrow: "→", action: save)
-                    .disabled(selectedActivityId == nil)
-            }
-            .pageGutter()
+            PrimaryAction(title: mode == .now ? "Start" : "Log it", action: save)
+                .disabled(selectedActivityId == nil)
+                .pageGutter()
+                .padding(.vertical, Space.xs)
         }
     }
 

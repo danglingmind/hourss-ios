@@ -88,7 +88,7 @@ struct InsightDetailView: View {
     private var comparison: some View {
         let e = current.evidence
         return VStack(alignment: .leading, spacing: Space.sm) {
-            HRule()
+            SectionRule()
             Eyebrow("Average feeling · \(e.windowDescription)")
             ComparisonMark(rows: [
                 .init(label: e.comparisonLabel, value: e.comparisonValue, count: e.comparisonCount, highlighted: true),
@@ -103,7 +103,7 @@ struct InsightDetailView: View {
     private var sessionList: some View {
         let sessions = store.sessions(for: current).prefix(12)
         return VStack(alignment: .leading, spacing: 0) {
-            HRule()
+            SectionRule()
             Eyebrow("Behind this")
                 .padding(.bottom, Space.xs)
             ForEach(Array(sessions), id: \.id) { session in

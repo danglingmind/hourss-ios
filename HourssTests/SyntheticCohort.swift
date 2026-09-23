@@ -110,7 +110,12 @@ enum SyntheticCohort {
 
     struct Person {
         let name: String
-        let truth: Truth
+        /// The whole input this person was built from, kept so the person can be
+        /// rebuilt with one part of it changed. `rebuilt(at:)` is the only reason
+        /// it is here, and the reason that matters: a time basis you cannot vary
+        /// is a time basis nobody can check.
+        let recipe: Recipe
+        var truth: Truth { recipe.truth }
         let activities: [Activity]
         let sessions: [Session]
         let reflections: [UUID: Reflection]
@@ -124,10 +129,46 @@ enum SyntheticCohort {
 
         /// How the current engine sees health: one number per day, which is the
         /// shape `intervalComponents: DateComponents(day: 1)` produces.
-        var healthByDay: [HealthMetric: [Date: Double]] {
-            samples.reduce(into: [:]) { out, entry in
+        ///
+        /// Rolled up once at construction rather than on every access. The result
+        /// was already the same both ways — `Sample` is a value type and the
+        /// rollup is pure — but a *computed* view onto a cached person is the
+        /// shape the UUID bug took, and the rollup runs on every call to
+        /// `ObservationBuilder.rows`, which the interaction suites make hundreds
+        /// of. Storing it removes both the hazard and the cost.
+        let healthByDay: [HealthMetric: [Date: Double]]
+
+        init(recipe: Recipe,
+             activities: [Activity],
+             sessions: [Session],
+             reflections: [UUID: Reflection],
+             samples: [HealthMetric: [Sample]],
+             heartRate: [Sample]) {
+            self.name = recipe.name
+            self.recipe = recipe
+            self.activities = activities
+            self.sessions = sessions
+            self.reflections = reflections
+            self.samples = samples
+            self.heartRate = heartRate
+            self.healthByDay = samples.reduce(into: [:]) { out, entry in
                 out[entry.key] = Sample.rollUpByDay(entry.value, cumulative: entry.key.isCumulative)
             }
+        }
+
+        /// This person against a different day, and nothing else changed.
+        ///
+        /// The recipe is the entire input to generation, so a person and their
+        /// rebuild differ in exactly one thing. What that one thing can reach is
+        /// the question `CohortTests.timeBasisIsFixed` asks: a whole number of
+        /// weeks reaches only the dates, and anything else reaches the weekday of
+        /// every session — and through the weekday, `isWorkday`, the weekend
+        /// sleep bonus, the sleep median, and the answer key's own
+        /// `afterMedianSleep` predicate.
+        func rebuilt(at anchor: Date) -> Person {
+            var recipe = self.recipe
+            recipe.anchor = anchor
+            return SyntheticCohort.make(recipe)
         }
 
         /// Rated, pattern-eligible sessions — the only ones the engine can use.
@@ -177,8 +218,71 @@ enum SyntheticCohort {
         return sum / 2 * sd
     }
 
-    /// Anchored so generated history is stable relative to the day the test runs.
-    /// The engine applies no date filter of its own, so only the hour-of-day and
-    /// weekday of each session actually reach a comparison.
-    static var anchor: Date { Calendar.current.startOfDay(for: Date()) }
+    // MARK: - The time basis
+
+    /// The day every generated history counts back from: the most recent Monday,
+    /// resolved once for the whole process.
+    ///
+    /// This was `Calendar.current.startOfDay(for: Date())` — *computed*, so
+    /// re-read at each of the two thousand-odd points the generator asks for a
+    /// day, while the people themselves are lazily-initialised `static let`s that
+    /// come into existence whenever a test first touches them. Two failures
+    /// followed and both were real:
+    ///
+    /// * A person built at 23:59 and a person built at 00:01 counted back from
+    ///   different days, so one run of one suite could hold two mutually
+    ///   inconsistent cohorts. The same hazard sat inside a single `make` call,
+    ///   whose sleep loop and session loop each re-read the anchor.
+    /// * Across runs the whole cohort rotated with the calendar. Nothing in the
+    ///   engine filters on absolute dates, but plenty reads the *weekday*: every
+    ///   observation's `isWorkday`, and the generator's own weekend sleep bonus —
+    ///   which moves `sleepMean` and `sleepMedian`, and with them the
+    ///   `afterMedianSleep` half of the planted three-way and the
+    ///   `health.sleepHours.high` factor the search conditions on.
+    ///
+    /// Measured rather than argued. Rebuilding the cohort against each of the
+    /// seven weekday alignments in turn, holding everything else fixed:
+    ///
+    /// | quantity                                        | across the seven |
+    /// | ----------------------------------------------- | ---------------- |
+    /// | planted 3-way admitted (`permutationFDR`)        | 3,2,3,0,2,2,0    |
+    /// | estimable candidates *m*, `scatteredNoise`       | 6 … 14           |
+    /// | BY admissions, `scatteredNoise`                  | 1 … 4            |
+    /// | rating-level quantities, everybody else          | unchanged        |
+    ///
+    /// The first row is the one that was costing runs.
+    /// `InteractionCorrectionTests.cohortMeasurement` asserts that the planted
+    /// three-way survives the recommended procedure, and on two alignments in
+    /// seven it does not — so that suite failed on roughly two days a week and
+    /// passed on the other five, with nothing in the diff to explain either.
+    /// Everything the alignment moves, it moves through *m*: `workday.work` and
+    /// the sleep-derived factors change which conjunctions are generated at all,
+    /// and a step-up threshold is `k/m · q`, so every candidate the alignment adds
+    /// raises the bar for the real one.
+    ///
+    /// **Why a weekday and not a stated date.** A constant like 2025-06-02 is the
+    /// obvious fix and it breaks eight tests elsewhere: `applyPhysiology` scores
+    /// only sessions inside `HealthService.physiologyDays`, so a cohort a year in
+    /// the past is a cohort with no physiology at all. Pinning the *weekday*
+    /// instead keeps the history where the app can still see it and gives the
+    /// same guarantee, because it makes every anchor this can ever return differ
+    /// from every other by a whole number of weeks — and generation is invariant
+    /// under whole-week shifts. That invariance is the load-bearing claim, so it
+    /// is asserted rather than described: `CohortTests.timeBasisIsFixed` rebuilds
+    /// every person fifty-two weeks away and compares them line for line, and
+    /// rebuilds them one day away to show the alignment is what the fixing is
+    /// for.
+    ///
+    /// Injectable through `Recipe.anchor`, which is how that test moves it.
+    static let anchor: Date = mostRecentMonday(onOrBefore: Date())
+
+    /// Monday on or before `date`. A function rather than an expression so the
+    /// rule can be checked at dates the run did not happen to fall on.
+    static func mostRecentMonday(onOrBefore date: Date, calendar: Calendar = .current) -> Date {
+        let day = calendar.startOfDay(for: date)
+        // Sunday is 1 in Gregorian, so Monday is 2 and this is 0 on a Monday and
+        // 6 on a Sunday, independent of the locale's first weekday.
+        let back = (calendar.component(.weekday, from: day) + 5) % 7
+        return calendar.date(byAdding: .day, value: -back, to: day) ?? day
+    }
 }
