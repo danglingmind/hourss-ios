@@ -15,8 +15,26 @@ extension SyntheticCohort {
     /// reason about when a test fails.
     private static let samplingMinutes = 15
 
+    /// A local wall-clock time on a given day.
+    ///
+    /// Arithmetic on the start of day would do the same thing for all but two days
+    /// a year, and those two are the point: on a daylight-saving transition
+    /// `startOfDay + 6h` is five or seven in the morning, which would put a
+    /// cohort built in March and the same cohort built in June a sample apart.
+    /// The whole argument for the anchor rule in `SyntheticCohort.anchor` is that
+    /// a whole-week shift changes nothing, and an offset in seconds is the one
+    /// thing in here that could have made that false. Falls back to the offset
+    /// rather than skipping, so the random stream cannot depend on the calendar
+    /// either.
+    private static func timestamp(minuteOfDay: Int, of day: Date, calendar: Calendar) -> Date {
+        calendar.date(bySettingHour: minuteOfDay / 60, minute: minuteOfDay % 60,
+                      second: 0, of: day)
+            ?? day.addingTimeInterval(Double(minuteOfDay) * 60)
+    }
+
     static func healthSamples(
         recipe: Recipe,
+        anchor: Date,
         sleepByDay: [Date: Double],
         occupied: [(range: ClosedRange<Date>, activity: String)],
         rng: inout Seeded
@@ -76,15 +94,15 @@ extension SyntheticCohort {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: anchor) else { continue }
             let sleep = sleepByDay[day] ?? 7.2
 
-            restingSamples.append(Sample(at: day.addingTimeInterval(6 * 3600),
+            restingSamples.append(Sample(at: timestamp(minuteOfDay: 6 * 60, of: day, calendar: calendar),
                                          value: 60 - (sleep - 7.2) * 1.4 + gaussian(&rng, sd: 1.6)))
             for hrvHour in [3, 5] {
-                hrvSamples.append(Sample(at: day.addingTimeInterval(Double(hrvHour) * 3600),
+                hrvSamples.append(Sample(at: timestamp(minuteOfDay: hrvHour * 60, of: day, calendar: calendar),
                                          value: 48 + (sleep - 7.2) * 5 + gaussian(&rng, sd: 5)))
             }
 
             for minuteOfDay in stride(from: 7 * 60, to: 23 * 60, by: samplingMinutes) {
-                let at = day.addingTimeInterval(Double(minuteOfDay) * 60)
+                let at = timestamp(minuteOfDay: minuteOfDay, of: day, calendar: calendar)
                 let hour = Double(minuteOfDay) / 60
 
                 // Circadian baseline: lowest early, peaking mid-afternoon.

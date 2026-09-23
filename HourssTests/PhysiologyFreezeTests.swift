@@ -21,9 +21,27 @@ struct PhysiologyFreezeTests {
         URL.temporaryDirectory.appending(path: "hourss-physiology-\(UUID().uuidString).json")
     }
 
+    /// The cohort's feed, extended past its own last session.
+    ///
+    /// A generated feed stops at the end of the last thing it generated, which is
+    /// a shape no real feed has for long: the wrist keeps sampling after somebody
+    /// stops working. `applyPhysiology(feed:)` refuses to score a session whose
+    /// window has not finished arriving, and it decides that by asking whether the
+    /// newest sample is later than the session ended — so a feed that stops dead
+    /// on the last session is, correctly, a feed that has not settled yet.
+    ///
+    /// Adding the trailing hour here rather than relaxing the guard: the guard is
+    /// what stops a half-synced window being frozen forever, and a test fixture
+    /// that could only pass without it would be testing the wrong thing.
     private func feed(_ person: SyntheticCohort.Person) -> Physiology.Feed {
-        Physiology.Feed(
-            heartRate: person.heartRate.map { Physiology.Sample(at: $0.at, value: $0.value) },
+        var heartRate = person.heartRate.map { Physiology.Sample(at: $0.at, value: $0.value) }
+        if let lastEnd = person.sessions.compactMap(\.endAt).max(),
+           let lastSample = heartRate.map(\.at).max(),
+           lastSample <= lastEnd {
+            heartRate.append(Physiology.Sample(at: lastEnd.addingTimeInterval(3600), value: 62))
+        }
+        return Physiology.Feed(
+            heartRate: heartRate,
             steps: (person.samples[.steps] ?? []).map { Physiology.Sample(at: $0.at, value: $0.value) }
         )
     }

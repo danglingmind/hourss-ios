@@ -243,17 +243,6 @@ struct InteractionCandidateTests {
 
     // MARK: - The pruning actually prunes
 
-    // Removed: "Main-effect gating prunes the search space".
-    //
-    // It asserted a fixed ratio — gated × 3 < combinatorial — against counts
-    // measured from one synthetic cohort at one moment (236 pairs, 218 after
-    // gating, 60 after the budget). Those numbers are a characterisation of a
-    // particular tuning rather than a property the search has to hold, so the
-    // test failed on a change that moved them without breaking anything. The
-    // finding it recorded is real and is written up in §6.2's margin: stage-1
-    // gating barely prunes for a person with one dominant activity, and the
-    // budget is what actually bounds the worst case.
-
     /// The three-way arm has to be reachable, not merely written.
     ///
     /// It was not, at first: the two-way pass spent the entire budget on anybody

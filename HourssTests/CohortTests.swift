@@ -312,4 +312,117 @@ struct CohortTests {
                     "\(person.name) has \(person.ratedCount) rated sessions — too few to compare against anything"))
         }
     }
+
+    // MARK: - The time basis
+
+    /// Everything about a person except the dates they are written on.
+    ///
+    /// Day *offsets* from the person's own anchor rather than absolute days, so
+    /// two people built against two different anchors are comparable — which is
+    /// the whole question below. Sleep is in here because it is the channel: the
+    /// generator pays a weekend bonus, so a person's sleep series is the one thing
+    /// that changes when the anchor moves by anything other than whole weeks.
+    private func fingerprint(_ person: SyntheticCohort.Person) -> [String] {
+        let calendar = Calendar.current
+        let anchor = person.recipe.anchor
+        func offset(_ date: Date) -> Int {
+            calendar.dateComponents([.day], from: calendar.startOfDay(for: date),
+                                    to: anchor).day ?? .min
+        }
+
+        var out: [String] = person.sessions.map { session in
+            let parts = calendar.dateComponents([.hour, .minute], from: session.startAt)
+            let minutes = (session.endAt?.timeIntervalSince(session.startAt) ?? 0) / 60
+            let rating = person.reflections[session.id]?.feelingScore
+            return "s \(offset(session.startAt)) \(parts.hour ?? -1):\(parts.minute ?? -1)"
+                + " \(Int(minutes)) \(session.activityId) \(rating.map(String.init) ?? "—")"
+        }
+        for (day, hours) in (person.healthByDay[.sleepHours] ?? [:]).sorted(by: { $0.key < $1.key }) {
+            out.append(String(format: "sleep %d %.6f", offset(day), hours))
+        }
+        return out
+    }
+
+    /// The cohort must be the same cohort whatever moment it is built at.
+    ///
+    /// It was not. `anchor` was `startOfDay(for: Date())`, so the whole history
+    /// rotated with the calendar: every session's weekday moved, and with it
+    /// `isWorkday` on every observation and the weekend bonus in the sleep the
+    /// search conditions on. Rebuilt against each of the seven alignments in turn,
+    /// the planted three-way is admitted by the recommended procedure on five of
+    /// them and refused on two — so `InteractionCorrectionTests.cohortMeasurement`
+    /// failed on about two days a week and passed on the rest, with nothing in the
+    /// diff to explain either. `SyntheticCohort.anchor` carries the measurement.
+    ///
+    /// The anchor is now the most recent Monday, which is not a constant and does
+    /// not need to be. Every value it can take differs from every other by a whole
+    /// number of weeks, and the claim that makes that a fix rather than a
+    /// rearrangement is the third one below: generation is invariant under
+    /// whole-week shifts. Asserted, not described — fifty-two weeks away is as
+    /// different a wall clock as this can be handed, and the people have to come
+    /// back line for line.
+    ///
+    /// Four claims:
+    /// 1. the basis is a Monday, resolved once, and every person shares it;
+    /// 2. nothing generated is written outside the days behind it, which is what a
+    ///    `Date()` reintroduced anywhere inside generation would break;
+    /// 3. a whole-week shift changes nothing at all;
+    /// 4. a one-day shift changes everybody — so the pinning is load-bearing
+    ///    rather than tidy, and a generator that stopped reading the weekday would
+    ///    be caught here rather than trusted.
+    @Test("The cohort's time basis is fixed, and moving it off a week boundary would change every person")
+    func timeBasisIsFixed() throws {
+        let calendar = Calendar.current
+        let anchor = SyntheticCohort.anchor
+
+        // ── 1. A Monday, at a start of day, within the last week.
+        let parts = calendar.dateComponents([.weekday, .hour, .minute, .second], from: anchor)
+        #expect(parts.weekday == 2, Comment(rawValue:
+                "the anchor is not a Monday but \(anchor) — whole-week invariance is the only thing making a moving anchor safe"))
+        #expect(parts.hour == 0 && parts.minute == 0 && parts.second == 0,
+                "the anchor must be a start of day, or two people built minutes apart are built against different instants")
+        let today = calendar.startOfDay(for: Date())
+        let weekAgo = try #require(calendar.date(byAdding: .day, value: -7, to: today))
+        #expect(anchor <= today && anchor > weekAgo, Comment(rawValue:
+                "the anchor is \(anchor), outside the last week — the cohort has to stay inside HealthService.physiologyDays"))
+        // The rule itself, at days this run did not land on: seven consecutive
+        // dates must map to one Monday, or "resolved once" is doing the work
+        // rather than the rule.
+        let mondays = Set((0...6).compactMap { offset in
+            calendar.date(byAdding: .day, value: offset, to: anchor)
+                .map { SyntheticCohort.mostRecentMonday(onOrBefore: $0) }
+        })
+        #expect(mondays == [anchor], Comment(rawValue:
+                "a week of dates resolved to \(mondays.count) different anchors"))
+
+        // ── 2. One basis for the whole cohort, and nothing written outside it.
+        let ceiling = try #require(calendar.date(byAdding: .day, value: 1, to: anchor))
+        for person in SyntheticCohort.everyone {
+            #expect(person.recipe.anchor == anchor, Comment(rawValue:
+                    "\(person.name) was built against a different time basis from the rest of the cohort"))
+            let floor = try #require(calendar.date(byAdding: .day, value: -(person.recipe.days + 2), to: anchor))
+            var stamps = person.sessions.flatMap { [$0.startAt, $0.endAt ?? $0.startAt] }
+            stamps += person.reflections.values.map(\.submittedAt)
+            stamps += person.samples.values.flatMap { $0.map(\.at) }
+            stamps += person.heartRate.map(\.at)
+            let latest = try #require(stamps.max())
+            let earliest = try #require(stamps.min())
+            #expect(latest <= ceiling && earliest >= floor, Comment(rawValue:
+                    "\(person.name) spans \(earliest)…\(latest), outside the \(person.recipe.days) days behind the anchor"))
+        }
+
+        // ── 3. Fifty-two weeks away is the same cohort, line for line.
+        let aYearOn = try #require(calendar.date(byAdding: .day, value: 364, to: anchor))
+        for person in SyntheticCohort.everyone {
+            #expect(fingerprint(person.rebuilt(at: aYearOn)) == fingerprint(person), Comment(rawValue:
+                    "\(person.name) came out different when the same recipe was built 52 weeks later"))
+        }
+
+        // ── 4. One day away, everybody changes.
+        let tomorrow = try #require(calendar.date(byAdding: .day, value: 1, to: anchor))
+        for person in SyntheticCohort.everyone {
+            #expect(fingerprint(person.rebuilt(at: tomorrow)) != fingerprint(person), Comment(rawValue:
+                    "\(person.name) is unchanged by a one-day shift — the weekday channel this test exists for has gone"))
+        }
+    }
 }

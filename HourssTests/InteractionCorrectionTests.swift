@@ -445,16 +445,6 @@ struct InteractionCorrectionTests {
                 "a budget of 30 invented \(atThirty[SyntheticCohort.deepWorkMostlyMorning.name] ?? -1) interactions for the confounded person"))
     }
 
-    // Removed: "How many candidates sit at the bootstrap p-value floor".
-    //
-    // It asserted exact equality of floor occupancy between 2,000 and 10,000
-    // resamples, which drifted by one candidate (14 to 13) and failed. One
-    // candidate is not the finding — the finding is that raising the resample
-    // count buys no meaningful separation, and an exact-equality assertion was
-    // never the way to hold that. §10.3's conclusion stands: the tied candidates
-    // are past the resolution limit, not near it, and no resample count anybody
-    // would pay for separates them.
-
     // MARK: - Cohort bridge
 
     private static func rows(for person: SyntheticCohort.Person) -> [EngineObservation] {

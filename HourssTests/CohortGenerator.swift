@@ -32,6 +32,15 @@ extension SyntheticCohort {
         /// Explicit placement of sessions across activities and hours. See
         /// `Schedule`. Nil leaves the original day-walking behaviour untouched.
         var schedule: Schedule? = nil
+        /// The day this person's history counts back from.
+        ///
+        /// Stated on the recipe rather than read from the clock inside the
+        /// generator, so "when was this person built" cannot be an input to what
+        /// they contain. The default is the cohort's fixed anchor; tests that
+        /// need to move it — to show that the weekday alignment is the only thing
+        /// a date change can reach, and that it reaches a great deal — pass their
+        /// own. See `SyntheticCohort.anchor`.
+        var anchor: Date = SyntheticCohort.anchor
         var truth: Truth
     }
 
@@ -89,6 +98,10 @@ extension SyntheticCohort {
         var rng = Seeded(seed: recipe.seed)
         let calendar = Calendar.current
         let activities = Activity.defaults
+        // Read once. Every day in this person — sleep, sessions, samples — is an
+        // offset from this one value, so there is no arrangement of the loops
+        // below in which two of them can disagree about what day it is.
+        let anchor = recipe.anchor
 
         // ── Health first: ratings may depend on the previous night's sleep ──
         var sleepByDay: [Date: Double] = [:]
@@ -185,12 +198,12 @@ extension SyntheticCohort {
         }
 
         let health = healthSamples(recipe: recipe,
+                                   anchor: anchor,
                                    sleepByDay: sleepByDay,
                                    occupied: occupied,
                                    rng: &rng)
 
-        return Person(name: recipe.name,
-                      truth: recipe.truth,
+        return Person(recipe: recipe,
                       activities: activities,
                       sessions: sessions,
                       reflections: reflections,
