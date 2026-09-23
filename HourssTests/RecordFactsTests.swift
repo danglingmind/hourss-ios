@@ -256,3 +256,241 @@ struct RecordFactRevisionTests {
         #expect(DailyFact.key(for: first) != DailyFact.key(for: second))
     }
 }
+
+/// The generator that was argued against and built anyway.
+///
+/// These tests are the written form of the concessions listed above
+/// `RecordFacts.daysInARow`: the number is the longest run and not the current
+/// one, it is arithmetic over the record and nothing else, and the sentence says
+/// what happened and stops. A change that makes any of them fail is a change to
+/// the decision, not to the code.
+@Suite("Days in a row")
+struct RecordStreakTests {
+
+    private let activity = UUID()
+    private func name(_: UUID) -> String { "Deep work" }
+
+    private let calendar = Calendar.current
+
+    /// A fixed calendar day, so nothing here depends on when the suite runs.
+    private func date(_ year: Int, _ month: Int, _ day: Int, hour: Int = 9) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    }
+
+    private func session(on day: Date, minutes: Int = 30,
+                         kind: HealthKind? = nil) -> Session {
+        Session(
+            activityId: activity,
+            startAt: day,
+            endAt: day.addingTimeInterval(Double(minutes) * 60),
+            healthKind: kind
+        )
+    }
+
+    private func streak(_ sessions: [Session]) -> HealthDigest.Fact? {
+        RecordFacts.pool(sessions: sessions, activityName: name)
+            .first { $0.subject.key == "record.daysInARow" }
+    }
+
+    /// The arithmetic, with a gap in it. Five days in the record, three of them
+    /// touching, and the answer is three rather than five.
+    @Test("A gap ends a run")
+    func gapEndsARun() throws {
+        let sessions = [
+            session(on: date(2026, 1, 5)),
+            session(on: date(2026, 1, 6)),
+            session(on: date(2026, 1, 7)),
+            session(on: date(2026, 1, 10)),
+            session(on: date(2026, 1, 11)),
+        ]
+        let fact = try #require(streak(sessions))
+
+        #expect(fact.figure == "3 days", Comment(rawValue: "figure was \(fact.figure)"))
+        #expect(fact.sentence.contains("out of 5 days"), Comment(rawValue: fact.sentence))
+        #expect(fact.kind == .best)
+        #expect(fact.strength == 0.05)
+        #expect(fact.subject.healthGroup == nil)
+        #expect(fact.subject.title == "Days in a row")
+    }
+
+    /// Everything on one day is one day. A record with no second day in it has no
+    /// run to report, and reporting "1 day in a row" would be the app filling
+    /// silence with arithmetic.
+    @Test("A record held on a single day yields no run")
+    func singleDayYieldsNothing() {
+        let day = date(2026, 3, 2)
+        let sessions = (0..<5).map { session(on: day.addingTimeInterval(Double($0) * 3600)) }
+        #expect(streak(sessions) == nil)
+    }
+
+    /// And the same when the days never touch: five days apiece, every one of
+    /// them alone.
+    @Test("Days that never touch yield no run")
+    func scatteredDaysYieldNothing() {
+        let sessions = [1, 3, 5, 7, 9].map { session(on: date(2026, 4, $0)) }
+        #expect(streak(sessions) == nil)
+    }
+
+    /// A month boundary is not a gap. January has 31 days, February follows it,
+    /// and a run across the join is one run.
+    @Test("A run crosses a month boundary")
+    func runCrossesAMonthBoundary() throws {
+        let sessions = [
+            session(on: date(2026, 1, 30)),
+            session(on: date(2026, 1, 30, hour: 15)),
+            session(on: date(2026, 1, 31)),
+            session(on: date(2026, 2, 1)),
+            session(on: date(2026, 2, 2)),
+        ]
+        let fact = try #require(streak(sessions))
+
+        #expect(fact.figure == "4 days", Comment(rawValue: "figure was \(fact.figure)"))
+        // Four distinct days out of five sessions: two on the 30th are one day.
+        #expect(fact.sentence.contains("out of 4 days"), Comment(rawValue: fact.sentence))
+    }
+
+    /// The same across the end of a year, which is the boundary any arithmetic
+    /// on month numbers gets wrong.
+    @Test("A run crosses a year boundary")
+    func runCrossesAYearBoundary() throws {
+        let sessions = [
+            session(on: date(2025, 12, 30)),
+            session(on: date(2025, 12, 31)),
+            session(on: date(2026, 1, 1)),
+            session(on: date(2026, 1, 2)),
+            session(on: date(2026, 1, 3)),
+        ]
+        let fact = try #require(streak(sessions))
+        #expect(fact.figure == "5 days", Comment(rawValue: "figure was \(fact.figure)"))
+    }
+
+    /// Nights are the watch's record, not the person's, and a run of them would
+    /// be a run of days somebody wore a charged watch.
+    @Test("Imported sleep does not build or extend a run")
+    func sleepDoesNotCount() throws {
+        let logged = [
+            session(on: date(2026, 5, 4)),
+            session(on: date(2026, 5, 5)),
+            session(on: date(2026, 5, 6)),
+            session(on: date(2026, 5, 20)),
+            session(on: date(2026, 5, 22)),
+        ]
+        // A night on each of the days that would have joined the run to the
+        // stragglers, if nights counted.
+        let nights = (7...19).map {
+            session(on: date(2026, 5, $0, hour: 1), minutes: 7 * 60, kind: .sleep)
+        }
+        let fact = try #require(streak(logged + nights))
+
+        #expect(fact.figure == "3 days", Comment(rawValue:
+            "reported \(fact.figure) — nights nobody logged are in the run"))
+        #expect(fact.sentence.contains("out of 5 days"), Comment(rawValue: fact.sentence))
+    }
+
+    /// The point of a revision: a longer run is news, and a key that ignored the
+    /// number would have said "three" once and never mentioned four.
+    @Test("A longer run is a new fact")
+    func longerRunIsANewFact() throws {
+        let base = (5...7).map { session(on: date(2026, 6, $0)) }
+            + [session(on: date(2026, 6, 12)), session(on: date(2026, 6, 20))]
+        let before = try #require(streak(base))
+
+        let grown = base + [session(on: date(2026, 6, 8))]
+        let after = try #require(streak(grown))
+
+        #expect(before.figure == "3 days")
+        #expect(after.figure == "4 days")
+        #expect(DailyFact.key(for: before) != DailyFact.key(for: after), Comment(rawValue:
+            "both keyed \(DailyFact.key(for: before)) — the longer run could never be shown"))
+    }
+
+    /// And the converse, which is what stops it nagging: logging more without
+    /// beating the run is the same fact, and a run of equal length appearing
+    /// again is the same number.
+    @Test("A run that has not grown is the same fact")
+    func unchangedRunIsTheSameFact() throws {
+        let base = (5...7).map { session(on: date(2026, 7, $0)) }
+            + [session(on: date(2026, 7, 12)), session(on: date(2026, 7, 20))]
+        let before = try #require(streak(base))
+
+        // Another three in a row, later on. Same number, so nothing new is said.
+        let repeated = base + (14...16).map { session(on: date(2026, 7, $0)) }
+        let after = try #require(streak(repeated))
+
+        #expect(after.figure == "3 days")
+        #expect(DailyFact.key(for: before) == DailyFact.key(for: after), Comment(rawValue:
+            "\(DailyFact.key(for: before)) became \(DailyFact.key(for: after)) — "
+            + "an unchanged run would be dispensed twice"))
+    }
+
+    /// The copy sweep. The objection this generator was built over was about what
+    /// a streak makes an app say, so this is the test that holds the concession:
+    /// no instruction, no second person imperative, nothing about tomorrow or
+    /// about continuing, and not the word that carries the thing somebody loses.
+    @Test("The sentence states a count and stops")
+    func copyIsAStatementOfWhatHappened() throws {
+        let sessions = (5...9).map { session(on: date(2026, 8, $0)) }
+        let fact = try #require(streak(sessions))
+        let words = "\(fact.subject.title) \(fact.figure) \(fact.sentence)".lowercased()
+
+        for banned in [
+            // The vocabulary lists the narration guard sweeps for.
+            "because", "causes", "leads to", "makes you", "due to", "results in",
+            "average", "most people", "typical", "normal", "everyone",
+            "stress", "mood", "healthy", "energy level",
+            "you should", "should", "try", "consider", "aim for", "aim to",
+            "avoid", "make sure", "keep doing", "stick to", "start doing",
+            "remember to", "be sure", "ensure", "recommend", "suggest",
+            // And what this fact in particular could reach for.
+            "streak", "tomorrow", "today", "so far today", "keep it up",
+            "keep going", "don't break", "do not break", "goal", "target",
+            "continue", "maintain", "on track", "in a row now", "current",
+            "next", "still", "again", "best yet", "congratulations", "well done",
+        ] {
+            #expect(!words.contains(banned), Comment(rawValue: "\"\(words)\" contains \"\(banned)\""))
+        }
+
+        // No second person imperative: the sentence talks about a record, and the
+        // only "you" it is allowed is the possessive naming whose record it is.
+        #expect(fact.sentence.contains("your record"), Comment(rawValue: fact.sentence))
+        #expect(!fact.sentence.lowercased().contains("you have to"))
+        #expect(!fact.sentence.lowercased().contains("you can"))
+    }
+
+    /// Determinism, which for this generator also means the clock cannot reach
+    /// it: the same record in any order gives the same number, and nothing about
+    /// the number is relative to now.
+    @Test("The same record gives the same run in any order")
+    func runIsDeterministic() throws {
+        let sessions = [
+            session(on: date(2026, 9, 3)),
+            session(on: date(2026, 9, 4)),
+            session(on: date(2026, 9, 5)),
+            session(on: date(2026, 9, 9)),
+            session(on: date(2026, 9, 10)),
+            session(on: date(2026, 9, 14)),
+        ]
+        let forwards = try #require(streak(sessions))
+        let backwards = try #require(streak(sessions.reversed()))
+        let shuffled = try #require(streak(sessions.shuffled()))
+
+        for other in [backwards, shuffled] {
+            #expect(forwards.figure == other.figure)
+            #expect(forwards.sentence == other.sentence)
+            #expect(forwards.revision == other.revision)
+            #expect(DailyFact.key(for: forwards) == DailyFact.key(for: other))
+        }
+    }
+
+    /// A new topic widens the rotation, which is the reason a fourth generator
+    /// was worth having at all — the variety axis is the topic and the shape.
+    @Test("The run is its own topic in the rotation")
+    func runIsItsOwnVarietyPair() throws {
+        let sessions = (5...9).map { session(on: date(2026, 10, $0)) }
+        let fact = try #require(streak(sessions))
+
+        #expect(DailyFact.pair(of: fact) == "record.daysInARow.best")
+        #expect(DailyFact.parts(ofKey: DailyFact.key(for: fact))?.subject == "record.daysInARow")
+        #expect(DailyFact.parts(ofKey: DailyFact.key(for: fact))?.kind == "best")
+    }
+}

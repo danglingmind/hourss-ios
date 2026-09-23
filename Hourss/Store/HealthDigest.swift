@@ -167,6 +167,15 @@ struct HealthDigest {
         /// How much was logged in a single day.
         case dayTotal
 
+        /// The longest run of consecutive days the record holds.
+        ///
+        /// Named for the measurement rather than for the idea: this is a count
+        /// of days that were consecutive, not a streak anybody is holding. The
+        /// distinction is the whole of what `RecordFacts` concedes to the
+        /// objection recorded above its generator, and the naming is where the
+        /// concession is easiest to lose.
+        case daysInARow
+
         /// Names the subject, in the same register as `HealthMetric.title`: a
         /// noun for what was measured, never a verdict on it.
         var title: String {
@@ -174,6 +183,7 @@ struct HealthDigest {
             case .length: "Time in one stretch"
             case .coverage: "Times of day"
             case .dayTotal: "A day's total"
+            case .daysInARow: "Days in a row"
             }
         }
     }

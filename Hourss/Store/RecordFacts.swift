@@ -51,19 +51,57 @@ enum RecordFacts {
             longestStretch(eligible, activityName: activityName),
             newestTimeOfDay(eligible, feeling: feeling, calendar: calendar),
             fullestDay(eligible, calendar: calendar),
+            daysInARow(eligible, calendar: calendar),
         ].compactMap { $0 }
     }
 
-    /// Why there is no streak generator.
+    /// Why there is a streak generator, and what the objection to it bought.
     ///
-    /// "Six days running" is descriptive and would pass every rule in this file,
-    /// and it is still the wrong fact for this app to tell. A streak is a thing
-    /// somebody can break, and the moment it exists the app has an opinion about
-    /// how often you log — on a screen whose empty state reads "Whatever you're
-    /// doing right now is enough." Every other fact here reports something that
-    /// happened; a streak reports something you are at risk of losing. That is a
-    /// different product, and adopting it should be a decision somebody makes out
-    /// loud rather than a generator that arrives with four others.
+    /// **The argument that used to stand here**, kept because it was right about
+    /// the risk and is the reason `daysInARow` has the shape it has: "Six days
+    /// running" is descriptive and would pass every rule in this file, and it is
+    /// still the wrong fact for this app to tell. A streak is a thing somebody
+    /// can break, and the moment it exists the app has an opinion about how often
+    /// you log — on a screen whose empty state reads "Whatever you're doing right
+    /// now is enough." Every other fact here reports something that happened; a
+    /// streak reports something you are at risk of losing. That is a different
+    /// product, and adopting it should be a decision somebody makes out loud
+    /// rather than a generator that arrives with four others.
+    ///
+    /// **It was made out loud, and it went the other way.** The product owner
+    /// read the paragraph above and asked for the generator anyway. That is their
+    /// call and it is the decision; this note exists so the next person to read
+    /// `daysInARow` finds the concern recorded rather than a generator that looks
+    /// like nobody weighed it.
+    ///
+    /// **What the generator concedes to it**, which is everything that could be
+    /// conceded without refusing the request:
+    ///
+    /// - It reports the **longest** run so far, never the current one. A longest
+    ///   run is a superlative over the record exactly like the other three, and
+    ///   history cannot be broken — a fortnight of logging nothing leaves it
+    ///   standing at the number it reached. A *current* streak is the thing the
+    ///   objection is actually about: a live number whose only movement is
+    ///   downward, which a reader is implicitly being asked to protect. This is
+    ///   the load-bearing concession and the one to defend if anything here is
+    ///   ever revisited.
+    /// - Nothing in the copy addresses the reader. No target, no goal, no
+    ///   tomorrow, no continuing: the sentence states a count that happened and
+    ///   stops. The copy sweep in `RecordFactsTests` holds it there, against the
+    ///   same vocabulary lists `NarrationGuard` uses plus the words this fact in
+    ///   particular could reach for.
+    /// - The word "streak" never reaches the screen. The title is "Days in a row"
+    ///   and the sentence says "run of consecutive days", because "streak" is the
+    ///   word that carries the thing somebody can lose.
+    /// - Nothing about it moves with the clock. The number comes from the days
+    ///   the record holds and from nothing else, so it does not decay at midnight
+    ///   and there is no moment at which the app notices a run has ended. That is
+    ///   also what keeps it deterministic, which is a tested property.
+    ///
+    /// **What is left over**, honestly: a number that can grow is a number
+    /// somebody can want to grow, and this app now has one. The shape above
+    /// removes the app's side of that — it never asks — but it cannot remove the
+    /// reader's.
 
     // MARK: - Generators
 
@@ -211,6 +249,86 @@ enum RecordFacts {
             raised: true,
             revision: ISO8601DateFormatter.string(
                 from: top.key, timeZone: .current, formatOptions: [.withFullDate])
+        )
+    }
+
+    /// The longest run of consecutive days the record covers.
+    ///
+    /// Read the note above the generators before changing anything here: the
+    /// choice of *longest* over *current* is the whole of what makes this fact
+    /// admissible in this file, and swapping it is not a refactor.
+    ///
+    /// Days are the unit, and `recordDay` is the app's spelling of which day a
+    /// session belongs to — the same one Today and the Journal file by, so a run
+    /// counted here matches the days somebody can see rows on. For the sessions
+    /// that reach this function it resolves to the start day, because imported
+    /// sleep never reaches it.
+    ///
+    /// **Imported sleep does not count toward a run, and the exclusion matters
+    /// more here than anywhere else in this file.** A watch records a night
+    /// whether or not anybody opened the app, so a run built from nights would be
+    /// a run of days the person owned a charged watch, credited to them as a
+    /// record they kept. It would also almost never break, which would make the
+    /// number both large and meaningless. `pool` already filters on
+    /// `isEligibleForPatterns`, the existing spelling of "a session the record
+    /// should reason about", and this generator inherits it rather than inventing
+    /// a second rule.
+    private static func daysInARow(
+        _ eligible: [Session],
+        calendar: Calendar
+    ) -> HealthDigest.Fact? {
+        // Sorted out of a set, so the arithmetic below sees each day once and in
+        // one order. Two sessions on a Tuesday are one Tuesday.
+        let days = Set(eligible.map(\.recordDay)).sorted()
+        // Three days at least. On two, the longest run is either one or two and
+        // both readings are arithmetic on a record that has had no chance to be
+        // anything else — the same reason `minimumSessions` exists.
+        guard days.count >= 3 else { return nil }
+
+        var longest = 1
+        var current = 1
+        for (previous, day) in zip(days, days.dropFirst()) {
+            // Whole calendar days apart, not 86,400 seconds apart: the day a
+            // clock change falls on is still the next day, and a run that
+            // straddles a month or a year boundary is still a run.
+            let gap = calendar.dateComponents([.day], from: previous, to: day).day ?? 0
+            current = gap == 1 ? current + 1 : 1
+            longest = max(longest, current)
+        }
+        // A record of scattered single days has no run in it, and "1 day in a
+        // row" is not a fact. Nothing is said rather than something trivial.
+        guard longest >= 2 else { return nil }
+
+        return HealthDigest.Fact(
+            figure: "\(longest) days",
+            // A count that happened, stated the way the other three state
+            // theirs. No second person beyond the possessive naming whose record
+            // it is, no imperative, and nothing about what comes next. "Run of
+            // consecutive days" rather than "streak" — see the note above the
+            // generators. The denominator is the house convention: a superlative
+            // says what it is a superlative of.
+            //
+            // "Not counting nights read from Health" is the same disclosure
+            // `fullestDay` makes and for the same reason: the day headings on the
+            // screen this lands on count imported nights, so a run computed
+            // without them has to say so or it reads as a fault in the app.
+            sentence: "That is the longest run of consecutive days with something "
+                + "logged on them, not counting nights read from Health, out of "
+                + "\(days.count) days in your record.",
+            kind: .best,
+            mark: .none,
+            strength: 0.05,
+            subject: .record(.daysInARow),
+            raised: true,
+            // The count itself, and nothing else. A longer run than the last one
+            // reported is a different fact and is dispensed again; the same
+            // number is the same fact however often the pool is rebuilt. A second
+            // run of equal length later in the record is the same number and so
+            // not news, which is why the dates the run covers are deliberately
+            // not in here: keying on them would re-dispense "your longest is
+            // still four" every time four happened again, which is the nag this
+            // fact was most at risk of becoming.
+            revision: "\(longest)"
         )
     }
 }
