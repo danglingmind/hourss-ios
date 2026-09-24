@@ -213,8 +213,19 @@ enum DebugFixture {
         // without this the one day somebody is most likely to be looking at is the
         // one day with no imported night on it — which is exactly backwards.
         // Fixed rather than seeded, like the rest of today's record.
+        //
+        // The night has to have *finished*. Seeded at a fixed 6:40 it ended in
+        // the future for anybody looking before breakfast, which is a session
+        // that has not happened yet — and at one in the morning it covered the
+        // hour the log sheet wanted to default into, so the sheet correctly
+        // searched back and offered a slot on the previous evening instead. A
+        // fixture that claims somebody is currently asleep is wrong before it is
+        // inconvenient.
         if let restId = byName["Personal / Rest"],
-           let wake = cal.date(bySettingHour: 6, minute: 40, second: 0, of: today) {
+           let wakeToday = cal.date(bySettingHour: 6, minute: 40, second: 0, of: today) {
+            let wake = wakeToday <= Date()
+                ? wakeToday
+                : wakeToday.addingTimeInterval(-24 * 3600)
             sessions.append(Session(
                 activityId: restId,
                 startAt: wake.addingTimeInterval(-7.5 * 3600),

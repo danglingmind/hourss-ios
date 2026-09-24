@@ -115,11 +115,10 @@ struct StartSessionView: View {
             resetSlotToLastHour()
             adoptPendingSlot()
         }
-        .onChange(of: startMinutes) { _, _ in
-            // Shortening the window from the left must not leave a slot that ends
-            // in the future.
-            durationMinutes = min(durationMinutes, maxDuration)
-        }
+        // No `onChange` clamp any more. It existed because the sliders could
+        // leave a slot ending in the future, and it is now a second opinion about
+        // a question `SlotGeometry` has already answered — one that could shorten
+        // a slot the geometry had just declared legal.
     }
 
     // MARK: - Sections
@@ -167,24 +166,26 @@ struct StartSessionView: View {
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Eyebrow("Or pick it on the day")
                     SlotPicker(
-                        day: calendarDay,
+                        window: loggableWindow,
                         logged: loggedSpans,
-                        now: openedAt,
-                        start: Binding(get: { slotStart }, set: { moveSlot(start: $0) }),
-                        end: Binding(get: { slotEnd }, set: { moveSlot(end: $0) })
+                        start: Binding(get: { slotStart }, set: { setSlot(start: $0) }),
+                        end: Binding(get: { slotEnd }, set: { setSlot(end: $0) })
                     )
                     .accessibilityIdentifier("slot-picker")
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(slotStart.formatted(.dateTime.hour().minute())) – \(slotEnd.formatted(.dateTime.hour().minute()))")
-                        .textStyle(.dayNumeral)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Text(formatMinutes(Int(durationMinutes)))
-                        .textStyle(.label)
-                        .foregroundStyle(Color.muted)
+                // The strip places it; these land it. Fourteen points to the hour
+                // is a scale to read rather than one to aim at, so the quarter
+                // hour has to be reachable some other way.
+                VStack(spacing: Space.xs) {
+                    SlotStepper(title: "Started", value: slotStart) { nudge(.start, by: $0) }
+                    SlotStepper(title: "Until", value: slotEnd) { nudge(.end, by: $0) }
                 }
+                .accessibilityIdentifier("slot-steppers")
+
+                Text(formatMinutes(Int(durationMinutes)))
+                    .textStyle(.label)
+                    .foregroundStyle(Color.muted)
 
                 HRule()
             }
@@ -225,36 +226,70 @@ struct StartSessionView: View {
         windowStart.addingTimeInterval(nowMinutes * 60)
     }
 
-    private var calendarDay: Date {
-        Calendar.current.startOfDay(for: slotStart)
-    }
-
-    /// Everything already on the day being drawn, as spans.
-    ///
-    /// Read from the record rather than from the overlap check, because the point
-    /// is to show what is there before anybody aims at it — the old note appeared
-    /// only once a slot had already been dragged on top of something.
-    private var loggedSpans: [DateInterval] {
-        store.sessions(on: calendarDay).compactMap { session in
-            guard let end = session.endAt, end > session.startAt else { return nil }
-            return DateInterval(start: session.startAt, end: end)
-        }
-    }
-
     /// The last `minutes` before now, which is what "just finished" means.
+    ///
+    /// Through `SlotGeometry` like everything else. This used to write the slot
+    /// straight out, which is how a preset could land on top of a session the
+    /// sheet was already drawing two lines above it.
     private func setPreset(_ minutes: Int) {
-        durationMinutes = min(Double(minutes), Self.maxDurationMinutes)
-        startMinutes = max(0, nowMinutes - durationMinutes)
-        durationMinutes = min(durationMinutes, maxDuration)
+        guard let placed = SlotGeometry.place(
+            length: Double(minutes) * 60, around: openedAt,
+            in: loggableWindow, logged: loggedSpans
+        ) else { return }
+        write(placed)
     }
 
-    /// The strip hands back dates; the sheet stores minutes from `windowStart`.
-    private func moveSlot(start newStart: Date? = nil, end newEnd: Date? = nil) {
-        let from = newStart ?? slotStart
-        let to = newEnd ?? slotEnd
-        guard to > from else { return }
-        startMinutes = max(0, from.timeIntervalSince(windowStart) / 60)
-        durationMinutes = max(Self.stepMinutes, to.timeIntervalSince(from) / 60)
+    /// A handle dragged on the strip. Already clamped by the picker; written here
+    /// through the same gate anyway, because a binding is a public way in and the
+    /// guarantee should not depend on who calls it.
+    private func setSlot(start newStart: Date? = nil, end newEnd: Date? = nil) {
+        let edge: SlotGeometry.Edge = newStart != nil ? .start : .end
+        let moment = newStart ?? newEnd ?? slotStart
+        guard let moved = SlotGeometry.resize(
+            currentSlot, edge: edge, to: moment,
+            in: loggableWindow, logged: loggedSpans
+        ) else { return }
+        write(moved)
+    }
+
+    private func nudge(_ edge: SlotGeometry.Edge, by steps: Int) {
+        guard let moved = SlotGeometry.nudge(
+            currentSlot, edge: edge, by: steps,
+            in: loggableWindow, logged: loggedSpans
+        ) else { return }
+        write(moved)
+    }
+
+    private var currentSlot: DateInterval {
+        DateInterval(start: slotStart, end: max(slotEnd, slotStart.addingTimeInterval(60)))
+    }
+
+    /// The one place the slot is stored, so there is one place to be wrong.
+    private func write(_ slot: DateInterval) {
+        startMinutes = max(0, slot.start.timeIntervalSince(windowStart) / 60)
+        durationMinutes = max(Self.stepMinutes, slot.duration / 60)
+    }
+
+    /// The hours a slot may sit in: the spec's longest valid session, ending now.
+    ///
+    /// The same window `windowStart` has always described, said once as an
+    /// interval so the picker and the geometry cannot disagree about it. It
+    /// deliberately crosses midnight — see the note on `windowStart`.
+    private var loggableWindow: DateInterval {
+        DateInterval(start: windowStart, end: openedAt)
+    }
+
+    /// Everything already logged inside that window, as spans — the thing that
+    /// used to be invisible until somebody collided with it.
+    ///
+    /// Taken from every session rather than from one calendar day, because the
+    /// window spans two of them for anybody logging after midnight.
+    private var loggedSpans: [DateInterval] {
+        store.sessions.compactMap { session in
+            guard let end = session.endAt, end > session.startAt else { return nil }
+            let span = DateInterval(start: session.startAt, end: end)
+            return span.intersects(loggableWindow) ? span : nil
+        }
     }
 
     private var activityPicker: some View {
@@ -323,11 +358,18 @@ struct StartSessionView: View {
 
     // MARK: - Actions
 
+    /// The hour just gone, which is the one most likely to be missing.
+    ///
+    /// Through the geometry, so a sheet opened while the last hour is already
+    /// accounted for lands in whatever room there is behind it rather than on
+    /// top of the session that is there. That case was not rare — the sheet is
+    /// most often opened right after something ended.
     private func resetSlotToLastHour() {
-        // The hour just gone is the one most likely to be missing.
-        durationMinutes = min(60, max(Self.stepMinutes, nowMinutes))
-        startMinutes = max(0, nowMinutes - durationMinutes)
-        durationMinutes = min(durationMinutes, maxDuration)
+        guard let placed = SlotGeometry.place(
+            length: 3600, around: openedAt,
+            in: loggableWindow, logged: loggedSpans
+        ) else { return }
+        write(placed)
     }
 
     /// Takes up an empty hour somebody tapped in a day's hour strip.
@@ -349,11 +391,13 @@ struct StartSessionView: View {
         guard canLogPast else { return }
         mode = .past
 
-        let offset = slot.timeIntervalSince(windowStart) / 60
-        guard offset >= 0, offset <= latestStart else { return }
-
-        startMinutes = (offset / Self.stepMinutes).rounded() * Self.stepMinutes
-        durationMinutes = min(60, maxDuration)
+        // Anchored at the start of the tapped hour rather than its end: the hour
+        // was tapped because it was empty, so the slot belongs inside it.
+        guard let placed = SlotGeometry.place(
+            length: 3600, around: slot, endingAt: false,
+            in: loggableWindow, logged: loggedSpans
+        ) else { return }
+        write(placed)
     }
 
     private func save() {

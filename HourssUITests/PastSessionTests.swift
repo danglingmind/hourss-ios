@@ -118,18 +118,7 @@ final class PastSessionTests: XCTestCase {
     }
 
     /// The whole point: a past slot becomes a real, rated session in the record.
-    func testLoggingPastTimeLandsInTheRecordWithARating() throws {
-        // The default slot is the hour just gone, and this asserts it appears on
-        // *Today*. Within an hour of midnight the hour just gone is yesterday, so
-        // the session lands correctly and correctly does not show here — the test
-        // is wrong at that moment, not the app. Skipped rather than made
-        // insensitive: asserting it reaches the record via the Journal would pass
-        // at midnight and stop checking the thing this test is named for.
-        let hour = Calendar.current.component(.hour, from: Date())
-        let minute = Calendar.current.component(.minute, from: Date())
-        try XCTSkipIf(hour == 0 && minute < 55,
-                      "Within the first hour of the day the last hour belongs to yesterday")
-
+    func testLoggingPastTimeLandsInTheRecordWithARating() {
         launchToToday()
 
         // Today is still drawing itself when the tab bar appears, and a count

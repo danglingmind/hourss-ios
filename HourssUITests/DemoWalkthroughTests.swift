@@ -197,14 +197,28 @@ final class DemoWalkthroughTests: XCTestCase {
 
         let days = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'day-'"))
         XCTAssertTrue(days.waitForFirstMatch(), "The journal listed no days to open")
-        days.element(boundBy: 0).tapWhenReady()
-        // Sessions Hourss imported from Health are marked wherever they appear.
-        // The fixture seeds a night on every day, so the most recent one has at
-        // least that.
-        XCTAssertTrue(app.staticTexts["Health"].firstMatch.waitForExistence(timeout: UITest.timeout),
-                      "An imported session must say that it was imported")
-        capture("journal-day-detail")
-        tapID("back")
+        // Sessions Hourss imported from Health are marked wherever they appear,
+        // and a night is the imported thing every day has.
+        //
+        // Every day but one. A night is filed under the morning it ended, so the
+        // current day only has one once somebody has woken up on it — before
+        // then the most recent night belongs to yesterday, and the fixture no
+        // longer pretends otherwise by seeding a sleep that ends hours from now.
+        // So the check walks back until it finds a day with a night rather than
+        // assuming the newest one has it.
+        var foundImport = false
+        for index in 0..<min(3, days.count) {
+            days.element(boundBy: index).tapWhenReady()
+            if app.staticTexts["Health"].firstMatch.waitForExistence(timeout: UITest.settle) {
+                foundImport = true
+                capture("journal-day-detail")
+                tapID("back")
+                break
+            }
+            tapID("back")
+            _ = days.waitForFirstMatch()
+        }
+        XCTAssertTrue(foundImport, "No recent day marks its imported session")
 
         // You — Y1, Y2, Y3, Y6
         //

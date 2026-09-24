@@ -1,51 +1,60 @@
 import SwiftUI
 
-/// Choosing a past slot by pointing at it on the day, rather than describing it
-/// with two sliders.
+/// The day, with what is already on it, and a slot you move by its two ends.
 ///
-/// **What this replaces, and why.** The slot used to be two coupled controls: a
-/// slider for the start and another for the duration, where moving the first
-/// changed what the second could say. Four things were wrong with that at once.
-/// Two controls set one thing. Sixteen hours across a phone's width is sixty-four
-/// quarter-hour steps at about five points each, which is not a distance a thumb
-/// can aim. Neither control was the thing being chosen — a block of time on a
-/// particular afternoon — so the person had to translate "that meeting after
-/// lunch" into two positions and then read the result back to check. And the
-/// sessions already in the record were invisible until you landed on one, at
-/// which point the sheet told you that you had collided with something it could
-/// have shown you all along.
+/// **Why handles rather than a drag across the strip.** The first version worked
+/// the way a selection rectangle does: press somewhere, drag, and the slot is
+/// whatever lies between the two points. Three things went wrong with that at
+/// once, and all three were reported the same day.
 ///
-/// So: the day itself, with what is already on it drawn in, and a drag that marks
-/// out the part you mean. The same shape `DayHours` draws on Today, which is
-/// deliberate — somebody who has looked at their day on that screen should
-/// recognise this one without being told it is the same picture.
+/// It was ambiguous. One drag had to mean both ends, so there was no way to move
+/// one of them without redrawing the other from scratch.
 ///
-/// **Occupied time refuses the drag rather than warning about it.** A slot that
-/// cannot be dragged over an existing session cannot overlap one, so the note
-/// that used to appear after the fact has nothing left to say. That is the whole
-/// of the indicator somebody asked for: not a warning about a collision, but a
-/// drag that cannot reach one.
+/// It jumped. Dragging back across an existing session put the proposed start
+/// inside it, which the clamp refused, and then one step further the whole
+/// selection reappeared on the far side of the block. Nothing was wrong with the
+/// clamp; the interaction was asking it a question with two answers.
+///
+/// And a quarter hour is three and a half points. A day across a phone is about
+/// fourteen points to the hour, which is a fine scale to *read* and no scale at
+/// all to *aim at* — a fingertip covers forty minutes. That is not a bug to fix,
+/// it is what putting a whole day on one line costs, so the strip is for placing
+/// and `SlotStepper` underneath it is for landing.
+///
+/// **Occupied time is unreachable rather than warned about.** Everything here
+/// goes through `SlotGeometry`, which is now also what the presets and the
+/// sheet's default use. The first version guarded the drag and only the drag, so
+/// a preset could land straight on top of a session — the overlap note had been
+/// deleted on the strength of a guarantee that covered one path in five.
 struct SlotPicker: View {
-    /// Midnight of the day being drawn.
-    let day: Date
-    /// What is already logged, as spans within that day.
+    /// The stretch the strip draws, which is the stretch a slot may sit in.
+    ///
+    /// **Not the calendar day, deliberately.** Keying this to midnight put back a
+    /// bug the sheet had already fixed once: at half past midnight the day is
+    /// thirty minutes old, so there was nowhere to log the evening that had just
+    /// finished. `StartSessionView`'s own note on its window says it plainly —
+    /// the day boundary is a property of the calendar rather than of when
+    /// somebody stopped working, and this control has no business enforcing it.
+    ///
+    /// It is also a third narrower than a day, which the scale needed: sixteen
+    /// hours across a phone is about twenty-one points to the hour rather than
+    /// fourteen.
+    let window: DateInterval
     let logged: [DateInterval]
-    /// Beyond this, nothing has happened yet. Dragging stops here.
-    let now: Date
 
     @Binding var start: Date
     @Binding var end: Date
 
-    /// Quarter hours, matching the grid the whole sheet works in.
-    var step: TimeInterval = 15 * 60
-
     @Environment(\.surface) private var surface
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let hours = 24
-    private static let trackHeight: CGFloat = 44
+    private static let trackHeight: CGFloat = 52
 
-    private var dayEnd: Date { day.addingTimeInterval(TimeInterval(Self.hours) * 3600) }
+    @State private var dragging: SlotGeometry.Edge?
+
+    private var slot: DateInterval {
+        DateInterval(start: start, end: max(end, start.addingTimeInterval(60)))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
@@ -54,25 +63,15 @@ struct SlotPicker: View {
                     Rectangle().fill(surface.track)
 
                     ForEach(Array(logged.enumerated()), id: \.offset) { _, span in
-                        block(span, in: geo.size.width)
-                            .fill(surface.ruleColor)
+                        rect(span, in: geo.size.width).fill(surface.ruleColor)
                     }
 
-                    // Beyond now, drawn as hatching rather than left blank: an
-                    // empty afternoon that cannot be chosen looks the same as one
-                    // that can, and somebody would drag at it before learning
-                    // otherwise.
-                    if now < dayEnd {
-                        block(DateInterval(start: now, end: dayEnd), in: geo.size.width)
-                            .fill(surface.ruleColor.opacity(0.28))
-                    }
-
-                    block(DateInterval(start: start, end: end), in: geo.size.width)
-                        .fill(Color.lime)
-                        .overlay {
-                            block(DateInterval(start: start, end: end), in: geo.size.width)
-                                .stroke(surface.foreground, lineWidth: 2)
-                        }
+                    // Nothing is drawn for "the future" any more: the window ends
+                    // at now, so there is none of it on screen to mistake for
+                    // free time.
+                    rect(slot, in: geo.size.width).fill(Color.lime)
+                    handle(at: start, in: geo.size.width)
+                    handle(at: end, in: geo.size.width)
                 }
                 .frame(height: Self.trackHeight)
                 .contentShape(.rect)
@@ -84,137 +83,139 @@ struct SlotPicker: View {
 
             axis
         }
+        // One element, and deliberately not adjustable: a strip cannot be aimed
+        // at without sight, and the steppers below are a better control for
+        // everyone rather than an accessible alternative to this one.
         .accessibilityElement()
-        .accessibilityLabel("Slot on the day")
+        .accessibilityLabel("The hours behind you, with this slot on them")
         .accessibilityValue("\(clock(start)) to \(clock(end))")
-        // Adjustable rather than a drag target: a blind reader cannot aim at a
-        // strip, and the increment is the same quarter hour the drag snaps to.
-        .accessibilityAdjustableAction { direction in
-            let delta: TimeInterval = direction == .increment ? step : -step
-            let moved = start.addingTimeInterval(delta)
-            let length = end.timeIntervalSince(start)
-            // Through the same clamp the drag uses, so the two cannot disagree
-            // about what is reachable. A shift that would land on an occupied
-            // hour returns nil and the slot stays where it was.
-            guard let clamped = Self.clamp(
-                DateInterval(start: moved, duration: length),
-                within: day, to: dayEnd, logged: logged, now: now
-            ), clamped.duration == length else { return }
-            start = clamped.start
-            end = clamped.end
-        }
     }
 
     // MARK: - Drawing
 
-    private func block(_ span: DateInterval, in width: CGFloat) -> Path {
-        let total = dayEnd.timeIntervalSince(day)
-        let x = CGFloat(max(0, span.start.timeIntervalSince(day)) / total) * width
-        let w = CGFloat(min(total, span.end.timeIntervalSince(day)) / total) * width - x
-        return Path(CGRect(x: x, y: 0, width: max(0, w), height: Self.trackHeight))
+    private func x(of moment: Date, in width: CGFloat) -> CGFloat {
+        let total = window.duration
+        return CGFloat(min(1, max(0, moment.timeIntervalSince(window.start) / total))) * width
     }
 
+    private func rect(_ span: DateInterval, in width: CGFloat) -> Path {
+        let from = x(of: span.start, in: width)
+        let to = x(of: span.end, in: width)
+        return Path(CGRect(x: from, y: 0, width: max(0, to - from), height: Self.trackHeight))
+    }
+
+    /// A grip standing proud of the track at both ends, so each reads as
+    /// something to take hold of rather than as where a fill happens to stop.
+    private func handle(at moment: Date, in width: CGFloat) -> some View {
+        Rectangle()
+            .fill(surface.foreground)
+            .frame(width: 4, height: Self.trackHeight + 12)
+            .offset(x: min(max(0, x(of: moment, in: width) - 2), width - 4))
+            .allowsHitTesting(false)
+    }
+
+    /// Real clock times rather than 00/06/12/18, because the window no longer
+    /// starts at midnight and labelling it as though it did would be a lie in the
+    /// one place somebody looks to orient themselves.
     private var axis: some View {
+        // Three leading marks and one trailing, not four and one: a twelve-hour
+        // clock reads "12:41 AM" at ten characters, and five of those across a
+        // phone put the last leading label straight through the trailing one.
         HStack(spacing: 0) {
-            ForEach(["00", "06", "12", "18"], id: \.self) { mark in
-                Text(mark)
+            ForEach(0..<3, id: \.self) { third in
+                Text(clock(window.start.addingTimeInterval(window.duration * Double(third) / 3)))
                     .textStyle(.label)
                     .foregroundStyle(surface.tertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .overlay(alignment: .trailing) {
-            Text("24").textStyle(.label).foregroundStyle(surface.tertiary)
+            Text(clock(window.end))
+                .textStyle(.label)
+                .foregroundStyle(surface.tertiary)
         }
         .accessibilityHidden(true)
     }
 
     // MARK: - Dragging
 
-    /// Where the drag began, so the slot grows from there in either direction.
-    @State private var anchor: Date?
-
     private func drag(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { gesture in
-                let touched = snapped(date(atX: gesture.location.x, width: width))
-                let from = anchor ?? touched
-                if anchor == nil { anchor = touched }
+                // Decided once, from where the finger went down, and held for the
+                // rest of the gesture. Deciding per event is what let one drag
+                // change its mind about which end it was moving halfway across.
+                let edge = dragging ?? nearerEdge(toX: gesture.startLocation.x, width: width)
+                if dragging == nil { dragging = edge }
 
-                // A tap, or a drag that has not yet moved a whole step, means the
-                // default length rather than a zero-length slot.
-                let lower = min(from, touched)
-                let upper = max(from, touched)
-                let proposed = upper > lower
-                    ? DateInterval(start: lower, end: upper)
-                    : DateInterval(start: lower, duration: step * 4)
+                let moment = SlotGeometry.snap(date(atX: gesture.location.x, width: width),
+                                               from: window.start)
+                guard let moved = SlotGeometry.resize(
+                    slot, edge: edge, to: moment, in: window, logged: logged
+                ) else { return }
 
-                apply(proposed)
+                start = moved.start
+                end = moved.end
             }
-            .onEnded { _ in anchor = nil }
+            .onEnded { _ in dragging = nil }
     }
 
-    private func apply(_ proposed: DateInterval) {
-        guard let clamped = Self.clamp(proposed, within: day, to: dayEnd, logged: logged, now: now) else { return }
-        start = clamped.start
-        end = clamped.end
-    }
-
-    /// Clamps a proposed slot to the free time around where it was drawn.
-    ///
-    /// **This is the whole of the no-overlap guarantee**, which is why it is a
-    /// static function over values rather than three methods reading properties.
-    /// The sheet used to accept an overlapping slot and print a note about it
-    /// afterwards; that note is gone, because a slot growing toward an existing
-    /// session now stops at its edge and a drag across the whole afternoon lands
-    /// against whatever is already there. A bug here is therefore not a cosmetic
-    /// one — it is an overlapping session written to the record with nothing left
-    /// to catch it.
-    ///
-    /// Nil when there is no room at all, which leaves the previous slot standing:
-    /// a drag that starts inside an occupied hour should do nothing, not collapse
-    /// the selection to a point.
-    /// `nonisolated` on purpose. `SlotPicker` is a `View`, so the whole type is
-    /// inferred `@MainActor`, and a static function on it inherits that even
-    /// though it touches nothing isolated — pure arithmetic over four values.
-    /// Called from a test that is not on the main actor it then traps at runtime
-    /// rather than failing to compile, which crashes the test host and restarts
-    /// it, and xcodebuild goes on to report the partial totals from before the
-    /// crash as if they were the run. Marking it what it actually is costs
-    /// nothing and removes the whole class of that.
-    nonisolated static func clamp(
-        _ proposed: DateInterval,
-        within day: Date,
-        to dayEnd: Date,
-        logged: [DateInterval],
-        now: Date
-    ) -> DateInterval? {
-        // Anything the proposed start already sits inside has no free room around
-        // it to grow into.
-        guard !logged.contains(where: { $0.start <= proposed.start && proposed.start < $0.end }) else { return nil }
-
-        let nextBlock = logged.map(\.start).filter { $0 >= proposed.start }.min() ?? dayEnd
-        let previousEnd = logged.map(\.end).filter { $0 <= proposed.start }.max() ?? day
-
-        let ceiling = min(nextBlock, now)
-        let lower = max(previousEnd, max(day, proposed.start))
-        let upper = min(ceiling, proposed.end)
-        guard upper > lower else { return nil }
-        return DateInterval(start: lower, end: upper)
+    private func nearerEdge(toX x: CGFloat, width: CGFloat) -> SlotGeometry.Edge {
+        abs(x - self.x(of: start, in: width)) <= abs(x - self.x(of: end, in: width)) ? .start : .end
     }
 
     private func date(atX x: CGFloat, width: CGFloat) -> Date {
-        let total = dayEnd.timeIntervalSince(day)
-        let fraction = min(1, max(0, Double(x / max(1, width))))
-        return day.addingTimeInterval(total * fraction)
-    }
-
-    private func snapped(_ date: Date) -> Date {
-        let elapsed = date.timeIntervalSince(day)
-        return day.addingTimeInterval((elapsed / step).rounded() * step)
+        return window.start.addingTimeInterval(
+            window.duration * min(1, max(0, Double(x / max(1, width)))))
     }
 
     private func clock(_ date: Date) -> String {
         date.formatted(.dateTime.hour().minute())
+    }
+}
+
+/// Fifteen minutes at a time, on whichever end is named.
+///
+/// The strip cannot be aimed at to the quarter hour and nothing will make it so
+/// while it shows a whole day. This is where a slot is actually landed once the
+/// strip has put it roughly where it goes — and it is the only part of the
+/// control that works without sight.
+struct SlotStepper: View {
+    let title: String
+    let value: Date
+    let onStep: (Int) -> Void
+
+    @Environment(\.surface) private var surface
+
+    var body: some View {
+        HStack(spacing: Space.xs) {
+            VStack(alignment: .leading, spacing: 0) {
+                Eyebrow(title)
+                Text(value.formatted(.dateTime.hour().minute()))
+                    .textStyle(.stepName)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            Spacer(minLength: Space.xs)
+            button("−", steps: -1)
+            button("+", steps: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value.formatted(.dateTime.hour().minute()))
+        .accessibilityAdjustableAction { onStep($0 == .increment ? 1 : -1) }
+    }
+
+    private func button(_ glyph: String, steps: Int) -> some View {
+        Button { onStep(steps) } label: {
+            Text(glyph)
+                .font(.custom("DMSans-Medium", fixedSize: 22))
+                .foregroundStyle(surface.foreground)
+                .frame(width: Space.tapTarget, height: Space.tapTarget)
+                .background(Color.ink.opacity(0.05))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHidden(true)
     }
 }
