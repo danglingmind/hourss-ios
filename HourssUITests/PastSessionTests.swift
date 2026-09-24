@@ -70,7 +70,7 @@ final class PastSessionTests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["Start"].firstMatch.exists,
                       "The primary action should still read Start")
-        XCTAssertFalse(app.descendants(matching: .any)["slot-start"].firstMatch.exists,
+        XCTAssertFalse(app.descendants(matching: .any)["slot-picker"].firstMatch.exists,
                        "The time slot should stay out of the way until it is asked for")
         attach("24-start-session-now")
     }
@@ -81,43 +81,40 @@ final class PastSessionTests: XCTestCase {
         openSheet()
         app.descendants(matching: .any)["mode-Log past time"].firstMatch.tapWhenReady()
 
-        XCTAssertTrue(app.descendants(matching: .any)["slot-start"].firstMatch.waitForExistence(timeout: UITest.timeout),
-                      "No start-time slider")
-        XCTAssertTrue(app.descendants(matching: .any)["slot-duration"].firstMatch.exists,
-                      "No duration slider")
+        XCTAssertTrue(app.descendants(matching: .any)["slot-picker"].firstMatch.waitForExistence(timeout: UITest.timeout),
+                      "No slot picker")
+        XCTAssertTrue(app.descendants(matching: .any)["preset-60"].firstMatch.exists,
+                      "No one-hour preset")
         XCTAssertTrue(app.staticTexts["1h"].exists, "The slot should default to an hour")
         XCTAssertTrue(app.descendants(matching: .any)["Log it"].firstMatch.exists,
                       "The action should say what it does in this mode")
         attach("25-start-session-past")
     }
 
-    /// The sliders move the slot, and the readout follows.
-    func testSlidersChangeTheSlot() {
+    /// A preset sets the slot in one tap, and the readout follows.
+    ///
+    /// This replaced two sliders. The common case for backdating is always the
+    /// same shape — something that ended just now and ran about so long — and it
+    /// used to take two drags on a sixty-four-step track to say so.
+    func testPresetsChangeTheSlot() {
         launchToToday()
         openSheet()
         app.descendants(matching: .any)["mode-Log past time"].firstMatch.tapWhenReady()
 
-        // Drive the real control rather than the accessibility proxy: the track is
-        // draggable along its whole width, which is what a finger actually does.
-        // The offsets are fractions of the track's frame, so the slot has to have
-        // finished laying itself out before they mean anything.
-        let duration = app.descendants(matching: .any)["slot-duration"].firstMatch
-        XCTAssertTrue(duration.waitForExistence(timeout: UITest.timeout), "No duration slider")
-        XCTAssertTrue(duration.waitUntilStill(), "The duration slider is still finding its place")
+        let half = app.descendants(matching: .any)["preset-30"].firstMatch
+        XCTAssertTrue(half.waitForExistence(timeout: UITest.timeout), "No half-hour preset")
+        half.tapWhenReady()
 
-        duration.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.35)).tap()
-
-        XCTAssertTrue(app.staticTexts["15m"].waitForExistence(timeout: UITest.timeout),
-                      "Dragging the duration slider to its minimum did not update the readout")
+        XCTAssertTrue(app.staticTexts["30m"].waitForExistence(timeout: UITest.timeout),
+                      "Tapping the half-hour preset did not update the readout")
         XCTAssertFalse(app.staticTexts["1h"].exists, "The old duration is still showing")
         attach("26-start-session-slot-adjusted")
 
-        // And back out to a longer slot. The maximum depends on how much of the
-        // day is behind us, so there is no fixed readout to wait for — wait for
-        // the minimum to go, and let the assertion still be the one that speaks.
-        duration.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.35)).tap()
-        _ = app.staticTexts["15m"].waitUntilGone()
-        XCTAssertFalse(app.staticTexts["15m"].exists, "The slider only moves one way")
+        // And back out. Each preset is a whole slot rather than a nudge, so the
+        // readout has to land exactly on the one that was asked for.
+        app.descendants(matching: .any)["preset-120"].firstMatch.tapWhenReady()
+        XCTAssertTrue(app.staticTexts["2h"].waitForExistence(timeout: UITest.timeout),
+                      "Tapping the two-hour preset did not update the readout")
     }
 
     /// The whole point: a past slot becomes a real, rated session in the record.
@@ -132,7 +129,7 @@ final class PastSessionTests: XCTestCase {
 
         openSheet()
         app.descendants(matching: .any)["mode-Log past time"].firstMatch.tapWhenReady()
-        XCTAssertTrue(app.descendants(matching: .any)["slot-start"].firstMatch.waitForExistence(timeout: UITest.timeout))
+        XCTAssertTrue(app.descendants(matching: .any)["slot-picker"].firstMatch.waitForExistence(timeout: UITest.timeout))
         app.descendants(matching: .any)["Exercise"].firstMatch.tapWhenReady()
         app.descendants(matching: .any)["Log it"].firstMatch.tapWhenReady()
 
@@ -167,7 +164,7 @@ final class PastSessionTests: XCTestCase {
 
         openSheet()
         app.descendants(matching: .any)["mode-Log past time"].firstMatch.tapWhenReady()
-        XCTAssertTrue(app.descendants(matching: .any)["slot-start"].firstMatch.waitForExistence(timeout: UITest.timeout))
+        XCTAssertTrue(app.descendants(matching: .any)["slot-picker"].firstMatch.waitForExistence(timeout: UITest.timeout))
         app.descendants(matching: .any)["Admin"].firstMatch.tapWhenReady()
         app.descendants(matching: .any)["Log it"].firstMatch.tapWhenReady()
 

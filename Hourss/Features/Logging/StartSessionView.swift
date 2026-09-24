@@ -61,10 +61,6 @@ struct StartSessionView: View {
     private var slotStart: Date { windowStart.addingTimeInterval(startMinutes * 60) }
     private var slotEnd: Date { slotStart.addingTimeInterval(durationMinutes * 60) }
 
-    private var overlapping: [Session] {
-        store.sessionsOverlapping(start: slotStart, end: slotEnd)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SheetHeader(title: "Start a session", onClose: { dismiss() })
@@ -120,16 +116,42 @@ struct StartSessionView: View {
         }
     }
 
-    /// The slot itself: a readout, then one slider for when it began and one for
-    /// how long it ran.
+    /// The slot: what to do about the hour just gone, or the day itself.
+    ///
+    /// Two ways in, because there are two cases and they are not the same size.
+    /// The common one is the reason backdating exists at all — you were busy, so
+    /// you did not log it while it was happening — and it is always the same
+    /// shape: something that ended just now and ran for about so long. That is one
+    /// tap. The other case is a gap from this morning, and for that you point at
+    /// the day.
     @ViewBuilder
     private var timeSlot: some View {
         if canLogPast {
             VStack(alignment: .leading, spacing: Space.md) {
                 HRule()
 
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Eyebrow("Just finished")
+                    HStack(spacing: Space.xs) {
+                        ForEach(Self.presets, id: \.self) { minutes in
+                            presetChip(minutes)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Eyebrow("Or pick it on the day")
+                    SlotPicker(
+                        day: calendarDay,
+                        logged: loggedSpans,
+                        now: Date(),
+                        start: Binding(get: { slotStart }, set: { moveSlot(start: $0) }),
+                        end: Binding(get: { slotEnd }, set: { moveSlot(end: $0) })
+                    )
+                    .accessibilityIdentifier("slot-picker")
+                }
+
                 VStack(alignment: .leading, spacing: 2) {
-                    Eyebrow("The slot")
                     Text("\(slotStart.formatted(.dateTime.hour().minute())) – \(slotEnd.formatted(.dateTime.hour().minute()))")
                         .textStyle(.dayNumeral)
                         .lineLimit(1)
@@ -139,51 +161,74 @@ struct StartSessionView: View {
                         .foregroundStyle(Color.muted)
                 }
 
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Eyebrow("Started at")
-                    EditorialSlider(
-                        value: $startMinutes,
-                        range: 0...max(Self.stepMinutes, latestStart),
-                        step: Self.stepMinutes,
-                        lowLabel: windowStart.formatted(.dateTime.hour().minute()),
-                        highLabel: windowStart.addingTimeInterval(latestStart * 60).formatted(.dateTime.hour().minute()),
-                        spokenValue: { minutes in
-                            windowStart.addingTimeInterval(minutes * 60)
-                                .formatted(.dateTime.hour().minute())
-                        }
-                    )
-                    .accessibilityLabel("Start time")
-                    .accessibilityIdentifier("slot-start")
-                }
-
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    Eyebrow("For how long")
-                    EditorialSlider(
-                        value: $durationMinutes,
-                        range: Self.stepMinutes...maxDuration,
-                        step: Self.stepMinutes,
-                        lowLabel: formatMinutes(Int(Self.stepMinutes)),
-                        highLabel: formatMinutes(Int(maxDuration)),
-                        spokenValue: { formatMinutes(Int($0)) }
-                    )
-                    .accessibilityLabel("Duration")
-                    .accessibilityIdentifier("slot-duration")
-                }
-
-                if let clash = overlapping.first {
-                    // Not an error — the spec leaves overlapping sessions out of
-                    // pattern work, so this says what will happen rather than
-                    // refusing the entry.
-                    Text("Overlaps \(store.activityName(clash.activityId)) — kept, but left out of patterns.")
-                        .textStyle(.label)
-                        .foregroundStyle(Color.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("overlap-note")
-                }
-
                 HRule()
             }
         }
+    }
+
+    /// Lengths somebody actually reports having just finished. Anything else is
+    /// what the strip is for.
+    private static let presets = [30, 60, 90, 120]
+
+    private func presetChip(_ minutes: Int) -> some View {
+        // Selected when the slot already says exactly this: ending now, running
+        // that long. So tapping one and then nudging the strip drops the
+        // selection, which is correct — the chip is a shortcut to a slot, not a
+        // mode the sheet is in.
+        let isSelected = Int(durationMinutes) == minutes
+            && abs(slotEnd.timeIntervalSince(nowOnGrid)) < 60
+
+        return Button {
+            setPreset(minutes)
+        } label: {
+            Text(formatMinutes(minutes))
+                .textStyle(.action)
+                .foregroundStyle(isSelected ? Color.ink : Color.muted)
+                .frame(maxWidth: .infinity)
+                .frame(height: Space.tapTarget)
+                .background(isSelected ? Color.lime : Color.ink.opacity(0.05))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("preset-\(minutes)")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    /// Now, snapped to the grid the slot works in.
+    private var nowOnGrid: Date {
+        windowStart.addingTimeInterval(nowMinutes * 60)
+    }
+
+    private var calendarDay: Date {
+        Calendar.current.startOfDay(for: slotStart)
+    }
+
+    /// Everything already on the day being drawn, as spans.
+    ///
+    /// Read from the record rather than from the overlap check, because the point
+    /// is to show what is there before anybody aims at it — the old note appeared
+    /// only once a slot had already been dragged on top of something.
+    private var loggedSpans: [DateInterval] {
+        store.sessions(on: calendarDay).compactMap { session in
+            guard let end = session.endAt, end > session.startAt else { return nil }
+            return DateInterval(start: session.startAt, end: end)
+        }
+    }
+
+    /// The last `minutes` before now, which is what "just finished" means.
+    private func setPreset(_ minutes: Int) {
+        durationMinutes = min(Double(minutes), Self.maxDurationMinutes)
+        startMinutes = max(0, nowMinutes - durationMinutes)
+        durationMinutes = min(durationMinutes, maxDuration)
+    }
+
+    /// The strip hands back dates; the sheet stores minutes from `windowStart`.
+    private func moveSlot(start newStart: Date? = nil, end newEnd: Date? = nil) {
+        let from = newStart ?? slotStart
+        let to = newEnd ?? slotEnd
+        guard to > from else { return }
+        startMinutes = max(0, from.timeIntervalSince(windowStart) / 60)
+        durationMinutes = max(Self.stepMinutes, to.timeIntervalSince(from) / 60)
     }
 
     private var activityPicker: some View {

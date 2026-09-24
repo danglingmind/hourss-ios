@@ -30,6 +30,20 @@ takes about 100 seconds; if it takes materially longer, something has been added
 that runs the engine at high resample counts — that has happened once and took
 the suite to forty minutes.
 
+## A crashing test looks like a shrinking suite
+
+If the unit count drops sharply between runs and every run still says "passed" —
+378, then 84, then 245 — the test host is crashing and restarting, and xcodebuild
+is reporting the partial totals from before the crash as though they were the
+run. Grep the output for `Restarting after unexpected exit` rather than trusting
+the summary line.
+
+The cause, both times it has happened here: a SwiftUI `View` is inferred
+`@MainActor` for the whole type, so a static helper on one inherits that. Called
+from a test suite that is not on the main actor it compiles and then traps at
+runtime. Fix is `nonisolated` on the helper when it touches nothing isolated, or
+`@MainActor` on the test suite when it does.
+
 ## Diagnostics
 
 SourceKit diagnostics in this project are unreliable — "Cannot find 'Space' in
