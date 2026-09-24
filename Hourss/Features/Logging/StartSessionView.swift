@@ -39,12 +39,33 @@ struct StartSessionView: View {
     /// valid session — so the slot can reach across midnight and the arithmetic
     /// below stops depending on what time it happens to be.
     private var windowStart: Date {
-        Date().addingTimeInterval(-Self.maxDurationMinutes * 60)
+        openedAt.addingTimeInterval(-Self.maxDurationMinutes * 60)
     }
+
+    /// When the sheet opened, read once.
+    ///
+    /// **Everything below used to read `Date()` independently, and that was a
+    /// bug with two faces.** `windowStart` called it, then `nowMinutes` called it
+    /// again and subtracted the two — sixteen hours apart give 960 minutes plus
+    /// or minus a few microseconds, which divided by the quarter-hour grid is
+    /// `64 ± ε`, and `.rounded(.down)` turns a negative ε into 63. So the sheet's
+    /// idea of "now" flickered between 960 and 945 on floating-point luck, and a
+    /// preset landed a quarter-hour off about half the time — tapping it again
+    /// re-rolled and often looked like it had finally worked. The sliders never
+    /// compared anything for equality, so they hid it.
+    ///
+    /// The second face is quieter: because `windowStart` moved, `slotStart` and
+    /// `slotEnd` were offsets from a receding origin, so a slot chosen as 9:00 to
+    /// 10:00 silently became 9:10 to 10:10 if the sheet sat open for ten minutes.
+    ///
+    /// One reading fixes both. A sheet held open for an hour would then let
+    /// somebody log a few minutes ahead of the real clock, which is the trade and
+    /// is the smaller of the two problems by a wide margin.
+    @State private var openedAt = Date()
 
     /// Now, rounded down to the grid, so the readouts land on tidy times.
     private var nowMinutes: Double {
-        let elapsed = Date().timeIntervalSince(windowStart) / 60
+        let elapsed = openedAt.timeIntervalSince(windowStart) / 60
         return (elapsed / Self.stepMinutes).rounded(.down) * Self.stepMinutes
     }
 
@@ -86,6 +107,10 @@ struct StartSessionView: View {
         }
         .surface(.canvas)
         .onAppear {
+            // Refreshed here as well as initialised above: a `@State` default is
+            // evaluated once per view identity, and this sheet is presented more
+            // than once in a session.
+            openedAt = Date()
             selectedActivityId = store.pickableActivities.first?.id
             resetSlotToLastHour()
             adoptPendingSlot()
@@ -144,7 +169,7 @@ struct StartSessionView: View {
                     SlotPicker(
                         day: calendarDay,
                         logged: loggedSpans,
-                        now: Date(),
+                        now: openedAt,
                         start: Binding(get: { slotStart }, set: { moveSlot(start: $0) }),
                         end: Binding(get: { slotEnd }, set: { moveSlot(end: $0) })
                     )
@@ -188,6 +213,7 @@ struct StartSessionView: View {
                 .frame(height: Space.tapTarget)
                 .background(isSelected ? Color.lime : Color.ink.opacity(0.05))
                 .contentShape(.rect)
+                .animation(Motion.content(reduced: reduceMotion), value: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("preset-\(minutes)")

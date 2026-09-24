@@ -197,6 +197,7 @@ struct SelectableChip: View {
     }
 
     @Environment(\.surface) private var surface
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -218,6 +219,11 @@ struct SelectableChip: View {
                 .background(isSelected ? Color.lime : Color.clear)
                 .overlay(alignment: .bottom) { HRule() }
                 .contentShape(.rect)
+                // The fill arrives rather than appearing. Eight of these sit in a
+                // column and the selection moves between them, so an instant swap
+                // gives the eye nothing to follow from the row it left to the row
+                // it landed on.
+                .animation(Motion.content(reduced: reduceMotion), value: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(title)
