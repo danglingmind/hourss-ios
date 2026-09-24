@@ -9,6 +9,7 @@ import SwiftUI
 struct StartSessionView: View {
     @Environment(HourssStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum Mode: Hashable { case now, past }
 
@@ -71,11 +72,16 @@ struct StartSessionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.lg) {
                     modePicker
+                    // The whole slot arrives or leaves when the mode changes, and
+                    // everything under it moves to make room. Without this the
+                    // sliders simply blinked into existence and the activity list
+                    // jumped down the screen.
                     if mode == .past { timeSlot }
                     activityPicker
                     intentionField
                     footnote
                 }
+                .animation(Motion.content(reduced: reduceMotion), value: mode)
                 .pageGutter()
                 .padding(.vertical, Space.md)
             }

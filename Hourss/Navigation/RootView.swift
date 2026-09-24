@@ -17,6 +17,7 @@ struct RootView: View {
     @Environment(HealthService.self) private var health
     @Environment(AccountService.self) private var account
     @Environment(NotificationService.self) private var notifications
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         @Bindable var store = store
@@ -62,6 +63,18 @@ struct RootView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // A cross-fade, which is what the system's own tab bar does — it does
+            // not slide, and a slide here would be wrong twice over: there is no
+            // spatial relationship between Patterns and Journal to honour, and the
+            // `+` sits between them, so a directional transition would have to
+            // decide which side of a button that is not a tab each screen lives
+            // on. Four screens swapped with no transition at all read as the app
+            // reloading; a dissolve reads as one surface changing what it shows.
+            //
+            // The rule underneath is already travelling on its own spring, so the
+            // two are deliberately different gestures: the rule tells you *which*
+            // tab you moved to while the content tells you it changed.
+            .animation(Motion.content(reduced: reduceMotion), value: selection)
 
             EditorialTabBar(selection: $selection, onLog: startLogging)
         }

@@ -5,6 +5,7 @@ import SwiftUI
 /// as empty cells; the record is a record, not a grid to fill in.
 struct JournalView: View {
     @Environment(HourssStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var activityFilter: UUID?
     @State private var selectedDay: Date?
 
@@ -38,6 +39,11 @@ struct JournalView: View {
             }
             .pageGutter()
             .padding(.bottom, Space.xl)
+            // Choosing a filter removes most of the archive and leaves a few
+            // rows; choosing it again brings the rest back. Unanimated that is a
+            // screen replacing itself, and the reader has to re-find where they
+            // were. Animated, the rows that survive the filter visibly stay put.
+            .animation(Motion.content(reduced: reduceMotion), value: activityFilter)
         }
         .background(Color.canvas)
         .safeAreaInset(edge: .top, spacing: 0) {

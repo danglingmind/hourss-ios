@@ -46,4 +46,27 @@ enum Motion {
     static func travel(reduced: Bool) -> Animation? {
         reduced ? nil : .spring(response: springResponse, dampingFraction: springDamping)
     }
+
+    /// Content changing under a control somebody just used.
+    ///
+    /// A third token rather than reusing either of the two above, because this is
+    /// a third thing. `animation` is for something recolouring or shifting a few
+    /// points; `travel` is for one object the eye follows across a distance. This
+    /// is a *set* of things being replaced by a different set — a filter narrowing
+    /// a list, a picker swapping a form, a selection moving to another row — where
+    /// nothing travels and the change lands all at once.
+    ///
+    /// An ease-out is wrong for that in the same way it was wrong for the tab
+    /// rule: content that arrives by decelerating to a stop reads as *loading*,
+    /// and nothing here is loading. A spring lands. This one is softer than
+    /// `travel` — a longer half-period and heavier damping, so a list settles
+    /// rather than snapping, and with no overshoot at all, because rows that
+    /// spring past their resting position and come back read as bouncy where the
+    /// tab rule's tiny overshoot reads as alive.
+    ///
+    /// Nil under Reduce Motion, like everything else here: the new content is
+    /// simply already there.
+    static func content(reduced: Bool) -> Animation? {
+        reduced ? nil : .spring(response: 0.38, dampingFraction: 1.0)
+    }
 }

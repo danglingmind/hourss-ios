@@ -104,6 +104,13 @@ struct UnderlinePicker<Value: Hashable>: View {
     var identifierPrefix: String?
 
     @Environment(\.surface) private var surface
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// So the underline is one rule that moves between options rather than two
+    /// rules appearing and disappearing. It is the same mark the tab bar uses and
+    /// it now behaves the same way — this one had no animation at all, so the
+    /// orange line simply teleported when the mode changed.
+    @Namespace private var underline
 
     var body: some View {
         HStack(spacing: Space.md) {
@@ -116,10 +123,18 @@ struct UnderlinePicker<Value: Hashable>: View {
                         .textStyle(.action)
                         .foregroundStyle(isSelected ? surface.foreground : surface.secondary)
                         .overlay(alignment: .bottom) {
-                            Rectangle()
-                                .fill(isSelected ? Color.orange : .clear)
-                                .frame(height: 2)
-                                .offset(y: 6)
+                            // Drawn only under the selected option and matched
+                            // across the group, which is what lets it travel. A
+                            // rule under every option with its colour switched
+                            // would be two marks trading visibility, and no
+                            // animation can make that look like movement.
+                            if isSelected {
+                                Rectangle()
+                                    .fill(Color.orange)
+                                    .frame(height: 2)
+                                    .offset(y: 6)
+                                    .matchedGeometryEffect(id: "underline", in: underline)
+                            }
                         }
                         .frame(minHeight: Space.tapTarget)
                         .contentShape(.rect)
@@ -130,5 +145,6 @@ struct UnderlinePicker<Value: Hashable>: View {
             }
             Spacer(minLength: 0)
         }
+        .animation(Motion.travel(reduced: reduceMotion), value: selection)
     }
 }

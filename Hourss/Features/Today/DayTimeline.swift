@@ -48,7 +48,7 @@ struct DayTimeline: View {
                     row(session)
                 }
             }
-            .animation(Motion.animation(reduced: reduceMotion), value: selectedSessionId)
+            .animation(Motion.content(reduced: reduceMotion), value: selectedSessionId)
 
             if let selected {
                 EnergyReading(
