@@ -176,7 +176,28 @@ written and unused. Do not build a surface that forgets to call it.
 
 ### Move 3 — commit to a guess, then show whether it held
 
-**Status:** not built. Deliberately held, and the hold was right.
+**Status:** dropped, after the copy was drafted and read. Not "not built yet" —
+closed, and it should stay closed unless somebody brings an argument the draft
+did not have.
+
+**What the copy looked like, and why it went.** It cleared more than expected.
+The rule it seemed to break — `stillLooking` may not "suggest something is being
+withheld, nor that more logging will change the answer" — is about *teasing*, and
+a guess withholds nothing: it says the thing first, for free, before anybody has
+logged. Copy that never asks for anything ("I would bet your best-rated hours
+land in the mornings. I have not seen you rate anything.") passes that rule, and
+stating the evidence is *zero* rather than hedging that it is thin is what
+separates it from the Signal tier this product already refused.
+
+What it could not clear is the leap itself. Sleep and movement settling earliest
+says nothing about which hours somebody will rate highest — that is a relational
+claim across two variables with no evidence behind it, which is the exact thing
+the engine exists to refuse. The defence was that the claim is labelled as a bet
+in the same breath and that being wrong is a good outcome. That is a real
+distinction from a Signal, and it is still an argument the copy has to win rather
+than a rule it satisfies. Everything else in this app satisfies the rule.
+
+So: dropped on those grounds, not on effort. The mechanism was small.
 
 **Why it matters.** On day one, from Health data alone, the app commits: *"my
 guess: your sharpest stretch is 9–11am — I could be wrong, log a week and we'll
