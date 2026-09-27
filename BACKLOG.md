@@ -315,8 +315,24 @@ the hairline and the 2pt tab mark. That is a narrow band.
 
 ### The full "draw the day" signature
 
-**Status:** partially built. `DayHours` delivers the intent at a fraction of the
-scale.
+**Status:** built, looked at, and reverted. `DayHours` stands, and the direction
+above it should not be retried in the same form.
+
+**What was built and why it went.** A `DayCanvas` on forest ground took the place
+of the strip at the head of Today — the reasoning being that two drawings of one
+day on one screen is one too many, so the strip loses on the day you are *in*
+while keeping the Journal, where a day is one entry in a sequence. Sound on
+paper. On screen the full-bleed form did not look good, and that is the whole of
+the finding: nothing was wrong with the placement argument, the extraction of
+`DayOccupancy`, or the twenty-one tests. The mark itself did not earn three
+hundred points of the screen.
+
+The thing worth keeping from the attempt, if anyone tries again: the day's shape
+does not get better by getting bigger. At strip scale the gaps read as gaps
+because the eye takes the whole day at once; at signature scale it becomes a
+chart, and a chart of one day is mostly empty on purpose, which reads as a void
+rather than as an invitation. That is a property of the subject, not of the
+execution, so a second attempt needs a different *idea* and not a bigger canvas.
 
 **Why it matters.** The direction was a large full-bleed day form on forest
 ground — the day as the screen's signature mark. What shipped is `DayHours`
