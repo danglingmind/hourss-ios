@@ -72,6 +72,16 @@ struct HourssApp: App {
                         await health.refresh()
                         await applyHealthRead(from: health, to: store)
                     }
+
+                    // After Health, because a window is read against the rows the
+                    // engine holds and health is one of their inputs — settling
+                    // first would close a fortnight against a record missing the
+                    // nights inside it.
+                    //
+                    // On launch rather than on a timer: a fortnight runs out while
+                    // the app is shut far more often than while somebody is looking
+                    // at it, so the moment to notice is the moment they come back.
+                    store.settleClosedExperiments()
                 }
                 // The one thing a cold launch cannot do: score a session that
                 // ended after it.
@@ -89,7 +99,15 @@ struct HourssApp: App {
                 // the last moment it is free.
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
-                    Task { await catchUp.run(health: health, store: store) }
+                    Task {
+                        await catchUp.run(health: health, store: store)
+                        // The other half of the same problem the catch-up solves: a
+                        // fortnight that ran out while the app sat in the background
+                        // for a week. Ordered after it for the reason the launch
+                        // path is, and a no-op on every return where nothing has
+                        // closed.
+                        store.settleClosedExperiments()
+                    }
                 }
         }
     }

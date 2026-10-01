@@ -405,21 +405,21 @@ are **shared by phases 1 and 2** and have no fork in them.
 
 ### Design — hypothesis to proposal
 
-- [ ] **10.** `Hourss/Store/ExperimentDesign.swift` — `Finding` → target group,
+- [x] **10.** `Hourss/Store/ExperimentDesign.swift` — `Finding` → target group,
       baseline, window, change description. Only `outcome.higherIsBetter != nil`,
       reusing the `Recommendations.build` filter.
-- [ ] **11.** Selection by `profile.priorities` in rank order, extending the
+- [x] **11.** Selection by `profile.priorities` in rank order, extending the
       existing walk in `Recommendations.build` rather than duplicating it.
-- [ ] **12.** `ExperimentCopy` — premise, change, three result strings. Sweep test
+- [x] **12.** `ExperimentCopy` — premise, change, three result strings. Sweep test
       for causal + clinical + population, `instruction` excluded (§9).
 
 ### Store behaviour
 
-- [ ] **13.** `propose` / `accept` / `decline` / `abandon` / `acknowledge`.
-- [ ] **14.** **One active experiment, enforced.** Accepting while one is active
+- [x] **13.** `propose` / `accept` / `decline` / `abandon` / `acknowledge`.
+- [x] **14.** **One active experiment, enforced.** Accepting while one is active
       is rejected, not silently queued. Test.
-- [ ] **15.** Declines persist and the hypothesis is never re-proposed. Test.
-- [ ] **16.** Settling on window close — on launch and on foreground, reusing the
+- [x] **15.** Declines persist and the hypothesis is never re-proposed. Test.
+- [x] **16.** Settling on window close — on launch and on foreground, reusing the
       refresh path `DayDeviation`/physiology already use. Test across a date
       boundary with an injected clock, never `Date()`.
 
