@@ -15,6 +15,10 @@ import SwiftUI
 /// to nothing, which is the one thing this settings screen must never contain.
 struct ProfileView: View {
     @Environment(HourssStore.self) private var store
+    /// Read for one thing: the faint fill behind a day that is not a workday. The
+    /// screen is canvas, but a literal grey here would be the one block in the app
+    /// that could not move to another surface with the rest.
+    @Environment(\.surface) private var surface
 
     /// The name is edited locally and committed on the way out.
     ///
@@ -97,17 +101,25 @@ struct ProfileView: View {
     /// Not hardcoded Monday-first: `firstWeekday` is a locale answer, and a week
     /// that starts on the wrong day is the kind of small wrongness that makes a
     /// person distrust the arithmetic behind it.
+    ///
+    /// **The strip was a strip, and is now seven blocks.** The cells used to sit at
+    /// `spacing: 0` between a rule above and a rule below, which is why they were
+    /// left square when every other block took `Radius.block`: rounding a flush row
+    /// notches each seam where two fills meet and runs both rules across fourteen
+    /// corners. The comment on `dayCell` named the condition for taking the token —
+    /// gaps — and the owner asked for it after seeing the radius change on device.
+    /// So the gap is `Space.xs` and the two rules are gone: a filled rounded cell
+    /// with space on either side is already separated from its neighbour, and the
+    /// rules were the top and bottom edges of a strip there no longer is.
     private var workdaysField: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             Eyebrow("Workdays")
 
-            HStack(spacing: 0) {
+            HStack(spacing: Space.xs) {
                 ForEach(Self.weekdaysInOrder, id: \.self) { weekday in
                     dayCell(weekday)
                 }
             }
-            .overlay(alignment: .bottom) { HRule() }
-            .overlay(alignment: .top) { HRule() }
 
             Text(store.profile.workdays.isEmpty
                  ? "With no workdays set, Hourss cannot compare your working days to the rest."
@@ -118,6 +130,18 @@ struct ProfileView: View {
         }
     }
 
+    /// One day, as a block: `Space.tapTarget` tall, an equal share of the row wide,
+    /// and `Radius.block` through `blockSurface` like every other block in the app.
+    ///
+    /// **A day off has to be drawn.** The off state was `Color.clear` while the two
+    /// rules were carrying the strip's shape, so once they went, every cell that is
+    /// not a workday — and all seven, for somebody who has set none — would have been
+    /// a letter floating in a gap with no block to round. `track` is
+    /// the surface's own faint fill — the same thing `RatingScale` and `SelectableChip`
+    /// paint behind an unselected segment — and with it an off day still reads as a
+    /// cell you can tap rather than as an absence. Selection is still never carried
+    /// by colour alone: the accessibility label says "a workday" or "a day off" in
+    /// words, as it always did.
     private func dayCell(_ weekday: Int) -> some View {
         let isOn = store.profile.workdays.contains(weekday)
 
@@ -129,7 +153,7 @@ struct ProfileView: View {
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
                 .frame(height: Space.tapTarget)
-                .background(isOn ? Color.lime : Color.clear)
+                .blockSurface(isOn ? Color.lime : surface.track)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)

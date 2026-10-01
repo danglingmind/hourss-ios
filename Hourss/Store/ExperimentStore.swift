@@ -45,6 +45,11 @@ extension HourssStore {
 
     /// What to offer, in the person's own order of priorities.
     ///
+    /// Measured proposals first and day-one starters behind them — see `offers`. A
+    /// caller that wants only the measured half can filter on
+    /// `Proposal.isStarter`; nothing does today, because Today shows one card and
+    /// the ordering has already decided which.
+    ///
     /// Empty while one is running: the proposal surface has nothing to say to
     /// somebody mid-fortnight, and computing proposals they cannot accept would be
     /// a search run to be thrown away.
@@ -55,11 +60,9 @@ extension HourssStore {
     /// cost of opening a screen rather than a cost paid on every refresh.
     func experimentProposals(resamples: Int = 2000) -> [ExperimentDesign.Proposal] {
         guard activeExperiment == nil else { return [] }
-        return ExperimentDesign.proposals(
-            for: EngineInput(observations: engineObservations, priorities: profile.priorities),
-            excluding: experimentKeysToExclude,
-            resamples: resamples
-        )
+        let input = EngineInput(observations: engineObservations, priorities: profile.priorities)
+        let findings = Engine.applyingCorrection(to: Engine.findings(for: input, resamples: resamples))
+        return offers(from: findings, input: input)
     }
 
     /// Recommendations and proposals, from one engine run.
@@ -90,11 +93,33 @@ extension HourssStore {
         let recommendations = Recommendations.build(from: findings, input: input)
         // Nothing to offer mid-fortnight, and the guard is here as well as in
         // `experimentProposals` because this path does not go through it.
-        let proposals = activeExperiment == nil
-            ? ExperimentDesign.proposals(from: findings, input: input,
-                                         excluding: experimentKeysToExclude)
-            : []
+        let proposals = activeExperiment == nil ? offers(from: findings, input: input) : []
         return (recommendations, proposals)
+    }
+
+    /// Measured proposals, with day-one starters behind them.
+    ///
+    /// One function rather than two call sites, because the precedence rule — a real
+    /// finding always beats a starter — is enforced by the order these come back in,
+    /// and a second assembly of the same list is a second chance to get that order
+    /// wrong. Both callers already have the corrected findings, which is what
+    /// `measured` needs; recomputing them to learn which hypotheses the engine can
+    /// read would be the duplicated engine run `slotOutput` exists to avoid.
+    private func offers(from findings: [Finding], input: EngineInput)
+        -> [ExperimentDesign.Proposal] {
+        let proposals = ExperimentDesign.proposals(
+            from: findings, input: input, excluding: experimentKeysToExclude)
+        return ExperimentStarters.completing(
+            proposals,
+            priorities: input.priorities,
+            healthByDay: healthByDay,
+            activities: pickableActivities,
+            // Every hypothesis the engine got far enough to test. Past that point
+            // the measured path owns the question and a starter saying nothing is
+            // known about it would be the app contradicting itself.
+            measured: Set(findings.map(\.hypothesis.id)),
+            excluding: experimentKeysToExclude
+        )
     }
 
     /// How much of the change has happened so far, for the active card.

@@ -52,7 +52,93 @@ enum ExperimentCopy {
             // hold. "Has read higher" rather than "is better".
             return "\(finding.hypothesis.focusLabel) has read higher so far, across \(days) "
                 + (days == 1 ? "day" : "days") + "."
+        case .starter:
+            // Unreachable from this function, and a case rather than a `default`
+            // so that a fourth standing is a compile error here instead of a
+            // silent fall-through. `ExperimentDesign.standing(of:)` only ever
+            // returns one of the two measured standings, and a starter's premise
+            // is assembled by `ExperimentStarters` out of a Health fact because
+            // there is no finding behind it to phrase.
+            //
+            // What it returns is still the honest sentence for a starter rather
+            // than a trap: a premise is a line on a card, and if some future
+            // caller does reach this, a plain true sentence is a better outcome
+            // than a crash. Deliberately *not* the lead form — that one quotes a
+            // day count, and a starter's count is zero.
+            return starterUnknown(type: finding.publishedType,
+                                  focusLabel: finding.hypothesis.focusLabel,
+                                  baselineLabel: finding.hypothesis.baselineLabel,
+                                  metric: metric(of: finding))
         }
+    }
+
+    // MARK: - Starter premise
+
+    /// A starter's premise: what Health already shows, then what is not yet known.
+    ///
+    /// **Two sentences, and the second one is load-bearing.** The first is a
+    /// `HealthDigest` sentence, carried verbatim — descriptive, about a Health
+    /// reading, and already on screen as the daily fact, which is the same reason
+    /// a confirmed premise reuses `hypothesis.phrase` rather than writing a second
+    /// wording for one finding.
+    ///
+    /// On its own, though, a Health sentence sitting directly above a change reads
+    /// as the reason for it. "Your sleep reads 48m shorter on Tuesdays than
+    /// Saturdays" followed by "put one block in your morning" is two honest
+    /// sentences that together imply a relationship nobody has measured — which is
+    /// precisely what the fortnight is for. The second sentence is what stops that
+    /// reading: it says in plain words that nothing logged speaks to this yet, so
+    /// the Health reading is evidence that the app has their history and not
+    /// evidence for the change.
+    static func starterPremise(_ healthSentence: String, unknown: String) -> String {
+        "\(healthSentence) \(unknown)"
+    }
+
+    /// What has not been read yet, named specifically enough to be checkable.
+    ///
+    /// Total rather than optional: every shape has something it has not read, and
+    /// the generic arm is a true sentence about any two sides rather than a hole.
+    /// Nothing here claims, instructs or compares to anybody — it states an
+    /// absence, which is the one thing a starter knows for certain.
+    static func starterUnknown(type: InsightType,
+                               focusLabel: String,
+                               baselineLabel: String,
+                               metric: HealthMetric?) -> String {
+        switch type {
+        case .bestTimeWindow:
+            return "Nothing you have logged says yet how your \(focusLabel.lowercased()) "
+                + "sessions read against the rest of your day."
+
+        case .durationSweetSpot:
+            return "Nothing you have logged says yet how your \(focusLabel.lowercased()) "
+                + "sessions read against your other lengths."
+
+        case .activityEnergizer:
+            return "Nothing you have logged says yet how your time in \(focusLabel) "
+                + "reads against everything else."
+
+        case .workdayContrast:
+            return "Nothing you have logged says yet how your days off read against your workdays."
+
+        // Named by the metric's own higher phrase, which is the wording the change
+        // uses too — so the two sentences are plainly about the same days.
+        case .sleepContext, .bodyContext:
+            guard let metric else { return generic(focusLabel, baselineLabel) }
+            return "Nothing you have logged says yet how your sessions read \(metric.higherPhrase)."
+
+        // No starter targets these — `ExperimentStarters.Shape` has no case that
+        // produces them and `ExperimentDesign.experimentableTypes` excludes them.
+        // The generic form is here so that admitting a type later cannot produce a
+        // premise with a hole in it.
+        case .drainingTimeWindow, .activityDrain,
+             .performanceFeelingSplit, .fragmentation, .emergingChange:
+            return generic(focusLabel, baselineLabel)
+        }
+    }
+
+    private static func generic(_ focusLabel: String, _ baselineLabel: String) -> String {
+        "Nothing you have logged says yet how \(focusLabel.lowercased()) "
+            + "reads against \(baselineLabel.lowercased())."
     }
 
     // MARK: - Change
@@ -69,8 +155,34 @@ enum ExperimentCopy {
     /// adherence is counted from what was logged, so the copy can describe the
     /// direction and let the count speak at the end.
     static func change(for finding: Finding) -> String? {
-        let label = finding.hypothesis.focusLabel
-        switch finding.publishedType {
+        change(type: finding.publishedType,
+               focusLabel: finding.hypothesis.focusLabel,
+               metric: metric(of: finding))
+    }
+
+    /// Which Health metric a finding split on, or nil for a finding that split on
+    /// something else.
+    ///
+    /// Read off the id through `Surprise.pattern` rather than off the type, because
+    /// `sleepContext` and `bodyContext` are both health associations and only the id
+    /// says which metric. The id grammar is the registry's and is deliberately
+    /// boring; insight identity already rides on it.
+    private static func metric(of finding: Finding) -> HealthMetric? {
+        HealthMetric(rawValue: Surprise.pattern(of: finding).subject)
+    }
+
+    /// The same change, from the three things that decide it rather than from a
+    /// finding.
+    ///
+    /// Split out so that a starter — which has no finding, by definition — asks for
+    /// the identical change in the identical words. Two wordings of one instruction
+    /// is the drift this file exists to prevent, and it would be worse here than
+    /// anywhere: the measured path and the day-one path would be proposing the same
+    /// fortnight in two voices, and only one of them would be swept by whichever
+    /// test somebody wrote first.
+    static func change(type: InsightType, focusLabel: String, metric: HealthMetric?) -> String? {
+        let label = focusLabel
+        switch type {
         case .bestTimeWindow:
             return "Put one block in your \(label.lowercased()) on most days this fortnight."
 
@@ -85,7 +197,7 @@ enum ExperimentCopy {
         // version of this that said "sleep longer" would be advice the data does not
         // reach, and the app does not give it.
         case .sleepContext, .bodyContext:
-            guard let metric = HealthMetric(rawValue: Surprise.pattern(of: finding).subject) else { return nil }
+            guard let metric else { return nil }
             return "On a day \(metric.higherPhrase), put your bigger block in."
 
         // Responsive scheduling again, and the same distinction. Which days are

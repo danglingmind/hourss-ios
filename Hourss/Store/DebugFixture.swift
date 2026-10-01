@@ -352,8 +352,16 @@ enum DebugFixture {
             caveat: morning.caveat
         )
         store.experiments = [
+            // 200 resamples, not the 2000 a real settling uses. This runs inside
+            // `HourssStore.init`, on the main thread, before the first frame — a
+            // full day-clustered bootstrap there is seconds of launch for a figure
+            // nobody is going to publish, and it is the fixture's own number rather
+            // than anybody's record. The verdict can differ from a real settling at
+            // this count; that is acceptable for a fixture and would not be
+            // anywhere else.
             ExperimentOutcome.settle(experiment, hypothesis: morning,
-                                     observations: store.engineObservations, now: today)
+                                     observations: store.engineObservations,
+                                     now: today, resamples: 200)
         ]
         store.persist()
     }

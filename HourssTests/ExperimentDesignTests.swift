@@ -242,6 +242,12 @@ struct ExperimentDesignTests {
     /// to ask for a change, and `NarrationGuard`'s own comment on that list says the
     /// free tier proposes a test. Causal, clinical and population offences are
     /// failures here exactly as they are in narration.
+    ///
+    /// Starters are swept here too rather than in their own suite, because the bans
+    /// are one rule and a second sweep is a second place for somebody to loosen it.
+    /// Their premise is the only string in the feature this app does not write — the
+    /// Health half is carried verbatim from `HealthDigest` — so the sweep runs over
+    /// the assembled sentence rather than only the clause added to it.
     @Test("No experiment copy makes a causal, clinical or population claim")
     func copyPassesTheGuard() {
         var strings: [String] = []
@@ -256,12 +262,73 @@ struct ExperimentDesignTests {
             strings.append(ExperimentCopy.premise(for: f, standing: .confirmed, days: 20))
             strings.append(ExperimentCopy.premise(for: f, standing: .lead, days: 4))
             strings.append(ExperimentCopy.premise(for: f, standing: .lead, days: 1))
+            // Unreachable in production — `standing(of:)` never returns `.starter` —
+            // but it is a branch that returns a string, so it is swept.
+            strings.append(ExperimentCopy.premise(for: f, standing: .starter, days: 0))
         }
 
         let experiment = Experiment(
             hypothesisId: "time.morning.vs.rest.feeling", outcome: .feeling,
             startedAt: Date(), focusLabel: "Morning", baselineLabel: "The rest of your day",
             premise: "p", change: "c", caveat: "v")
+
+        // Every string a starter can produce, over every priority. Starters are the
+        // one path whose premise is not written by this app — the Health half is
+        // carried from `HealthDigest` — so the sweep has to run over the assembled
+        // sentence rather than only over the clause `ExperimentCopy` adds to it.
+        for priority in Priority.allCases {
+            for starter in ExperimentStarters.starters(
+                for: [priority],
+                healthByDay: StarterFixture.healthByDay,
+                activities: Activity.defaults) {
+                strings.append(starter.premise)
+                strings.append(starter.change)
+            }
+            // And with one metric between them, which is what fires the generic tail
+            // and so produces a different change for the same priority.
+            for starter in ExperimentStarters.starters(
+                for: [priority],
+                healthByDay: StarterFixture.healthByDay(only: .steps),
+                activities: Activity.defaults) {
+                strings.append(starter.premise)
+                strings.append(starter.change)
+            }
+        }
+
+        // Every shape a starter's second sentence can take, including the arms no
+        // shape reaches today, and every Health fact that can supply the first.
+        let pool = StarterFixture.pool
+        for type in [InsightType.bestTimeWindow, .durationSweetSpot, .activityEnergizer,
+                     .workdayContrast, .sleepContext, .bodyContext, .drainingTimeWindow,
+                     .activityDrain, .performanceFeelingSplit, .fragmentation, .emergingChange] {
+            for metric in [HealthMetric?.none] + HealthMetric.allCases.map({ $0 }) {
+                let unknown = ExperimentCopy.starterUnknown(
+                    type: type, focusLabel: "Morning",
+                    baselineLabel: "Rest of the day", metric: metric)
+                strings.append(unknown)
+                for fact in pool {
+                    strings.append(ExperimentCopy.starterPremise(fact.sentence, unknown: unknown))
+                }
+            }
+        }
+
+        // And the labels every real shape puts into those sentences, so a bucket or
+        // metric name that broke a rule would fail here rather than on a card.
+        for bucket in TimeBucket.allCases {
+            strings.append(ExperimentCopy.starterUnknown(
+                type: .bestTimeWindow, focusLabel: bucket.label,
+                baselineLabel: "Rest of the day", metric: nil))
+        }
+        for bucket in DurationBucket.allCases {
+            strings.append(ExperimentCopy.starterUnknown(
+                type: .durationSweetSpot, focusLabel: bucket.label,
+                baselineLabel: "Other lengths", metric: nil))
+        }
+        for activity in Activity.defaults {
+            strings.append(ExperimentCopy.starterUnknown(
+                type: .activityEnergizer, focusLabel: activity.name,
+                baselineLabel: "Everything else", metric: nil))
+        }
 
         for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp, .cannotTell] {
             strings.append(ExperimentCopy.verdictTitle(verdict))

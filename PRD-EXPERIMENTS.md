@@ -84,12 +84,21 @@ Four rungs, replacing a binary. Each states its own standing on the card.
 | Rung | What it is | Earliest | Source |
 |---|---|---|---|
 | **1 · Observed** | A fact about one measurement. No relationship claimed. | Day 1 | `HealthDigest`, `RecordFacts` — **shipped** |
-| **2 · Worth testing** | A lead that has not cleared the gates, labelled as a lead, offering a test. | ~3 rated days | `Engine.findings` without correction + `Shrinkage` — **new surface, existing maths** |
+| **2 · Worth testing** | A lead that has not cleared the gates, labelled as a lead, offering a test. | 6 rated days each side | `Engine.findings` without correction + `Shrinkage` — **new surface, existing maths** |
 | **3 · Tested** | What happened when the person changed it. | Lead + window | **new** |
 | **4 · Confirmed** | Cleared the interval gate and the correction. | Day 12+ | `Engine` — **shipped, unchanged** |
 
 Rung 2 is the day-one unlock and rung 3 is the point of the feature. Rung 4 is
 untouched: nothing about its thresholds, correction or copy changes.
+
+**Rung 2 arrives later than this originally said, and the correction matters.**
+The first draft put it at "~3 rated days", from `ExperimentDesign.leadMinimumDays
+= 3`. That constant cannot bind: `Engine.findings` drops any hypothesis without
+`Hypothesis.minimumDays` — six — distinct rated days on *each* side before a
+`Finding` exists at all, so nothing with three to five ever reaches the lead
+check. The real floor is six a side, which for somebody logging one bucket a day
+is closer to a fortnight than to half a week. Phase 3 is therefore not a nicety
+for the first few days; it is what covers the gap rung 2 was supposed to.
 
 **Rung 2 is safe because of `Shrinkage`, which is already built.** A mean of four
 afternoons is mostly noise, and the noisiest group produces the most extreme
@@ -152,7 +161,8 @@ up best. Test whether it survives when you move a block there on purpose."* Need
 day 12+.
 
 **(b) From a lead (rung 2).** *"Your afternoons have run heavier so far — 4 days.
-Want to test it?"* Needs ~3 rated days. This is where most early experiments come
+Want to test it?"* Needs 6 rated days on each side. This is where most early
+experiments come
 from.
 
 **Every priority reaches a change.** `workdayContrast` was excluded at first on

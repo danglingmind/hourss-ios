@@ -52,14 +52,15 @@ button could be forced to `cornerRadius = 0`, and both sheets in `RootView` spen
 `presentationCornerRadius(0)` to refuse the one iOS gives for free.
 
 The owner has reversed it. Every block component now takes one token, `Radius.block`
-in `Shared/Radius.swift`, currently **10pt**. This is recorded as a decision because
+in `Shared/Radius.swift`, currently **14pt**. This is recorded as a decision because
 the next person will find the old rationale in three places and has to know it was
 retired rather than forgotten.
 
 **What a block is.** A filled or bordered surface that stands on its own ground:
 `PrimaryAction`, the tab bar's `+`, the preset chips, the slot stepper's `−`/`+`,
-Today's active-session panel, the Patterns lead insight, the sheets' own containers,
-the Live Activity's stop control, and Apple's sign-in button.
+the activity rows (`SelectableChip`), `ProfileView`'s workday cells, Today's
+active-session panel, the Patterns lead insight, the sheets' own containers, the
+Live Activity's stop control, and Apple's sign-in button.
 
 **What a block is not.** Lines, rules, bars and data marks. `HRule`, `DayHours`'
 hour cells, `ComparisonArc`, `ComparisonMark`, `DataBar`, `CoverageMark`,
@@ -74,11 +75,31 @@ places, so there isn't one, and no view writes a radius of its own —
 `blockSurface(_:)` is the only way a block gets its corners. The sweep in
 `README.md` enforces that by hand.
 
-**The one block-shaped thing left square, on purpose.** `SelectableChip` (the
-activity picker and the onboarding intents) and `ProfileView`'s workday cells are
-filled and tappable, but they sit flush against their neighbours inside a ruled
-strip. Rounding them notches every seam and runs an `HRule` across four corners.
-If either is ever given gaps, it stops being a list and should take the token.
+**The two that were left square have been given gaps, and now take the token.**
+`SelectableChip` (the activity picker and the onboarding intents) and
+`ProfileView`'s workday cells were the exception for one sprint: filled and
+tappable, but flush against their neighbours inside a ruled strip, where
+`Radius.block` notches every seam and runs an `HRule` across four corners. The
+exception named its own exit — *if either is ever given gaps, it stops being a
+list* — and the owner, having seen the rest of the radius change on device, asked
+for it. So the layout changed first and the radius followed: both stack at
+`Space.xs` now, the rules between the rows are gone, and the fill comes from
+`blockSurface` like every other block.
+
+Two things that came with it, neither of them optional. **An unselected row has to
+be drawn.** On a flush ruled list the rules gave an unselected row its only visible
+edge, because its fill was `Color.clear`; with the rules gone that is a radius on a
+shape nobody draws and a gap with nothing either side of it. Both now paint
+`surface.track` when unselected — the value `RatingScale` already used for an
+unselected segment. **And the rules were not replaced.** A filled rounded block with
+space around it is separated from its neighbour; a 1pt line between two of them is a
+second separator doing one job twice, which is the mistake *One rule weight* below
+is about. The leading rule under each list's eyebrow went too: it was the top edge
+of a strip that no longer exists.
+
+Ruled unfilled lists are untouched and still correct — Today's quick-start rows are
+text and an arrow with a rule under each, never a fill, so they are a list and not a
+set of blocks.
 
 **Circular corners, not `.continuous`.** `AppleSignInButton` can only offer
 `CALayer.cornerRadius`, which is circular, and it sits directly beside a

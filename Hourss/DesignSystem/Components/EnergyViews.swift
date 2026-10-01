@@ -181,12 +181,33 @@ struct RatingScale: View {
 
 /// Flat selectable rows, used for onboarding intents and the activity picker.
 ///
-/// **Square, and the one block-shaped thing that is.** These stack flush against
-/// each other inside a ruled list — a leading `HRule` and one under every row — so
-/// the fill is a selection highlight on a row rather than a block standing on its
-/// own ground. Putting `Radius.block` on it notches every seam where two rows meet
-/// and runs the rules straight across four corners. If the rows are ever given gaps
-/// and stop being a list, they become blocks and this should take the token.
+/// **Rounded now, because the rows were given gaps.** These used to stack flush
+/// inside a ruled list — a leading `HRule` and one under every row — and that is
+/// exactly why they were left as the one block-shaped thing still square: on a
+/// flush stack `Radius.block` notches every seam where two fills meet and runs a
+/// 1pt rule straight across four corners. The old comment here named the condition
+/// under which that would stop being true — *if the rows are ever given gaps they
+/// stop being a list* — and the owner, having seen the rest of the radius change on
+/// device, asked for it. So the condition was met on purpose rather than drifted
+/// into: both call sites now stack these at `Space.xs` with no rules between them,
+/// and the fill takes the token through `blockSurface`.
+///
+/// **The unselected fill is the part that is easy to miss.** Those rules were doing
+/// two jobs and only one of them was separation. On a flush list they also gave an
+/// *unselected* row its only visible boundary, because the unselected fill was
+/// `Color.clear`. Drop them, add gaps and round what is left, and every row but the
+/// selected one becomes bare text — seven of eight in the log picker, and all eight
+/// on the onboarding beat, which selects nothing. That is a radius on a shape nobody
+/// draws, and a gap with nothing either side of it to separate. So an
+/// unselected row paints `surface.track` now: the same value `RatingScale` uses a
+/// few types up for an unselected segment of a selectable control, which is what
+/// puts the block on its own ground. Read from the surface rather than written as a
+/// literal grey because this is a design-system component — both call sites are
+/// canvas today, and a hardcoded `Color.ink.opacity(…)` would quietly vanish the
+/// first time somebody puts the picker on forest.
+///
+/// **The gap is the call site's, not this type's.** A row cannot space itself, and
+/// the two callers are listed above so a change here can be checked against both.
 struct SelectableChip: View {
     let title: String
     let isSelected: Bool
@@ -222,8 +243,7 @@ struct SelectableChip: View {
                 .padding(.horizontal, Space.sm)
                 .frame(height: Space.tapTarget)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(isSelected ? Color.lime : Color.clear)
-                .overlay(alignment: .bottom) { HRule() }
+                .blockSurface(isSelected ? Color.lime : surface.track)
                 .contentShape(.rect)
                 // The fill arrives rather than appearing. Eight of these sit in a
                 // column and the selection moves between them, so an instant swap

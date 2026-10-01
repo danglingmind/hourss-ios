@@ -880,19 +880,29 @@ by chance" and one declared hypothesis is not a search.
 
 **Still open.** Ordered by what I would do next, not by size.
 
-### Being built now
+### Loose ends on what just shipped
 
-- **Phase 3 — day-one starters.** A proposal from Health history alone, before any
-  ratings exist. Every priority now has a testable change, but all of them still
-  need roughly three rated days before anything is offered, so the first week is
-  quieter than it has to be with a year of Health history sitting there. The
-  premise comes from Health while the change targets a hypothesis that becomes
-  measurable once they log: the registry's ids are constructible
-  (`time.morning.vs.rest.feeling` and so on), and settling already treats a
-  hypothesis that is not in the registry yet as "cannot tell" rather than an error.
-- **The leads tier on Patterns.** Rung 2 exists in the engine and is only ever seen
-  when it becomes the Today proposal. There is no list of what the app is currently
-  watching, which was in the PRD's own §10 and did not get built.
+- **A lead's premise says "so far, across 16 days".** The sentence was written for
+  a thin lead — three or four days — and real data produces counts far higher,
+  because the lead floor is six a side and leads accumulate evidence without ever
+  clearing the gates. At sixteen days "so far" understates: that is not a thin
+  signal, it is one that is genuinely not separating. The copy should split those
+  two cases.
+- **`energy`'s starter names an activity on no evidence.** Health holds nothing
+  that names an activity, so unlike the other five this starter's subject is
+  *chosen* — the top of the person's own picker order — rather than read. It is the
+  only type `energy.insightTypes` and `experimentableTypes` share, so the
+  alternative was breaking the priority correspondence. Weakest of the six.
+- **For `focus` and `energy` the Health premise is about something else.**
+  "Mondays run 208 kcal lower than Tuesdays" above "put one block in your morning".
+  Health holds no fact that names a time of day or an activity, so there is no
+  apter one to prefer, and the disclaiming second sentence carries the whole load.
+  The honest fix is a `.starter` arm in the slot's copy that labels the two lines
+  ("What Health shows" / "What is not known yet") instead of running premise under
+  change.
+- **A starter and a lead look identical.** Both read "Worth testing", though one has
+  six rated days behind it and the other has none. A third eyebrow would separate
+  them.
 
 ### Judge on device
 
@@ -926,6 +936,28 @@ by chance" and one declared hypothesis is not a search.
   merely keeping it honest, and the most demanding of the user.
 
 ### Known defects
+
+- **The heat-calendar UI test was date-dependent and silently so.** It opens the
+  Journal on the current month and asserts some cell reports how its day felt. The
+  fixture's history is relative to today, so on the first days of a month there is
+  nothing rated in view — it passed on the 1st and failed on the 2nd, looking
+  exactly like a regression from that day's work. It is not: the same test fails
+  identically in a worktree at `b5d4aa8`, from before any of it. Fixed by stepping
+  back a month when the current one is empty, which is also what a person with a
+  quiet week does. **Worth knowing the class exists** — `README.md` already records
+  that the interaction suites are date-dependent, and this is a second instance in a
+  different place, so a UI failure that appears overnight with no matching change
+  deserves a worktree check at an older commit before anything is reverted.
+
+- **`ExperimentDesign.leadMinimumDays = 3` has never bound.** `Engine.findings`
+  drops any hypothesis without `Hypothesis.minimumDays` — six — distinct rated days
+  on *each* side before a `Finding` exists, and nothing in `HypothesisRegistry`
+  overrides that default. So no finding with three to five days a side ever reaches
+  `standing(of:)`, and the real lead floor is six a side, not three. The constant is
+  kept as a floor that can only be stricter than the engine's, and documented as
+  inert at or below six. The PRD claimed rung 2 arrived at "~3 rated days" and has
+  been corrected; the practical consequence is that rung 2 lands about a week later
+  than planned, which is what makes phase 3 load-bearing rather than a nicety.
 
 - **The record is not byte-stable, and experiments are not the cause.**
   `RecordStore` writes with `.sortedKeys` so that the same state encodes to the

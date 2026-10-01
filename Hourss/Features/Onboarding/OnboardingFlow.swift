@@ -601,8 +601,9 @@ private struct StartStep: View {
                 Text("you're ").styled(.sectionTitle).then(Text("doing now.").styled(.emphasis(42))),
             ], style: .sectionTitle)
 
-            VStack(spacing: 0) {
-                HRule()
+            // `Space.xs` and no rules, matching the activity picker in the log
+            // sheet — the same eight rows, and the one value that suits both.
+            VStack(spacing: Space.xs) {
                 ForEach(store.pickableActivities) { activity in
                     SelectableChip(
                         title: activity.name,

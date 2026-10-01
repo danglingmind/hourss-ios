@@ -2,11 +2,18 @@ import Foundation
 
 /// Turning something the engine noticed into a change somebody can actually make.
 ///
-/// **Two sources, one shape.** A proposal comes either from a claim that cleared
-/// the interval gate and the correction, or from a lead that has not — and the card
-/// says which. The difference is in `Standing` and in how much evidence is quoted,
-/// never in how the change is phrased: a test is a test, and dressing an early one
-/// in hedged language would make the honest label redundant and the copy worse.
+/// **Three sources, one shape.** A proposal comes from a claim that cleared the
+/// interval gate and the correction, from a lead that has not, or — when neither
+/// exists because nothing has been rated yet — from `ExperimentStarters`, which
+/// reads a premise off Health history and aims a change at a hypothesis the
+/// registry has not minted yet. The card says which. The difference is in
+/// `Standing` and in how much evidence is quoted, never in how the change is
+/// phrased: a test is a test, and dressing an early one in hedged language would
+/// make the honest label redundant and the copy worse.
+///
+/// This file builds the first two. `ExperimentStarters` builds the third and
+/// borrows this file's `Proposal` and `ExperimentCopy`'s wording wholesale, so a
+/// starter and a finding propose the same fortnight in the same words.
 ///
 /// **A lead is safe to show because of `Shrinkage`, not in spite of it.** A mean of
 /// four afternoons is mostly noise, and the noisiest group produces the most
@@ -55,6 +62,31 @@ enum ExperimentDesign {
         /// Directional, with enough days to be worth a fortnight and not enough to
         /// be claimed. Shown as something to test, never as something known.
         case lead
+
+        /// Nothing measured about this person's sessions at all. A premise read off
+        /// Health history and a change aimed at a hypothesis the registry has not
+        /// minted yet, because they have not logged enough for it to exist.
+        ///
+        /// **Why a third case rather than reusing `.lead`.** A lead has a measured
+        /// effect behind it and quotes it: `ExperimentCopy.premise` writes "across 4
+        /// days" precisely because a lead without its count would read as a claim,
+        /// and `standing(of:)` cannot return `.lead` with fewer than
+        /// `leadMinimumDays` on each side. A starter filed as `.lead` would be a
+        /// value violating that invariant — `evidenceDays == 0` — and any code that
+        /// trusted it, here or in six months, would print "across 0 days" on a card.
+        ///
+        /// It also carries the precedence rule for free. A real finding always beats
+        /// a starter, so something at the merge point has to be able to tell them
+        /// apart; with `.lead` reused that would be a second field beside the
+        /// standing, and two fields that must agree are two fields that can
+        /// disagree — the argument `Experiment.phase` already makes for computing a
+        /// phase from its optionals rather than storing one.
+        ///
+        /// The cost is one case in one exhaustive switch (`ExperimentCopy.premise`).
+        /// The two view sites that read the standing compare against `.confirmed`
+        /// and need no change: a starter reads as "Worth testing", which is true and
+        /// implies no measurement.
+        case starter
     }
 
     /// A change on offer, before anybody has agreed to it.
@@ -90,16 +122,39 @@ enum ExperimentDesign {
 
         /// Members only, matching `Recommendations` today. A lead is free: it is the
         /// first useful thing the app can offer, and putting the upsell in front of
-        /// that sells nothing and costs the first week.
+        /// that sells nothing and costs the first week. A starter is free for the
+        /// same reason, more so — it is the *only* thing the app can offer on day
+        /// one, and charging for it would put the paywall in front of the first
+        /// screen that does anything.
         var requiresMembership: Bool { standing == .confirmed }
+
+        /// Whether this rests on nothing the app has measured about their sessions.
+        ///
+        /// Read at the merge point, where a real proposal has to win. Expressed
+        /// against the standing rather than stored, so it cannot drift from it.
+        var isStarter: Bool { standing == .starter }
     }
 
     /// Distinct days on each side before a lead is worth a fortnight.
     ///
-    /// Three rather than the engine's six, and the gap is the point: six is what it
-    /// takes to *claim* something, three is what it takes to have noticed something
-    /// worth testing. A lead is not a weaker claim, it is a different kind of
-    /// statement, and `Shrinkage` plus the day count are what keep it honest.
+    /// **This number does not currently bind, and the comment it replaces claimed
+    /// otherwise.** It was written to say that three is what it takes to notice
+    /// something while six is what it takes to claim it — a real distinction, and
+    /// one this constant cannot express from here. `Engine.findings` drops any
+    /// hypothesis without `Hypothesis.minimumDays` distinct rated days on *each*
+    /// side before it builds a `Finding` at all, that default is six, and nothing in
+    /// `HypothesisRegistry` overrides it. So no finding with three to five days a
+    /// side ever reaches `standing(of:)`, and the effective lead floor is the
+    /// engine's six.
+    ///
+    /// Kept rather than deleted, as a floor that can only ever be stricter than the
+    /// engine's and never looser: if `minimumDays` is ever lowered for some family,
+    /// this is what stops leads appearing on two days of evidence. Raise it above
+    /// six to make it bite; anything at or below six is inert.
+    ///
+    /// The practical cost of the old reading is that rung 2 arrives about a week
+    /// later than the PRD promised, which is what makes phase 3's day-one starters
+    /// load-bearing rather than merely nice.
     static let leadMinimumDays = 3
 
     /// Types a change can honestly be built for. See filter 3 above.

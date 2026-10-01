@@ -235,8 +235,26 @@ final class HealthAndMarksTests: XCTestCase {
         // The calendar fills in cell by cell; scan it once it has cells.
         _ = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "felt ")).waitForFirstMatch()
 
-        let cells = app.buttons.allElementsBoundByIndex.filter { $0.label.contains("felt ") }
-        XCTAssertFalse(cells.isEmpty, "No heat-calendar cell reports how its day felt")
+        // Step back a month if this one has no rated day in it.
+        //
+        // The calendar opens on the current month, and the fixture's history is
+        // relative to today — so on the first days of a month there is nothing rated
+        // in view and the assertion below fails for the calendar's own reason rather
+        // than for a broken label. That is not hypothetical: this test passed on the
+        // 1st and failed on the 2nd, and it fails identically on commits from before
+        // any of the work it appeared to break. Verified by running it in a worktree
+        // at an older commit.
+        //
+        // Two months is enough for a 42-day fixture to be reachable from any day of
+        // any month, and stepping back is what a person with a quiet week does too.
+        var cells = app.buttons.allElementsBoundByIndex.filter { $0.label.contains("felt ") }
+        if cells.isEmpty {
+            app.descendants(matching: .any)["Previous month"].firstMatch.tapWhenReady()
+            _ = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "felt ")).waitForFirstMatch()
+            cells = app.buttons.allElementsBoundByIndex.filter { $0.label.contains("felt ") }
+        }
+        XCTAssertFalse(cells.isEmpty,
+                       "No heat-calendar cell reports how its day felt, in this month or the one before")
 
         cells.first?.tapWhenReady()
         XCTAssertTrue(app.descendants(matching: .any)["back"].firstMatch.waitForExistence(timeout: UITest.timeout),

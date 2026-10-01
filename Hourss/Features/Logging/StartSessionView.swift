@@ -295,8 +295,13 @@ struct StartSessionView: View {
     private var activityPicker: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
             Eyebrow(mode == .now ? "What are you doing with this hour?" : "What filled that time?")
-            VStack(spacing: 0) {
-                HRule()
+            // `Space.xs`, and no rules. The rows are filled rounded blocks now, so
+            // a 1pt line between two of them is a second separator doing the job
+            // the gap already does — and the leading rule under the eyebrow was
+            // only ever there to close the top of a flush strip that no longer
+            // exists. Same gap as the "Just finished" preset strip below, which is
+            // the same idiom turned on its side.
+            VStack(spacing: Space.xs) {
                 ForEach(store.pickableActivities) { activity in
                     SelectableChip(
                         title: activity.name,
