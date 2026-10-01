@@ -153,6 +153,28 @@ enum ObservationSlot {
 
 // MARK: - The words
 
+/// Fills a slot band, or leaves it exactly as it was.
+///
+/// A modifier rather than a branch in `body` so that the ordinary path keeps the
+/// identical view tree it had before — a conditional wrapper around a whole band
+/// changes identity, and SwiftUI then rebuilds it from scratch on every transition
+/// between two uncarded states.
+private struct SlotSurface: ViewModifier {
+    let carded: Bool
+
+    func body(content: Content) -> some View {
+        if carded {
+            content
+                .padding(Space.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .blockSurface(Color.forest)
+                .surfaceContent(.forest)
+        } else {
+            content
+        }
+    }
+}
+
 /// One rendered string, with enough about it to draw it and to sweep it.
 struct SlotLine: Equatable {
     /// How loudly it is set, which is also its place in the reading order.
@@ -422,7 +444,12 @@ extension ObservationSlot {
             eyebrow: eyebrow,
             lines: [
                 SlotLine(text: result, emphasis: .lead, origin: .carried),
-                SlotLine(text: experiment.change, emphasis: .support, origin: .carried),
+                // Body rather than support. `support` is 11pt mono, which
+                // `HealthFactRow` names as the register this app uses for metadata
+                // and not for prose — and this is a sentence asking somebody to do
+                // something. It reads as a caption of the result above it rather
+                // than as the thing that was tested.
+                SlotLine(text: experiment.change, emphasis: .body, origin: .carried),
             ],
             action: ExperimentCopy.acknowledgeTitle
         )
@@ -681,7 +708,11 @@ struct ObservationSlotView: View {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: Space.sm) {
-                HRule()
+                // The rule separates the band from the day above it. A card that
+                // carries its own surface does not need one — the surface is already
+                // the boundary, and a rule across the canvas directly above a filled
+                // block reads as a seam rather than a division.
+                if !isCarded { HRule() }
 
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Eyebrow(copy.eyebrow)
@@ -709,7 +740,8 @@ struct ObservationSlotView: View {
 
                 if let ask = copy.ask { askBlock(ask) }
             }
-            .padding(.top, Space.md)
+            .modifier(SlotSurface(carded: isCarded))
+            .padding(.top, roomAbove)
             // Accepting, refusing, stopping or acknowledging replaces the whole band,
             // and the four of them are the only taps on Today that do. Keyed to the
             // content rather than to any one id so a hand-off between two experiment
@@ -717,6 +749,61 @@ struct ObservationSlotView: View {
             .animation(Motion.content(reduced: reduceMotion), value: content)
         }
     }
+
+    /// Space above the band, from how rare what it is showing is.
+    ///
+    /// **The same lever and the same two tokens `HealthFactRow` uses**, for the same
+    /// reason: `DESIGN.md` records a second rule weight and a full-bleed canvas both
+    /// reverted whole, and closes the first with the conclusion that the lever is
+    /// space rather than more lines. A finished test is the rarest thing this app
+    /// can show and appears once per experiment; everything else here is routine by
+    /// comparison.
+    ///
+    /// Nothing else varies — no colour, badge, border or type size — and the
+    /// ordinary case keeps the padding it always had, so this adds space to one card
+    /// rather than taking it from the others.
+    private var roomAbove: CGFloat {
+        if case .settledExperiment = content { Space.lg } else { Space.md }
+    }
+
+    /// Whether this band is drawn as a filled card rather than as a ruled section.
+    ///
+    /// **One state, and that is the whole design.** The owner asked for cards to
+    /// differ by how important they are, and the system already answers that: the
+    /// lead insight on Patterns is a forest block while everything beside it is a
+    /// ruled row. This extends that one precedent rather than introducing a scale of
+    /// colours — a palette where four things are emphasised differently is a palette
+    /// where nothing is emphasised.
+    ///
+    /// So the settled result gets it and nothing else does. It is the rarest thing
+    /// the app can show, it appears once per experiment, and it is the only card
+    /// here a person waited a fortnight for. A proposal is a close second and
+    /// deliberately misses: it arrives whenever the engine has something, which over
+    /// a year is often, and a card that is emphatic every other week is just the
+    /// house style.
+    ///
+    /// **Colour is never the only carrier.** The eyebrow already says "It held up",
+    /// "It did not hold up" or "Not enough to tell" in words, so the surface is
+    /// reinforcing a distinction that survives being read aloud or seen in
+    /// greyscale.
+    private var isCarded: Bool {
+        if case .settledExperiment = content { true } else { false }
+    }
+
+    /// The surface this band is drawn on, which decides its secondary copy colour.
+    ///
+    /// **Not read from the environment, and it cannot be.** `SlotSurface` sets
+    /// `\.surface` on the band, so children rendered inside it see forest — but this
+    /// view is the one *applying* that modifier, and it would read whatever its own
+    /// parent set, which is canvas. Deriving it from the same flag that drives the
+    /// fill is the only way the two cannot disagree.
+    ///
+    /// Going through `Surface.secondary` rather than naming a colour is the point:
+    /// `Surface.swift` exists so that nothing hardcodes a pairing the design system
+    /// did not sanction, and three places here were doing exactly that. On canvas
+    /// `muted` was right and the bug was invisible; the moment a band was filled with
+    /// forest, the same grey landed on dark green.
+    private var surface: Surface { isCarded ? .forest : .canvas }
 
     private var contentIsExperiment: Bool {
         switch content {
@@ -789,12 +876,12 @@ struct ObservationSlotView: View {
         case .body:
             Text(line.text)
                 .textStyle(.body)
-                .foregroundStyle(Color.muted)
+                .foregroundStyle(surface.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         case .support:
             Text(line.text)
                 .textStyle(.label)
-                .foregroundStyle(Color.muted)
+                .foregroundStyle(surface.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -813,7 +900,7 @@ struct ObservationSlotView: View {
             Eyebrow("Bear in mind")
             Text(caveat)
                 .textStyle(.label)
-                .foregroundStyle(Color.muted)
+                .foregroundStyle(surface.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

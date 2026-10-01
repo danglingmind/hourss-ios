@@ -34,11 +34,13 @@ enum Radius {
     /// panels, cards, the active-session panel, the Live Activity's stop control,
     /// and the sheets' own containers.
     ///
-    /// 10pt against block heights of 44–50pt is about a fifth of the shorter side —
-    /// unmistakably rounded at a glance, and still a long way from the filled
-    /// capsule the token file banned for its own separate reasons. It is meant to be
-    /// tuned; change it here and every block follows.
-    static let block: CGFloat = 10
+    /// 14pt against block heights of 44–50pt is roughly a third of the shorter side
+    /// — soft enough to read as a rounded block rather than a squared one with the
+    /// corners taken off, and still short of the filled capsule the token file
+    /// banned for its own separate reasons. It started at 10, which was closer to
+    /// the retired square rule than to anything; this is the owner's number. It is
+    /// meant to be tuned — change it here and every block in both targets follows.
+    static let block: CGFloat = 14
 }
 
 extension View {

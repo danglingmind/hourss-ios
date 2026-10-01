@@ -73,16 +73,25 @@ struct TodayView: View {
                             day: today,
                             selectedSessionId: $selectedSessionId
                         )
-                        ObservationSlotView(
-                            state: store.slotState(on: today,
-                                                   recommendations: recommendations,
-                                                   proposals: proposals),
-                            recommendations: recommendations,
-                            proposals: proposals,
-                            activeReading: activeReading,
-                            daysRemaining: store.activeExperiment?.daysRemaining(at: today) ?? 0
-                        )
                     }
+
+                    // Outside both branches, for the reason the daily fact above is
+                    // outside them — and it took an experiment settling overnight to
+                    // notice. The slot used to sit inside the logged branch, so a
+                    // finished test was invisible on any day nothing had been logged
+                    // yet, which is both the likeliest morning to open the app and
+                    // the one where a fortnight's result is the only thing it has to
+                    // say. The slot renders nothing for `.none`, so a day with
+                    // genuinely nothing to show is unchanged.
+                    ObservationSlotView(
+                        state: store.slotState(on: today,
+                                               recommendations: recommendations,
+                                               proposals: proposals),
+                        recommendations: recommendations,
+                        proposals: proposals,
+                        activeReading: activeReading,
+                        daysRemaining: store.activeExperiment?.daysRemaining(at: today) ?? 0
+                    )
                 }
             }
             .pageGutter()

@@ -887,6 +887,16 @@ by chance" and one declared hypothesis is not a search.
   as every other change does. It was as testable as the health associations
   admitted on identical grounds — a filter applied one step too early. Every stated
   priority now reaches a change, with a test pinning that.
+- **The record is not byte-stable, and something other than experiments is the
+  cause.** `RecordStore` writes with `.sortedKeys` so that the same state encodes
+  to the same bytes — that is why `physiology` is written sorted and why
+  `experiments` is. A test comparing two full encodings of identical state caught
+  a real difference once: same length, different content, which points at an
+  identifier or a hash-ordered collection rather than a sort. Six repeat runs
+  could not reproduce it, and it is not in `experiments` or `declinedExperiments`,
+  both of which are explicitly sorted. Candidates are `Profile.workdays`
+  (a `Set<Int>`) and the `UUID`-keyed dictionaries, which `JSONEncoder` writes as
+  flat arrays in hash order. Worth chasing with `SWIFT_DETERMINISTIC_HASHING=1`.
 - **Phase 3:** a proposal on day one, from Health history alone. Every priority
   now has a testable change, but all of them still need roughly three rated days
   before anything is offered — so the first week is quieter than it has to be when
