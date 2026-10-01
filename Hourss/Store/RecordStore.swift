@@ -26,8 +26,8 @@ struct Record: Codable {
     /// is needed is the moment somebody already has a file without it. Migration
     /// then becomes a decision rather than a discovery.
     var schemaVersion: Int = Record.currentSchemaVersion
-    /// 2 added `physiology`.
-    static let currentSchemaVersion = 2
+    /// 2 added `physiology`. 3 added `experiments` and `declinedExperiments`.
+    static let currentSchemaVersion = 3
 
     var activities: [Activity] = []
     var sessions: [Session] = []
@@ -61,6 +61,34 @@ struct Record: Codable {
     /// sensible its default looks, and every record written before this field
     /// existed is missing it.
     var physiology: [Physiology.StoredReading]?
+
+    /// Experiments this person has agreed to, including the ones that have settled.
+    ///
+    /// Stored for the reason `Experiment`'s own documentation gives at length: a
+    /// commitment is a decision somebody made and cannot be re-derived from the
+    /// sessions, unlike every insight, which is why none of those are here.
+    ///
+    /// Settled experiments are kept rather than pruned. A person who tested their
+    /// mornings and found nothing should not be offered the same fortnight again as
+    /// though it were new, and the only thing that can stop that is a record of it
+    /// having happened.
+    ///
+    /// Optional for the reason `removedImports` and `physiology` above both give: a
+    /// synthesized `Codable` fails on a missing key for a non-optional property
+    /// however sensible its default looks, and every record written before schema 3
+    /// is missing this one.
+    var experiments: [Experiment]?
+
+    /// Hypothesis keys this person declined, so nothing re-proposes them.
+    ///
+    /// Separate from `experiments` because a decline is not an experiment that
+    /// failed — nothing ran, there is no window and there is nothing to measure.
+    /// Folding it in would mean every query over experiments having to exclude a
+    /// shape that has none of an experiment's parts.
+    ///
+    /// Permanent on purpose. An app that re-asks a question somebody has already
+    /// said no to is nagging, and the fact that it forgot is not a defence.
+    var declinedExperiments: [String]?
 }
 
 /// Where the record lives.

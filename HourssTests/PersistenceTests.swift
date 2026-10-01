@@ -119,7 +119,7 @@ struct PersistenceTests {
         try FileRecordRepository(url: url).save(Record())
         let raw = try String(contentsOf: url, encoding: .utf8)
         #expect(raw.contains("\"schemaVersion\" : \(Record.currentSchemaVersion)"))
-        #expect(Record.currentSchemaVersion == 2, "version 2 added the frozen physiology readings")
+        #expect(Record.currentSchemaVersion == 3, "version 3 added experiments and the declines")
     }
 
     @Test("A record round-trips through the file unchanged")

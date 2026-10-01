@@ -59,7 +59,10 @@ struct EngineObservation {
 
 /// What is being compared. Kept small on purpose — every addition here is a new
 /// thing the phrasing layer has to know how to say.
-enum Outcome: String {
+/// `Codable` because `Experiment` stores which measurement it is testing. The raw
+/// values are therefore a persisted format: renaming a case rewrites the meaning of
+/// experiments already on somebody's phone, so they are append-only from here.
+enum Outcome: String, Codable, Sendable {
     case feeling, performance, heartRateResidual
 
     /// Which direction counts as good, for phrasing. Residuals are deliberately

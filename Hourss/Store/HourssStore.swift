@@ -16,6 +16,13 @@ final class HourssStore {
     var insights: [Insight] = []
     var hasCompletedOnboarding = false
 
+    /// Experiments, newest last. Includes settled and abandoned ones, because the
+    /// record of having tested something is what stops it being proposed again.
+    var experiments: [Experiment] = []
+
+    /// Hypothesis keys this person said no to. Never re-proposed.
+    var declinedExperiments: Set<String> = []
+
     /// Set when a session ends, to hand it straight to the reflection sheet.
     var pendingReflectionSessionId: UUID?
 
@@ -84,6 +91,8 @@ final class HourssStore {
         profile = record.profile
         hasCompletedOnboarding = record.hasCompletedOnboarding
         removedImports = Set(record.removedImports ?? [])
+        experiments = record.experiments ?? []
+        declinedExperiments = Set(record.declinedExperiments ?? [])
         // Before the rebuild below, not after: a residual is an input to an
         // observation, and restoring it afterwards would leave the first rebuild
         // of every launch running on a record with no heart rate in it.
@@ -116,6 +125,14 @@ final class HourssStore {
         record.profile = profile
         record.hasCompletedOnboarding = hasCompletedOnboarding
         record.removedImports = removedImports.isEmpty ? nil : removedImports.sorted()
+        // Sorted, for the reason `physiology` below is sorted: the record is
+        // written with `.sortedKeys` so that the same state encodes to the same
+        // bytes, and an array in insertion order would defeat that on every array
+        // the record holds. Sorted by start date so the file also reads as a
+        // history to anybody who opens it.
+        record.experiments = experiments.isEmpty ? nil : experiments
+            .sorted { ($0.startedAt, $0.id.uuidString) < ($1.startedAt, $1.id.uuidString) }
+        record.declinedExperiments = declinedExperiments.isEmpty ? nil : declinedExperiments.sorted()
         record.physiology = physiologyReadings.isEmpty ? nil : physiologyReadings
             .map { Physiology.StoredReading(sessionId: $0.key, reading: $0.value) }
             .sorted { $0.sessionId.uuidString < $1.sessionId.uuidString }

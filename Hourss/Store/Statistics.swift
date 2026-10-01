@@ -51,7 +51,7 @@ enum Statistics {
         }
     }
 
-    struct Comparison {
+    struct Comparison: Equatable {
         /// Cliff's delta: −1 (every focus rating below baseline) to +1 (every one
         /// above). Zero means the two groups interleave completely.
         let delta: Double
