@@ -439,13 +439,13 @@ are **shared by phases 1 and 2** and have no fork in them.
 
 ### Verification
 
-- [ ] **24.** Full unit suite on **iPhone 17 Pro** (`53352C15-…`), by UDID. Watch
+- [x] **24.** Full unit suite on **iPhone 17 Pro** (`53352C15-…`), by UDID. Watch
       for `Restarting after unexpected exit` rather than trusting the summary.
-- [ ] **25.** UI suite — the account gate means this device only.
+- [x] **25.** UI suite — the account gate means this device only.
 - [x] **26.** `DebugFixture`: seed an active and a settled experiment, so all three
       cards are reachable in the simulator. The health-seeding work proved this is
       the difference between a feature being testable and being invisible.
-- [ ] **27.** `DESIGN.md` and `BACKLOG.md` updated. `README.md` layer description
+- [x] **27.** `DESIGN.md` and `BACKLOG.md` updated. `README.md` layer description
       gains the ladder.
 
 ### Fork — after step 12, see §15
