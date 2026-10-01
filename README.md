@@ -218,7 +218,8 @@ never "improved".
 
 **Blocks round on one token; everything else is still lines and type.**
 `Radius.block` in `Shared/Radius.swift` is the app's only corner radius, currently
-10pt, and it is meant to be tuned from that one line. It replaced a zero-radius
+14pt, and it is meant to be tuned from that one line — it has already moved once,
+from 10. It replaced a zero-radius
 rule that had been standing policy — `hourss-ui-system.json` said
 `radius.default: 0px`, *"the product relies on type and lines, not rounded
 panels"* — and the reversal was a decision, taken deliberately, not drift. Read

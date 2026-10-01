@@ -890,14 +890,29 @@ by chance" and one declared hypothesis is not a search.
   measurable once they log: the registry's ids are constructible
   (`time.morning.vs.rest.feeling` and so on), and settling already treats a
   hypothesis that is not in the registry yet as "cannot tell" rather than an error.
-- **The flush chips.** `SelectableChip` (activity picker, onboarding intents) and
-  `ProfileView`'s workday cells are the two blocks left square by the radius work.
-  Both stack flush inside a ruled strip, so rounding them notches every seam where
-  two fills meet and runs a 1pt rule across four corners. Rounding means giving
-  them gaps and dropping the rules — a layout change, not a radius change.
 - **The leads tier on Patterns.** Rung 2 exists in the engine and is only ever seen
   when it becomes the Today proposal. There is no list of what the app is currently
   watching, which was in the PRD's own §10 and did not get built.
+
+### Judge on device
+
+- **The workday strip.** The flush chips are done — the activity picker reads
+  better than it did, with the lime selection finally having edges on all four
+  sides instead of bleeding into the rules above and below it. The seven workday
+  cells are the weaker half: a flush strip between two rules was unambiguously one
+  object representing a week, and seven rounded squares at 8pt apart read more like
+  seven keys. Levers, smallest first: tighten the gap; drop the fill opacity; or
+  leave the workday cells square and take the radius only on the activity rows.
+- **The unselected fill, at two opacities.** Rounding meant unselected rows needed
+  a fill — a clear shape cannot be rounded, and without one seven of eight picker
+  rows became bare text in whitespace. They now paint `surface.track`, which is
+  `ink @ 0.08`, while `presetChip` and `SlotPicker`'s steppers use `ink @ 0.05`.
+  Both appear in the `+` sheet, 3% of alpha apart. One of the two should move.
+- **Tap targets dip below 44pt wide on small phones.** Seven workday cells with six
+  8pt gaps inside the page gutter leave each cell 43.7pt wide at 390pt (iPhone 16e,
+  14, 13, 12) and 41.6pt at 375pt (SE 3). Height is always 44. There is no spacing
+  token below `Space.xs`, so holding 44 square everywhere means a hardcoded gap or
+  breaking the gutter.
 
 ### Next
 
