@@ -212,7 +212,7 @@ struct SlotStepper: View {
                 .font(.custom("DMSans-Medium", fixedSize: 22))
                 .foregroundStyle(surface.foreground)
                 .frame(width: Space.tapTarget, height: Space.tapTarget)
-                .background(Color.ink.opacity(0.05))
+                .blockSurface(Color.ink.opacity(0.05))
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)

@@ -153,7 +153,7 @@ struct PatternsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(Space.md)
-                    .background(Color.forest)
+                    .blockSurface(Color.forest)
                     .surfaceContent(.forest)
                     .contentShape(.rect)
                 }

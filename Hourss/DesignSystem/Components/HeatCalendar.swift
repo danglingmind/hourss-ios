@@ -109,9 +109,10 @@ struct HeatCalendar: View {
                 Text("\(calendar.component(.day, from: day))")
                     .textStyle(.dayNumeral)
                     .foregroundStyle(numeral(for: mean, isFuture: isFuture))
-                // Today is marked by a rule under the numeral rather than a ring:
-                // the design system has no corner radius, and a square ring around
-                // a square cell reads as a second cell.
+                // Today is marked by a rule under the numeral rather than a ring: a
+                // square ring around a square cell reads as a second cell. The
+                // cells stay square — `Radius.block` is for blocks, and a month of
+                // rounded cells is a grid of lozenges, not a heat map.
                 if isToday {
                     VStack {
                         Spacer()

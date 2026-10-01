@@ -104,9 +104,11 @@ struct RootView: View {
             guard slot != nil else { return }
             isStartingSession = true
         }
+        // Both sheets state the radius rather than taking iOS's, so the sheet's own
+        // container is on the same token as the blocks inside it. This used to be 0.
         .sheet(isPresented: $isStartingSession) {
             StartSessionView()
-                .presentationCornerRadius(0)
+                .presentationCornerRadius(Radius.block)
         }
         // A session ending anywhere in the app raises the same reflection sheet.
         .sheet(item: Binding(
@@ -114,7 +116,7 @@ struct RootView: View {
             set: { if $0 == nil { store.pendingReflectionSessionId = nil } }
         )) { wrapper in
             ReflectionView(sessionId: wrapper.id)
-                .presentationCornerRadius(0)
+                .presentationCornerRadius(Radius.block)
         }
     }
 

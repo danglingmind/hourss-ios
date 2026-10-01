@@ -2,6 +2,10 @@ import SwiftUI
 
 /// Port of the `spacing` and `layout` blocks. Page gutter uses the mobile value
 /// (18pt), since every iPhone falls below the system's 700px breakpoint.
+///
+/// The `shape` block's one live token is not here: `Radius.block` lives in
+/// `Shared/Radius.swift` because the Live Activity needs it and the widget target
+/// does not compile this folder. See that file for why radius stopped being zero.
 enum Space {
     static let xs: CGFloat = 8
     static let sm: CGFloat = 16

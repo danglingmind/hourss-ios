@@ -1,17 +1,25 @@
 import SwiftUI
 import AuthenticationServices
 
-/// Apple's own button, with the corners taken off.
+/// Apple's own button, on the house corner radius.
 ///
 /// Sign in with Apple is the one control in this app that may not be redrawn in
 /// the house style — the mark, the wording and the proportions are Apple's, and
 /// substituting a `DirectionalLink` for them would be both a guideline violation
 /// and a worse button, because people recognise this one. `cornerRadius` is the
-/// single property Apple does expose, and zero is what the rest of the system
-/// uses: nothing else in Hourss has a rounded corner.
+/// single property Apple does expose, so it is the only thing about this control
+/// the system can state, and it states `Radius.block` like every other block.
+///
+/// It used to be forced to zero, back when nothing in Hourss had a rounded corner.
+/// That made this file the one documented exception to the conformance sweep; now
+/// it is an ordinary participant, and it is the reason `Radius.block` uses circular
+/// corners rather than `.continuous` — `CALayer.cornerRadius` cannot do continuous,
+/// and this button sits directly beside a `PrimaryAction` on the sign-in screen.
 ///
 /// Wrapping `ASAuthorizationAppleIDButton` rather than using SwiftUI's
-/// `SignInWithAppleButton` is what buys that radius. The SwiftUI wrapper hides it.
+/// `SignInWithAppleButton` is what buys that radius at all. The SwiftUI wrapper
+/// hides it, which would leave this button on Apple's default while its neighbour
+/// followed the token.
 struct AppleSignInButton: UIViewRepresentable {
     var label: ASAuthorizationAppleIDButton.ButtonType = .signIn
     let action: () -> Void
@@ -25,7 +33,7 @@ struct AppleSignInButton: UIViewRepresentable {
             // contrast. `.whiteOutline` disappears into it.
             authorizationButtonStyle: .black
         )
-        button.cornerRadius = 0
+        button.cornerRadius = Radius.block
         button.addTarget(context.coordinator,
                          action: #selector(Coordinator.fire),
                          for: .touchUpInside)

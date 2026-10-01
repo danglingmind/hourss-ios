@@ -179,8 +179,14 @@ struct RatingScale: View {
     }
 }
 
-/// Flat selectable chips, used for onboarding intents and the activity picker.
-/// Square corners — `radius.default` is 0 throughout this system.
+/// Flat selectable rows, used for onboarding intents and the activity picker.
+///
+/// **Square, and the one block-shaped thing that is.** These stack flush against
+/// each other inside a ruled list — a leading `HRule` and one under every row — so
+/// the fill is a selection highlight on a row rather than a block standing on its
+/// own ground. Putting `Radius.block` on it notches every seam where two rows meet
+/// and runs the rules straight across four corners. If the rows are ever given gaps
+/// and stop being a list, they become blocks and this should take the token.
 struct SelectableChip: View {
     let title: String
     let isSelected: Bool

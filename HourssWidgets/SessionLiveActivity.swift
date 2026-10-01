@@ -10,10 +10,10 @@ import WidgetKit
 /// and nothing that can be half-answered.
 ///
 /// The Island is Apple's surface, not ours, so its shape and placement are not
-/// negotiable. Everything inside it is Hourss: the activity's own rectangle glyph,
-/// DM Mono for the count, lime for the running state, no borrowed symbols. The one
-/// concession is rounding on the controls, which the container's own curve makes
-/// necessary.
+/// negotiable — the container's curve is Apple's number and there is no API to put
+/// `Radius.block` on it. Everything inside it is Hourss: the activity's own
+/// rectangle glyph, DM Mono for the count, lime for the running state, no borrowed
+/// symbols, and the stop control on the house radius like every other block.
 struct SessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: HourssActivityAttributes.self) { context in
@@ -125,10 +125,15 @@ private struct Counter: View {
 /// Orange rather than lime: lime is the running state everywhere else in this
 /// view, and an action in the same colour reads as more of the same.
 ///
-/// The rounded corners are a deliberate, scoped exception. `radius.default` is 0
-/// everywhere in Hourss and stays 0 — but this sits inside Apple's container,
-/// where a square rectangle set into a heavily rounded pill reads as a mistake
-/// rather than a principle. The exception ends at the edge of the Island.
+/// The rounded corners used to be a scoped exception, back when `radius.default` was
+/// 0 everywhere in Hourss and this was the one square block that could not be left
+/// square — set into Apple's heavily rounded container it read as a mistake rather
+/// than as a principle. It was 12pt, chosen by eye for that container alone.
+///
+/// It is not an exception any more. Blocks round throughout the app now, so this
+/// takes `Radius.block` like the rest, and the Island stops being a special case.
+/// The token is a touch tighter than the 12 this had; if the control looks mean
+/// inside the container after a change, the fix is the token, not a number here.
 private struct StopButton: View {
     var body: some View {
         Button(intent: StopSessionIntent()) {
@@ -137,7 +142,7 @@ private struct StopButton: View {
                 .foregroundStyle(Color.ink)
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
-                .background(Color.orange, in: .rect(cornerRadius: 12))
+                .blockSurface(Color.orange)
         }
         .buttonStyle(.plain)
     }

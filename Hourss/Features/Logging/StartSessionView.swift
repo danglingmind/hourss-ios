@@ -212,7 +212,7 @@ struct StartSessionView: View {
                 .foregroundStyle(isSelected ? Color.ink : Color.muted)
                 .frame(maxWidth: .infinity)
                 .frame(height: Space.tapTarget)
-                .background(isSelected ? Color.lime : Color.ink.opacity(0.05))
+                .blockSurface(isSelected ? Color.lime : Color.ink.opacity(0.05))
                 .contentShape(.rect)
                 .animation(Motion.content(reduced: reduceMotion), value: isSelected)
         }

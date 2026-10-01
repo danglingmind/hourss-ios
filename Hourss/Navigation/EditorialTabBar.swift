@@ -9,11 +9,15 @@ enum Tab: String, CaseIterable, Identifiable {
 
 /// A hand-built tab bar.
 ///
-/// The design system bans pills, dense menus and outlined CTAs, sets every corner
-/// radius to zero and defines no shadows — none of which survives a stock
-/// `TabView` under iOS 26's Liquid Glass chrome. So this is flat: mono labels, a
-/// hairline rule, the centred `+` that the spec makes the primary log action, and
-/// an orange rule under whichever tab you are on.
+/// The design system bans pills, dense menus and outlined CTAs, defines no shadows
+/// and puts every rounded corner on one token — none of which survives a stock
+/// `TabView` under iOS 26's Liquid Glass chrome, which brings its own radius, its
+/// own translucency and its own shadow. So this is flat: mono labels, a hairline
+/// rule, the centred `+` that the spec makes the primary log action, and an orange
+/// rule under whichever tab you are on.
+///
+/// Blocks here round on `Radius.block` now — the bar's `+` does. Hand-building the
+/// bar is still what makes that a choice rather than a default.
 struct EditorialTabBar: View {
     @Binding var selection: Tab
     let onLog: () -> Void
@@ -123,15 +127,20 @@ struct EditorialTabBar: View {
         .accessibilityAddTraits(selection == tab ? [.isSelected] : [])
     }
 
-    /// The persistent log action. A filled lime square rather than a floating
-    /// circle — the system's only shape is the rectangle.
+    /// The persistent log action. A filled lime block rather than a floating
+    /// circle — this is a block on `Radius.block`, not a circular FAB, and the
+    /// difference is the whole reason it does not read as borrowed iOS chrome.
+    ///
+    /// The travelling rule below it is unaffected: it still lives in the bottom 2pt
+    /// of the row and this block's lower edge is still 8pt above that, so rounding
+    /// the corners does not bring the two into contact.
     private var logButton: some View {
         Button(action: onLog) {
             Text("+")
                 .font(.custom("DMSans-Medium", fixedSize: 26))
                 .foregroundStyle(Color.ink)
                 .frame(width: 46, height: 38)
-                .background(Color.lime)
+                .blockSurface(Color.lime)
                 .frame(width: Self.logSlot, height: Space.tapTarget)
                 .contentShape(.rect)
         }

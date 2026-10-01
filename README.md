@@ -216,23 +216,48 @@ holds everywhere it held before, and the causal and clinical bans hold there too
 never "improved".
 
 
-**The zero-radius rule is load-bearing.** `hourss-ui-system.json` sets
-`radius.default: 0px` — *"the product relies on type and lines, not rounded
-panels"* — and defines no shadows at all. That is why the tab bar, sheets and
-headers are hand-built rather than `TabView` and `List`: stock iOS 26 chrome is
-rounded, translucent and shadowed, and it fights the system on every screen.
-There is a conformance sweep in the test suite's spirit worth re-running by hand:
+**Blocks round on one token; everything else is still lines and type.**
+`Radius.block` in `Shared/Radius.swift` is the app's only corner radius, currently
+10pt, and it is meant to be tuned from that one line. It replaced a zero-radius
+rule that had been standing policy — `hourss-ui-system.json` said
+`radius.default: 0px`, *"the product relies on type and lines, not rounded
+panels"* — and the reversal was a decision, taken deliberately, not drift. Read
+`Radius`'s own doc comment before restoring anything.
+
+What did **not** change: there are still no shadows, `HRule` still does the job a
+card border does elsewhere, and rules, bars, hour cells, arcs and data marks are
+still square. Rounding the ends of a 2pt bar is a separate decision and nobody has
+taken it. It is also still why the tab bar, sheets and headers are hand-built
+rather than `TabView` and `List` — stock iOS 26 chrome brings its own radius, its
+own translucency and its own shadow, and only the first of those three is wanted.
+
+The conformance sweep is worth re-running by hand. It permits the token and fails
+anything else:
 
 ```bash
-grep -rn "cornerRadius\|RoundedRectangle\|Capsule()\|\.shadow(\|Image(systemName" Hourss/ Shared/
+grep -rnE "[cC]ornerRadius|RoundedRectangle|Capsule\(\)|\.shadow\(|Image\(systemName" \
+  --include="*.swift" Hourss Shared HourssWidgets \
+  | grep -vE "^[^:]+:[0-9]+:[[:space:]]*//" \
+  | grep -v "Radius\.block"
 ```
 
-It should return nothing but `Features/Account/AppleSignInButton.swift`, where the
-two hits are `cornerRadius = 0` being *set* on Apple's button. That control is the
-one exception to drawing everything in the house style — the mark and proportions
-are Apple's and may not be redrawn — and the radius is the single property Apple
-exposes, which is why the button is wrapped from UIKit rather than taken from
-SwiftUI's `SignInWithAppleButton`, which hides it.
+**It should return nothing at all** — `AppleSignInButton` is no longer an
+exception, because `button.cornerRadius = Radius.block` is the token like anywhere
+else. Wrapping `ASAuthorizationAppleIDButton` from UIKit is still what buys that
+radius; SwiftUI's `SignInWithAppleButton` hides it, which would leave Apple's
+button on Apple's default while the `PrimaryAction` beside it followed the token.
+
+Three things about the sweep itself, each of which it got wrong before:
+
+- It covers **`HourssWidgets`**, which the old version did not. The Live Activity's
+  stop control was sitting on a hand-picked `cornerRadius: 12` that no sweep over
+  `Hourss/ Shared/` could ever have seen.
+- `[cC]ornerRadius` rather than `cornerRadius`, so **`presentationCornerRadius`** is
+  caught. The two sheets in `RootView` were setting 0 through it, invisibly to the
+  old pattern.
+- It drops comment-only lines and any line naming `Radius.block`. Without the first
+  filter, the files explaining the rule trip it; without the second, the rule's own
+  compliant call sites do.
 
 **The interaction suite is date-dependent, and it is not flaky.** Which tests in
 `InteractionCandidateTests` / `InteractionCorrectionTests` fail depends on what
@@ -347,8 +372,10 @@ are doing now — and it flags overlaps rather than refusing them, because the s
 keeps overlapping hours but leaves them out of pattern computation.
 
 **The slider is hand-built too.** `Slider` has a capsule track and a circular
-thumb; `radius.default` is 0, so `EditorialSlider` is rectangles, with the marker
-as a 2pt rule rather than a knob and the whole track draggable. It exposes itself
+thumb; a track here is a line, not a block, so `EditorialSlider` is rectangles,
+with the marker as a 2pt rule rather than a knob and the whole track draggable.
+`Radius.block` does not reach into it and should not — a 2pt line with rounded ends
+is the capsule this control exists to avoid. It exposes itself
 through `accessibilityRepresentation` as a real `Slider` — rebuilding the visuals
 should not cost the semantics, or VoiceOver loses swipe-to-adjust.
 
@@ -378,11 +405,14 @@ which put ink on dark green — nearly invisible. Use `.surfaceContent(_:)` (or
 `.surface(_:)`, which also paints the background). This failed quietly once and
 will again.
 
-**The Island rounds; the app does not.** `radius.default` is 0 everywhere in
-Hourss and stays 0 — but the Live Activity's controls sit inside Apple's rounded
-container, where a square rectangle reads as a mistake rather than a principle.
-The exception is deliberate and ends at the edge of `HourssWidgets/`. The
-conformance sweep below is scoped to `Hourss/` for exactly this reason.
+**The Island no longer rounds alone.** This used to be an exception: everything in
+Hourss was square, and only the Live Activity's stop control was rounded, because a
+square rectangle set into Apple's heavily rounded container reads as a mistake
+rather than a principle. Now that blocks round everywhere, the control takes
+`Radius.block` like the rest and the exception is gone — which is why the
+conformance sweep above covers `HourssWidgets` instead of being scoped around it.
+Apple's container itself is still Apple's number; there is no API that puts the
+token on it.
 
 **The Island is Apple's surface, not ours.** Its rounded container and placement
 are not negotiable, so the rule there is: obey the container, and put nothing

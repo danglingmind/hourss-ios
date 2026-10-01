@@ -2,7 +2,8 @@
 
 What the visual system does, and why it does it that way. The tokens themselves
 live in code — `HourssFont.swift`, `Surface.swift`, `Spacing.swift`,
-`Motion.swift`, `HourssColor.swift` — and this records the decisions those files
+`Motion.swift`, `HourssColor.swift`, `Radius.swift` — and this records the
+decisions those files
 cannot state on their own, particularly the ones that reverse an earlier
 position.
 
@@ -16,9 +17,10 @@ below exist because the obvious change was tried and was wrong.
 These have not changed and should not be changed casually.
 
 **Hierarchy comes from lines, not surfaces.** `HRule` does the job a card border
-does elsewhere. There are no rounded corners, no shadows, and no filled panels
-except `forest` where a whole region changes ground (`ActiveSessionPanel`, the
-`DayContextCard`).
+does elsewhere. There are no shadows, and no filled panels except `forest` where a
+whole region changes ground (`ActiveSessionPanel`, the Patterns lead insight). The
+"no rounded corners" half of this rule has been retired — see *Blocks round now*
+below — and nothing else about it moved.
 
 **Filled buttons are banned.** `DirectionalLink` — bold 14pt text plus an
 oversized orange arrow — is the only action idiom. The press shift is the entire
@@ -37,6 +39,53 @@ wording; every arc reading has a label and a value beside its swatch.
 
 **Absence is never zero.** An unrated session renders an empty track, not a
 middle value. A metric with no reading has no entry, not a nought.
+
+---
+
+## Blocks round now
+
+Zero radius was policy, with a written rationale, for the whole life of the app.
+`hourss-ui-system.json` said `radius.default: 0px` — *"the product relies on type
+and lines, not rounded panels"* — and the code went further than the token did:
+`AppleSignInButton` exists as a UIKit wrapper **specifically** so that Apple's
+button could be forced to `cornerRadius = 0`, and both sheets in `RootView` spent a
+`presentationCornerRadius(0)` to refuse the one iOS gives for free.
+
+The owner has reversed it. Every block component now takes one token, `Radius.block`
+in `Shared/Radius.swift`, currently **10pt**. This is recorded as a decision because
+the next person will find the old rationale in three places and has to know it was
+retired rather than forgotten.
+
+**What a block is.** A filled or bordered surface that stands on its own ground:
+`PrimaryAction`, the tab bar's `+`, the preset chips, the slot stepper's `−`/`+`,
+Today's active-session panel, the Patterns lead insight, the sheets' own containers,
+the Live Activity's stop control, and Apple's sign-in button.
+
+**What a block is not.** Lines, rules, bars and data marks. `HRule`, `DayHours`'
+hour cells, `ComparisonArc`, `ComparisonMark`, `DataBar`, `CoverageMark`,
+`HeatCalendar`'s cells, `EditorialSlider`'s track and the tab bar's travelling rule
+are all type-and-line elements and all stay square. A 2pt bar with rounded ends is a
+capsule, which the token file banned for reasons that have nothing to do with
+radius and which still hold.
+
+**One token, and no second one.** The point of the request was that one number be
+tunable. A `Radius.card` beside `Radius.block` would put the number back in two
+places, so there isn't one, and no view writes a radius of its own —
+`blockSurface(_:)` is the only way a block gets its corners. The sweep in
+`README.md` enforces that by hand.
+
+**The one block-shaped thing left square, on purpose.** `SelectableChip` (the
+activity picker and the onboarding intents) and `ProfileView`'s workday cells are
+filled and tappable, but they sit flush against their neighbours inside a ruled
+strip. Rounding them notches every seam and runs an `HRule` across four corners.
+If either is ever given gaps, it stops being a list and should take the token.
+
+**Circular corners, not `.continuous`.** `AppleSignInButton` can only offer
+`CALayer.cornerRadius`, which is circular, and it sits directly beside a
+`PrimaryAction` on the sign-in screen. Matching the two is worth more than the
+marginally smoother curve.
+
+**Still no shadows.** Only radius moved.
 
 ---
 
@@ -153,10 +202,12 @@ number immediately above. A number in the middle would be that number twice, and
 a derived "difference" would be new user-facing copy saying what the two readings
 below already say.
 
-**Round caps are a deliberate exception** in a system that is otherwise square
+**Round caps are a deliberate exception** among the data marks, which are square
 everywhere — every `DataBar` is a `Rectangle`. A butt cap on a curve reads as a
 slice cut out of a disc; a round one reads as a measurement that stopped where it
-stopped. This is the only rounded geometry in the app.
+stopped. It is no longer the only rounded geometry in the app — blocks round on
+`Radius.block` now — but it is still the only rounded *mark*, and the caps are not
+on the token: they are a stroke property of a curve, not a corner of a block.
 
 Three or more values fall back to the stacked bars. Concentric rings stop being
 legible around there, and a comparison of many things is a list, not a meter.
@@ -301,10 +352,10 @@ a journey and does not want a spring.
 ### Crossing the `+`
 
 Patterns to Journal takes the rule straight through the middle, where there is a
-lime 60pt square that is not a tab and must never look underlined.
+lime 60pt block that is not a tab and must never look underlined.
 
 **It passes below it, continuously.** The geometry allows this outright rather
-than by luck: the lime square is 38pt tall inside a 44pt button inside a 54pt
+than by luck: the lime block is 38pt tall inside a 44pt button inside a 54pt
 row, so its lower edge is 8pt above the row's, and the rule occupies the bottom
 2pt. The two never share a pixel — the line is not behind the `+` or through it,
 it is under the whole row, on its way past.

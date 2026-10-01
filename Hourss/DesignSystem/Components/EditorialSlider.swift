@@ -2,10 +2,14 @@ import SwiftUI
 
 /// A flat slider.
 ///
-/// `Slider` gives you a rounded capsule track and a circular thumb, and this
-/// system sets every radius to zero and defines no shadows — so the control is
-/// rebuilt from rectangles. The whole track is draggable, which lets the thumb be
-/// what the system would want it to be: a rule, not a knob.
+/// `Slider` gives you a rounded capsule track and a circular thumb, and this system
+/// defines no shadows and treats a track as a line rather than a block — so the
+/// control is rebuilt from rectangles. The whole track is draggable, which lets the
+/// thumb be what the system would want it to be: a rule, not a knob.
+///
+/// `Radius.block` does not reach in here and should not. Blocks round; rules, bars
+/// and this track do not — a 2pt line with rounded ends is a capsule, which is the
+/// shape this control exists to avoid.
 struct EditorialSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>

@@ -62,9 +62,10 @@ struct HRule: View {
 /// a rating were all bold 14pt text with a small arrow, so nothing on the screen
 /// looked more tappable than the prose beside it.
 ///
-/// **Not a capsule.** A full-width rectangle, because the ban on rounded
-/// geometry is a separate rule and is not the one being overruled — the only
-/// curve in this app is `ComparisonArc`'s stroke caps.
+/// **Not a capsule.** A full-width block on `Radius.block`, which is a tunable
+/// corner and not a pill; the ban on filled *capsules* is a separate rule and is
+/// still in force. The blanket zero-radius rule this comment used to cite has been
+/// retired — see `Radius` for who retired it and what survived.
 ///
 /// **Ground-aware.** Forest on canvas, lime on forest: a forest-filled block on
 /// the running-session panel would have been a dark rectangle on a dark panel.
@@ -98,7 +99,7 @@ struct PrimaryAction: View {
             .foregroundStyle(ink)
             .frame(maxWidth: .infinity)
             .frame(height: Space.tapTarget + 6)
-            .background(fill)
+            .blockSurface(fill)
             .opacity(isEnabled ? (pressed ? 0.82 : 1) : 0.35)
             // No shift. A block that moves under the thumb reads as dragging
             // rather than as pressing; the dimming is what a filled surface has
