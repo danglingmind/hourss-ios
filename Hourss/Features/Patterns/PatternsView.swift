@@ -27,6 +27,14 @@ enum EvidenceReadout {
 struct PatternsView: View {
     @Environment(HourssStore.self) private var store
 
+    /// What the engine is watching but cannot yet claim.
+    ///
+    /// Held in state and filled by a task rather than computed in `body`, because
+    /// producing it runs the engine and the correction — the same reason
+    /// `TodayView` caches its recommendations. A view body re-evaluates far more
+    /// often than the engine should.
+    @State private var leads: [Finding] = []
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
@@ -39,6 +47,7 @@ struct PatternsView: View {
             .pageGutter()
             .padding(.bottom, Space.xl)
         }
+        .task(id: leadInputs) { leads = Self.leads(in: store) }
         .background(Color.canvas)
         .safeAreaInset(edge: .top, spacing: 0) {
             ScreenHeader(title: "Patterns")
@@ -181,10 +190,103 @@ struct PatternsView: View {
                                observations: store.engineObservations)
             }
 
+            leadSection
+
             Text("Observations, not rules. Hourss only speaks up when the same thing repeats.")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
         }
+    }
+
+    /// Rung 2 — what is being watched, said plainly as being watched.
+    ///
+    /// **Why this is a section and not a claim.** Everything above it cleared the
+    /// interval gate and the correction. Nothing here has. Until now a lead was
+    /// visible only in the moment it became the proposal on Today, which meant the
+    /// app was quietly tracking several things about somebody and showing them one,
+    /// with no way to see the rest — and no way to tell that the one they *were*
+    /// shown came from a pool rather than being the only thing there was.
+    ///
+    /// The day count is on every row and is doing the work the eyebrow cannot: it
+    /// is the difference between "your mornings are better" and "four days so far
+    /// have read that way". `ExperimentCopy.premise` writes the sentence, rather
+    /// than this file writing a second phrasing of the same thing.
+    ///
+    /// No navigation. A lead has no detail screen because there is no evidence page
+    /// to show — an interval that spans zero and a correction it did not survive is
+    /// not a case somebody should be invited to read as though it were one.
+    @ViewBuilder
+    private var leadSection: some View {
+        if !leads.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                Eyebrow("Worth testing")
+                    .padding(.bottom, Space.xs)
+                HRule()
+                ForEach(leads, id: \.hypothesis.id) { lead in
+                    Text(ExperimentCopy.premise(for: lead, standing: .lead,
+                                                days: lead.comparison.focusDays))
+                        .textStyle(.body)
+                        .foregroundStyle(Color.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, Space.sm)
+                    HRule()
+                }
+
+                // Says outright that these are not findings. No "yet" and no
+                // "soon": for somebody whose days genuinely are flat none of these
+                // will ever firm up, and a word that promises otherwise is a
+                // promise the engine cannot keep.
+                Text("These have not repeated enough to stand on their own. They are what Hourss is watching.")
+                    .textStyle(.label)
+                    .foregroundStyle(Color.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, Space.sm)
+            }
+            // `children: .contain` so the identifier actually resolves to a
+            // container. Without it the rows stay independent elements, the
+            // identifier lands on nothing a query can find, and a UI test looking
+            // for this section reports it absent while it is plainly on screen.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("lead-section")
+        }
+    }
+
+    /// Cheap to compare, and moves whenever the engine's answer could.
+    private var leadInputs: [Int] {
+        [store.sessions.count, store.reflections.count,
+         store.healthByDay.count, store.physiologyReadings.count,
+         store.experiments.count, store.declinedExperiments.count]
+    }
+
+    /// Directional findings that did not clear the gates, most surprising first.
+    ///
+    /// Filtered through `ExperimentDesign` rather than by hand so that this list and
+    /// the proposal on Today can never disagree about what counts as a lead: a row
+    /// here that could not become a test would be the app naming something it has no
+    /// intention of doing anything about.
+    ///
+    /// Anything already declined or already tested is dropped, for the same reason
+    /// it is dropped from proposals — re-surfacing a question somebody has answered
+    /// is the app not listening.
+    /// Exposed rather than private so a test can assert what reaches the screen
+    /// without rendering anything. It stays `@MainActor` by inference from the view,
+    /// which is correct — it reads a `@MainActor` store — so the suite that calls it
+    /// is marked `@MainActor` too. Making it `nonisolated` instead would compile and
+    /// then trap at runtime, which in this project has twice looked like a shrinking
+    /// test count rather than a crash.
+    static func leads(in store: HourssStore) -> [Finding] {
+        let input = EngineInput(observations: store.engineObservations,
+                                priorities: store.profile.priorities)
+        let excluded = store.experimentKeysToExclude
+        let findings = Engine.applyingCorrection(to: Engine.findings(for: input))
+        return Surprise.ranked(
+            findings.filter {
+                ExperimentDesign.isEligible($0)
+                    && ExperimentDesign.standing(of: $0) == .lead
+                    && !excluded.contains($0.hypothesis.id)
+            }
+        )
     }
 
     private func groups(_ insights: [Insight]) -> [(String, [Insight])] {
