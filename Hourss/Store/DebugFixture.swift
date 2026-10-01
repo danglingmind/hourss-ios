@@ -290,6 +290,52 @@ enum DebugFixture {
         store.applyPhysiology(feed: seededFeed())
 
         store.rebuildInsights()
+
+        // After the rebuild, because a settled experiment is read against the rows
+        // the engine holds and those do not exist until it has run.
+        seedExperiments(into: store, today: today, calendar: cal)
+    }
+
+    /// A settled experiment, so the result card is reachable without waiting a
+    /// fortnight in the simulator.
+    ///
+    /// **Why this exists at all.** Three of this feature's four states are
+    /// unreachable on a fresh fixture: a proposal needs the engine to have survived
+    /// its gates, and an active or settled window needs somebody to have agreed to
+    /// one and then waited two weeks. Seeding health data was the difference between
+    /// three features being visible in the simulator and being invisible, and the
+    /// same is true here — a card nobody can get to is a card nobody reviews.
+    ///
+    /// Only the settled one is planted. The proposal appears on its own once the
+    /// engine has something, and accepting it is one tap — so seeding that too would
+    /// be seeding the thing the fixture is meant to let somebody try.
+    private static func seedExperiments(into store: HourssStore, today: Date, calendar: Calendar) {
+        // Opened sixteen days ago, so a fourteen-day window has closed and settling
+        // has something real to read: the fixture's planted signal is deep work in
+        // the morning, which is the hypothesis most likely to have survived.
+        guard let opened = calendar.date(byAdding: .day, value: -16, to: today) else { return }
+
+        let morning = store.engineObservations.isEmpty
+            ? nil
+            : HypothesisRegistry.hypotheses(for: store.engineObservations)
+                .first { $0.id.hasPrefix("time.morning") }
+        guard let morning else { return }
+
+        let experiment = Experiment(
+            hypothesisId: morning.id,
+            outcome: morning.outcome,
+            startedAt: opened,
+            focusLabel: morning.focusLabel,
+            baselineLabel: morning.baselineLabel,
+            premise: "Your morning sessions have felt more energizing.",
+            change: "Put one block in your morning on most days this fortnight.",
+            caveat: morning.caveat
+        )
+        store.experiments = [
+            ExperimentOutcome.settle(experiment, hypothesis: morning,
+                                     observations: store.engineObservations, now: today)
+        ]
+        store.persist()
     }
 
 

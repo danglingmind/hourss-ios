@@ -98,6 +98,23 @@ enum ExperimentCopy {
         }
     }
 
+    // MARK: - Controls
+
+    /// Titles for the four controls, here rather than in the view for the reason the
+    /// rest of this file exists: every word an experiment shows is swept in one place,
+    /// and a string authored inside a view body is a string no sweep can see.
+    static let startTitle = "Start this"
+    /// Says no to the question, not to the app. "Not this one" leaves the door open
+    /// for the next proposal, which is accurate — a decline is permanent for one
+    /// hypothesis and for nothing else.
+    static let declineTitle = "Not this one"
+    /// Plain, and deliberately not "Give up". Stopping is free and uncounted.
+    static let stopTitle = "Stop this test"
+    static let acknowledgeTitle = "Got it"
+
+    /// Every control title, for the sweep.
+    static let controlTitles = [startTitle, declineTitle, stopTitle, acknowledgeTitle]
+
     // MARK: - Result
 
     /// What the window produced, in one sentence.

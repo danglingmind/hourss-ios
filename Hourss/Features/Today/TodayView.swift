@@ -16,6 +16,14 @@ struct TodayView: View {
     /// record it rests on changes, and no more often.
     @State private var recommendations: [Recommendation] = []
 
+    /// Proposals, cached for the same reason and on the same key: building them runs
+    /// the engine and the correction before there is anything to offer.
+    @State private var proposals: [ExperimentDesign.Proposal] = []
+
+    /// How much of a running window has happened, cached because reading one
+    /// resamples two thousand times.
+    @State private var activeReading: ExperimentOutcome.Reading?
+
     /// Today's one fact from this person's own Health history, or nil.
     ///
     /// Deliberately a sibling of the observation slot rather than another case
@@ -59,8 +67,13 @@ struct TodayView: View {
                         selectedSessionId: $selectedSessionId
                     )
                     ObservationSlotView(
-                        state: store.slotState(on: today, recommendations: recommendations),
-                        recommendations: recommendations
+                        state: store.slotState(on: today,
+                                               recommendations: recommendations,
+                                               proposals: proposals),
+                        recommendations: recommendations,
+                        proposals: proposals,
+                        activeReading: activeReading,
+                        daysRemaining: store.activeExperiment?.daysRemaining(at: today) ?? 0
                     )
                 }
             }
@@ -78,6 +91,10 @@ struct TodayView: View {
         // count only exists if the count was computed.
         .task(id: recommendationInputs) {
             recommendations = store.slotRecommendations()
+            // Both run the engine, so they share the one key rather than each
+            // getting a task that re-runs it on the same changes.
+            proposals = store.experimentProposals()
+            activeReading = store.activeExperiment.map { store.reading(for: $0) }
         }
         // The dispenser decides whether this is a day that spends a fact; asking
         // it more than once a day is free, which is why the whole of its memory
@@ -210,7 +227,13 @@ struct TodayView: View {
     /// is deterministic over the record, so nothing else can move its answer.
     private var recommendationInputs: [Int] {
         [store.sessions.count, store.reflections.count, store.profile.priorities.count,
-         store.healthByDay.count, store.physiologyReadings.count]
+         store.healthByDay.count, store.physiologyReadings.count,
+         // Accepting, refusing, stopping or acknowledging all have to re-run this,
+         // or the band would keep offering a proposal somebody has just taken on.
+         // Declines are counted too: refusing one is what promotes the next.
+         store.experiments.count, store.declinedExperiments.count,
+         store.experiments.filter { $0.phase == .active }.count,
+         store.experiments.filter { $0.phase == .settled }.count]
     }
 }
 

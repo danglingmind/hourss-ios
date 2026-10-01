@@ -23,14 +23,43 @@ enum Tier: String, Codable, CaseIterable {
 /// in the order the specification gives, so the precedence is a value somebody
 /// can test rather than a chain of `if` statements inside a view body.
 enum SlotContent: Equatable {
-    /// A paid member with something that survived. Highest precedence.
+    /// A finished test, shown once and then acknowledged. Highest precedence.
+    ///
+    /// Above everything, including the rating prompt, because it is the most
+    /// valuable thing this app can ever hold: the person changed something on
+    /// purpose, a fortnight passed, and here is what happened. It claims the slot
+    /// exactly once — `acknowledgeExperiment` is what gives it up — so the cost of
+    /// putting it at the top is one screen, once per experiment.
+    case settledExperiment(id: UUID)
+
+    /// A fortnight in progress: how much of the change has happened, and how long
+    /// is left.
+    ///
+    /// Above `unfinishedReflection`, following the rule a recommendation already
+    /// set: the valuable thing keeps the slot and the rating ask is stacked beneath
+    /// it rather than displacing it — see `displacedReflection`. That is a better
+    /// fit here than anywhere else, because an unrated session is not a competing
+    /// thing to show. It is the measurement this window is made of, so the card and
+    /// the ask are about the same fortnight and belong on screen together.
+    case activeExperiment(id: UUID)
+
+    /// Something to test, not yet agreed to.
+    ///
+    /// Above `recommendation`, which is the whole point of this feature: a
+    /// recommendation states what held up and leaves the acting to the reader, and
+    /// a proposal asks for one change and measures it. When both are available the
+    /// one with something to do wins.
+    case experimentProposal(id: UUID)
+
+    /// A paid member with something that survived.
     case recommendation(id: UUID)
 
     /// A session logged today that carries no feeling score.
     ///
     /// Deliberately above the upgrade prompt: asking somebody to pay before
     /// asking for the rating the engine runs on has the product's own dependency
-    /// backwards.
+    /// backwards. Everything that outranks it carries it stacked instead, so the
+    /// ask is never actually lost — only moved.
     case unfinishedReflection(sessionId: UUID)
 
     /// A free member for whom a recommendation would exist. The count is what

@@ -405,7 +405,83 @@ struct SlotTests {
             ObservationSlot.copy(for: .evidenceProgress(days: 0)),
             ObservationSlot.copy(for: .evidenceProgress(days: 11)),
             ObservationSlot.copy(for: .stillLooking),
-        ]
+        ] + everyExperimentCopy()
+    }
+
+    /// The experiment states, in every shape their copy can take.
+    ///
+    /// Folded into the sweep rather than exempted from it. The countdown ban is the
+    /// interesting case: "days left" is forbidden because `evidenceProgress` must not
+    /// forecast, and a fortnight somebody chose is not a forecast — so the ban could
+    /// have been argued away here. It is kept, because a deadline reads as a deadline
+    /// whichever state shows it, and a deadline is the shape that turns a count into
+    /// something to defend. The active card says "four more days of this fortnight".
+    private func everyExperimentCopy() -> [SlotCopy] {
+        let sessionId = UUID()
+        let proposal = ExperimentDesign.Proposal(
+            hypothesisId: "time.morning.vs.rest.feeling", outcome: .feeling,
+            type: .bestTimeWindow, standing: .confirmed,
+            focusLabel: "Morning", baselineLabel: "The rest of your day",
+            premise: "Your morning sessions have felt more energizing.",
+            change: "Put one block in your morning on most days this fortnight.",
+            caveat: "Time of day travels with whatever you tend to schedule then.",
+            priority: .focus, priorityRank: 0, evidenceDays: 20,
+            figure: 4.1, baselineFigure: 3.5)
+        let lead = ExperimentDesign.Proposal(
+            hypothesisId: "duration.long.vs.rest.feeling", outcome: .feeling,
+            type: .durationSweetSpot, standing: .lead,
+            focusLabel: "90–179 min", baselineLabel: "Your other lengths",
+            premise: "90–179 min has read higher so far, across 4 days.",
+            change: "End one block at the 90–179 min mark on most days this fortnight.",
+            caveat: "Longer sessions may simply be the harder work.",
+            priority: .focus, priorityRank: 0, evidenceDays: 4,
+            figure: 4.0, baselineFigure: 3.6)
+
+        let experiment = Experiment(
+            hypothesisId: "time.morning.vs.rest.feeling", outcome: .feeling,
+            startedAt: Date(), focusLabel: "Morning", baselineLabel: "The rest of your day",
+            premise: proposal.premise, change: proposal.change, caveat: proposal.caveat)
+
+        func settled(_ verdict: Experiment.Verdict, adherence: Int, baseline: Int) -> Experiment {
+            var copy = experiment
+            copy.settlement = Experiment.Settlement(
+                verdict: verdict, adherenceDays: adherence, baselineDays: baseline,
+                focusFigure: 4.2, baselineFigure: 3.4, delta: 0.4,
+                intervalLow: 0.1, intervalHigh: 0.7, settledAt: Date())
+            return copy
+        }
+
+        func reading(_ days: Int) -> ExperimentOutcome.Reading {
+            ExperimentOutcome.Reading(verdict: .cannotTell, adherenceDays: days, baselineDays: days,
+                                      focusFigure: 0, baselineFigure: 0, comparison: nil)
+        }
+
+        var out: [SlotCopy] = []
+
+        // Both standings, with and without the displaced rating ask.
+        for p in [proposal, lead] {
+            out.append(ObservationSlot.copy(for: .experimentProposal(id: p.id), proposal: p))
+            out.append(ObservationSlot.copy(for: .experimentProposal(id: p.id), proposal: p,
+                                            displacedActivityName: "Deep work",
+                                            displacedSessionId: sessionId))
+        }
+
+        // Every count the active card spells, including the singulars and the day it
+        // closes — each of those is a different sentence.
+        for days in [0, 1, 4, 13] {
+            out.append(ObservationSlot.copy(for: .activeExperiment(id: experiment.id),
+                                            experiment: experiment,
+                                            reading: reading(days), daysRemaining: days))
+        }
+
+        // Every verdict, and every shortfall shape inside "cannot tell".
+        for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp, .cannotTell] {
+            for (a, b) in [(10, 10), (3, 10), (10, 3), (2, 2)] {
+                let e = settled(verdict, adherence: a, baseline: b)
+                out.append(ObservationSlot.copy(for: .settledExperiment(id: e.id), experiment: e))
+            }
+        }
+        return out
     }
 
     /// Whole-word containment, so "entry" is not a "try" and "strengthen" is not a

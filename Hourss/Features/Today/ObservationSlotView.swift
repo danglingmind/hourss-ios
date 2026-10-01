@@ -40,7 +40,31 @@ struct SlotState: Equatable {
     /// Strongest visible insight, where there is one.
     var leadInsightId: UUID?
 
+    /// A finished test whose result has not been seen. Claims the slot once.
+    var settledExperimentId: UUID?
+
+    /// A fortnight in progress.
+    var activeExperimentId: UUID?
+
+    /// Identity of the proposal the slot would offer. Always the insight's own id,
+    /// as `leadRecommendationId` is, so a card and the claim it rests on share one.
+    var proposalId: UUID?
+
+    /// Whether that proposal rests on a confirmed claim rather than a lead.
+    ///
+    /// Carried separately rather than inferred from the tier, because the entitlement
+    /// question and the standing question are different: a lead is free and reaches
+    /// everybody, a confirmed one is what membership buys. Defaulting to false means
+    /// a state literal that says nothing about standing describes the free case,
+    /// which is the common one.
+    var proposalRequiresMembership: Bool = false
+
     var meetsEvidenceFloor: Bool { ratedDayCount >= EvidenceFloor.days }
+
+    /// Whether the proposal, if there is one, may be shown to this person.
+    var canSeeProposal: Bool {
+        proposalId != nil && (!proposalRequiresMembership || tier.isEntitled)
+    }
 }
 
 enum ObservationSlot {
@@ -65,6 +89,23 @@ enum ObservationSlot {
     /// asymmetry A.11 names; withholding what they already paid for, to keep a
     /// progress bar tidy, is not.
     static func content(for state: SlotState) -> SlotContent {
+        // A finished test first, above everything including the rating ask. It is
+        // the most valuable thing this app can hold and it claims the slot exactly
+        // once, so the cost of putting it here is one screen per experiment.
+        if let id = state.settledExperimentId {
+            return .settledExperiment(id: id)
+        }
+        // Then a fortnight in progress. Nothing below this is more relevant to
+        // somebody mid-window than the window itself.
+        if let id = state.activeExperimentId {
+            return .activeExperiment(id: id)
+        }
+        // A proposal outranks a recommendation, which is the whole point: a
+        // recommendation restates what held up, a proposal asks for one change and
+        // measures it.
+        if state.canSeeProposal, let id = state.proposalId {
+            return .experimentProposal(id: id)
+        }
         if state.tier.isEntitled, let id = state.leadRecommendationId, state.recommendationCount > 0 {
             return .recommendation(id: id)
         }
@@ -94,9 +135,19 @@ enum ObservationSlot {
     /// the slot and carries the ask beneath its caveat. Nothing is displaced,
     /// only stacked. Every other content either *is* the ask or has not displaced
     /// one, so this is nil for all of them.
+    ///
+    /// Every experiment card keeps the slot the same way and for the same reason.
+    /// The active card has the strongest claim to carrying the ask rather than
+    /// displacing it: the rating being asked for is what the running fortnight is
+    /// measured with, so the two are about the same thing.
     static func displacedReflection(for state: SlotState) -> UUID? {
-        guard case .recommendation = content(for: state) else { return nil }
-        return state.unratedSessionId
+        switch content(for: state) {
+        case .recommendation, .settledExperiment, .activeExperiment, .experimentProposal:
+            return state.unratedSessionId
+        case .unfinishedReflection, .upgradePrompt, .leadObservation,
+             .evidenceProgress, .stillLooking, .none:
+            return nil
+        }
     }
 }
 
@@ -163,10 +214,29 @@ extension ObservationSlot {
         unratedActivityName: String? = nil,
         insight: Insight? = nil,
         recommendation: Recommendation? = nil,
+        proposal: ExperimentDesign.Proposal? = nil,
+        experiment: Experiment? = nil,
+        reading: ExperimentOutcome.Reading? = nil,
+        daysRemaining: Int = 0,
         displacedActivityName: String? = nil,
         displacedSessionId: UUID? = nil
     ) -> SlotCopy {
         switch content {
+        case .settledExperiment:
+            return settledCopy(experiment,
+                               displacedActivityName: displacedActivityName,
+                               displacedSessionId: displacedSessionId)
+
+        case .activeExperiment:
+            return activeCopy(experiment, reading: reading, daysRemaining: daysRemaining,
+                              displacedActivityName: displacedActivityName,
+                              displacedSessionId: displacedSessionId)
+
+        case .experimentProposal:
+            return proposalCopy(proposal,
+                                displacedActivityName: displacedActivityName,
+                                displacedSessionId: displacedSessionId)
+
         case .recommendation:
             return recommendationCopy(
                 recommendation,
@@ -231,6 +301,141 @@ extension ObservationSlot {
 
         copy.accessibilityLabel = spoken
         return copy
+    }
+
+    // MARK: Experiments
+
+    /// Attaches the displaced rating ask, which every card that outranks it carries.
+    ///
+    /// Factored out rather than repeated four times: the three experiment cards and
+    /// the recommendation all keep the slot the same way, and a fourth copy of this
+    /// would be a fourth place for the spoken label and the ask to fall out of step.
+    private static func carrying(
+        _ copy: SlotCopy, spoken: String,
+        displacedActivityName: String?, displacedSessionId: UUID?
+    ) -> SlotCopy {
+        var copy = copy
+        var spoken = spoken
+        if let displacedSessionId, let name = displacedActivityName {
+            let line = askLine(activityName: name)
+            copy.ask = SlotAsk(sessionId: displacedSessionId, line: line, action: askAction)
+            spoken += ". \(line)"
+        }
+        copy.accessibilityLabel = spoken
+        return copy
+    }
+
+    /// Something to test.
+    ///
+    /// The change leads, because it is the only part the reader has to do anything
+    /// about. The premise sits under it as the reason, and both are carried from
+    /// `ExperimentCopy` rather than restated — the proposal somebody accepts has to
+    /// be word for word the proposal they were shown, and a second phrasing here
+    /// would be two versions of one offer.
+    private static func proposalCopy(
+        _ proposal: ExperimentDesign.Proposal?,
+        displacedActivityName: String?, displacedSessionId: UUID?
+    ) -> SlotCopy {
+        guard let proposal else { return SlotCopy() }
+
+        // The standing, said plainly. A lead that did not announce itself as a lead
+        // would be a claim, and the honest label is the only thing between the two.
+        let eyebrow = proposal.standing == .confirmed ? "Test what held up" : "Worth testing"
+
+        let copy = SlotCopy(
+            eyebrow: eyebrow,
+            lines: [
+                SlotLine(text: proposal.change, emphasis: .lead, origin: .carried),
+                SlotLine(text: proposal.premise, emphasis: .body, origin: .carried),
+            ],
+            caveat: proposal.caveat,
+            action: ExperimentCopy.startTitle
+        )
+        return carrying(copy,
+                        spoken: "\(eyebrow). \(proposal.change) \(proposal.premise) "
+                            + "Bear in mind: \(proposal.caveat)",
+                        displacedActivityName: displacedActivityName,
+                        displacedSessionId: displacedSessionId)
+    }
+
+
+    /// A fortnight in progress.
+    ///
+    /// **Adherence as a count, never as a streak.** It says how many days carried
+    /// the change, which is a fact about what happened, and never frames that number
+    /// as something to protect. `RecordFacts` records the same argument at length.
+    ///
+    /// **The remaining days avoid the words the sweep bans**, and the ban is right
+    /// even though a chosen fortnight is not a forecast: "days left" reads as a
+    /// deadline whichever state it appears in, and a deadline is the shape that turns
+    /// a count into something to defend.
+    private static func activeCopy(
+        _ experiment: Experiment?, reading: ExperimentOutcome.Reading?, daysRemaining: Int,
+        displacedActivityName: String?, displacedSessionId: UUID?
+    ) -> SlotCopy {
+        guard let experiment else { return SlotCopy() }
+
+        let days = reading?.adherenceDays ?? 0
+        let logged = days == 1
+            ? "One day of it so far."
+            : "\(spelled(days).capitalizedFirst) days of it so far."
+        let remaining = daysRemaining == 0
+            ? "The fortnight closes today."
+            : daysRemaining == 1
+                ? "One more day of this fortnight."
+                : "\(spelled(daysRemaining).capitalizedFirst) more days of this fortnight."
+
+        let copy = SlotCopy(
+            eyebrow: "You are testing this",
+            lines: [
+                SlotLine(text: experiment.change, emphasis: .lead, origin: .carried),
+                SlotLine(text: logged, emphasis: .body, origin: .authored),
+                SlotLine(text: remaining, emphasis: .support, origin: .authored),
+            ],
+            action: ExperimentCopy.stopTitle
+        )
+        return carrying(copy,
+                        spoken: "You are testing this. \(experiment.change) \(logged) \(remaining)",
+                        displacedActivityName: displacedActivityName,
+                        displacedSessionId: displacedSessionId)
+    }
+
+    /// A finished test.
+    ///
+    /// The verdict is the eyebrow and the figures lead, so a reader who looks once
+    /// gets the answer. "It did not hold up" is set exactly as loudly as "It held
+    /// up": an app whose tests always succeed is not running tests, and presenting
+    /// the null result quietly would be the first step to not reporting it.
+    private static func settledCopy(
+        _ experiment: Experiment?,
+        displacedActivityName: String?, displacedSessionId: UUID?
+    ) -> SlotCopy {
+        guard let experiment, let settlement = experiment.settlement else { return SlotCopy() }
+
+        let eyebrow = ExperimentCopy.verdictTitle(settlement.verdict)
+        let result = ExperimentCopy.result(for: experiment, settlement: settlement)
+
+        // A caveat belongs with a result that says something held up. There is
+        // nothing to qualify about a window that could not be read, and attaching
+        // one there would imply a finding that was never made.
+        var copy = SlotCopy(
+            eyebrow: eyebrow,
+            lines: [
+                SlotLine(text: result, emphasis: .lead, origin: .carried),
+                SlotLine(text: experiment.change, emphasis: .support, origin: .carried),
+            ],
+            action: ExperimentCopy.acknowledgeTitle
+        )
+        if settlement.verdict != .cannotTell {
+            copy.caveat = experiment.caveat
+        }
+
+        return carrying(copy,
+                        spoken: "\(eyebrow). \(result) You were testing: \(experiment.change)"
+                            + (settlement.verdict == .cannotTell
+                               ? "" : " Bear in mind: \(experiment.caveat)"),
+                        displacedActivityName: displacedActivityName,
+                        displacedSessionId: displacedSessionId)
     }
 
     // MARK: Unfinished reflection
@@ -393,14 +598,21 @@ extension HourssStore {
     ///
     /// Takes the recommendations rather than computing them, because the layer
     /// runs the whole engine and a view body is not a place to do that.
-    func slotState(on day: Date, recommendations: [Recommendation]) -> SlotState {
-        SlotState(
+    func slotState(on day: Date,
+                   recommendations: [Recommendation],
+                   proposals: [ExperimentDesign.Proposal] = []) -> SlotState {
+        let lead = proposals.first
+        return SlotState(
             tier: membership.tier,
             ratedDayCount: ratedDayCount,
             unratedSessionId: unratedSessions(on: day).first?.id,
             recommendationCount: recommendations.count,
             leadRecommendationId: recommendations.first?.id,
-            leadInsightId: visibleInsights.first?.id
+            leadInsightId: visibleInsights.first?.id,
+            settledExperimentId: unacknowledgedExperiment?.id,
+            activeExperimentId: activeExperiment?.id,
+            proposalId: lead?.id,
+            proposalRequiresMembership: lead?.requiresMembership ?? false
         )
     }
 }
@@ -414,11 +626,21 @@ extension HourssStore {
 /// entitlement change, so nothing appears or disappears on purchase.
 struct ObservationSlotView: View {
     @Environment(HourssStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let state: SlotState
     /// Passed in rather than computed: building these runs the whole engine, and
     /// a view body re-evaluates far more often than the engine should.
     let recommendations: [Recommendation]
+    /// Proposals, for the same reason — `ExperimentDesign` runs the engine and the
+    /// correction before it has anything to offer.
+    var proposals: [ExperimentDesign.Proposal] = []
+    /// How much of a running window has happened. Passed in because reading one
+    /// resamples two thousand times, which a view body must never do.
+    var activeReading: ExperimentOutcome.Reading?
+    /// Whole days left of a running window. Computed by the caller, which is also
+    /// the only place entitled to read the clock.
+    var daysRemaining: Int = 0
 
     private var content: SlotContent { ObservationSlot.content(for: state) }
 
@@ -431,9 +653,27 @@ struct ObservationSlotView: View {
             recommendation: state.leadRecommendationId.flatMap { id in
                 recommendations.first { $0.id == id }
             },
+            proposal: state.proposalId.flatMap { id in proposals.first { $0.id == id } },
+            experiment: experiment(for: content),
+            reading: activeReading,
+            daysRemaining: daysRemaining,
             displacedActivityName: displacedId.flatMap(activityName),
             displacedSessionId: displacedId
         )
+    }
+
+    /// The experiment a content refers to, where it refers to one.
+    ///
+    /// Resolved from the store by the id in the state rather than passed in, because
+    /// an experiment is a stored value and reading one costs nothing — unlike the
+    /// proposals and the reading above, which both run the engine.
+    private func experiment(for content: SlotContent) -> Experiment? {
+        switch content {
+        case let .settledExperiment(id), let .activeExperiment(id):
+            return store.experiments.first { $0.id == id }
+        default:
+            return nil
+        }
     }
 
     var body: some View {
@@ -456,13 +696,86 @@ struct ObservationSlotView: View {
 
                 if let caveat = copy.caveat { caveatBlock(caveat) }
 
-                if let action = copy.action, let sessionId = state.unratedSessionId {
+                experimentActions
+
+                // The reflection link, for the states whose own action *is* the
+                // rating. An experiment card has its own controls above and must not
+                // also borrow this one, or a proposal would offer "Start this" and
+                // "Add how it felt" as though they were the same kind of thing.
+                if let action = copy.action, let sessionId = state.unratedSessionId,
+                   !contentIsExperiment {
                     reflectionLink(title: action, sessionId: sessionId)
                 }
 
                 if let ask = copy.ask { askBlock(ask) }
             }
             .padding(.top, Space.md)
+            // Accepting, refusing, stopping or acknowledging replaces the whole band,
+            // and the four of them are the only taps on Today that do. Keyed to the
+            // content rather than to any one id so a hand-off between two experiment
+            // states reads as one movement; Reduce Motion lands on the finished state.
+            .animation(Motion.content(reduced: reduceMotion), value: content)
+        }
+    }
+
+    private var contentIsExperiment: Bool {
+        switch content {
+        case .settledExperiment, .activeExperiment, .experimentProposal: true
+        default: false
+        }
+    }
+
+    /// The controls an experiment card carries.
+    ///
+    /// **A proposal offers both answers.** Accepting and refusing sit side by side,
+    /// because an offer with only a yes is not an offer — and `declineExperiment` is
+    /// permanent, which is the behaviour that makes a visible no safe to give. An
+    /// app that only let somebody ignore a proposal would re-offer it on every run.
+    ///
+    /// **Stopping is plain and quiet.** It is the last control on an active card and
+    /// says what it does. Abandoning is free and uncounted, so nothing here warns,
+    /// confirms or asks whether they are sure — a confirmation would make stopping
+    /// feel like a failure being recorded, which is exactly what it is not.
+    @ViewBuilder
+    private var experimentActions: some View {
+        switch content {
+        case .experimentProposal:
+            if let proposal = state.proposalId.flatMap({ id in proposals.first { $0.id == id } }) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    DirectionalLink(title: ExperimentCopy.startTitle, arrow: "→") {
+                        // Discarded rather than inspected: the slot recomputes from
+                        // the store either way, and a refused accept can only happen
+                        // when one is already running — which this card is not shown
+                        // for.
+                        _ = store.acceptExperiment(proposal)
+                    }
+                    .accessibilityIdentifier("accept-experiment")
+
+                    DirectionalLink(title: ExperimentCopy.declineTitle, arrow: "→") {
+                        store.declineExperiment(proposal)
+                    }
+                    .accessibilityIdentifier("decline-experiment")
+                }
+            }
+
+        case let .activeExperiment(id):
+            if let experiment = store.experiments.first(where: { $0.id == id }) {
+                DirectionalLink(title: ExperimentCopy.stopTitle, arrow: "→") {
+                    store.abandonExperiment(experiment)
+                }
+                .accessibilityIdentifier("abandon-experiment")
+            }
+
+        case let .settledExperiment(id):
+            if let experiment = store.experiments.first(where: { $0.id == id }) {
+                DirectionalLink(title: ExperimentCopy.acknowledgeTitle, arrow: "→") {
+                    store.acknowledgeExperiment(experiment)
+                }
+                .accessibilityIdentifier("acknowledge-experiment")
+            }
+
+        default:
+            EmptyView()
         }
     }
 

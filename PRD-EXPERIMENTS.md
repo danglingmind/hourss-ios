@@ -425,24 +425,24 @@ are **shared by phases 1 and 2** and have no fork in them.
 
 ### Surfaces
 
-- [ ] **17.** `SlotContent`: add `activeExperiment` and `settledExperiment` with
+- [x] **17.** `SlotContent`: add `activeExperiment` and `settledExperiment` with
       the §10 precedence. Test the ordering as a value.
-- [ ] **18.** Proposal card — premise, change, window, what will be measured. All
+- [x] **18.** Proposal card — premise, change, window, what will be measured. All
       four before acceptance.
-- [ ] **19.** Active card — window remaining and adherence as a count. No streak.
-- [ ] **20.** Settled card — verdict, figures, caveat. "Did not hold up" gets the
+- [x] **19.** Active card — window remaining and adherence as a count. No streak.
+- [x] **20.** Settled card — verdict, figures, caveat. "Did not hold up" gets the
       same treatment as "held up".
-- [ ] **21.** `InsightDetailView` — replace the `experiment` sentence with the
+- [x] **21.** `InsightDetailView` — replace the `experiment` sentence with the
       control.
 - [ ] **22.** Standing/space per §10. No new colour, badge, border or type size.
-- [ ] **23.** Accessibility labels lead with the subject, never the figure.
+- [x] **23.** Accessibility labels lead with the subject, never the figure.
 
 ### Verification
 
 - [ ] **24.** Full unit suite on **iPhone 17 Pro** (`53352C15-…`), by UDID. Watch
       for `Restarting after unexpected exit` rather than trusting the summary.
 - [ ] **25.** UI suite — the account gate means this device only.
-- [ ] **26.** `DebugFixture`: seed an active and a settled experiment, so all three
+- [x] **26.** `DebugFixture`: seed an active and a settled experiment, so all three
       cards are reachable in the simulator. The health-seeding work proved this is
       the difference between a feature being testable and being invisible.
 - [ ] **27.** `DESIGN.md` and `BACKLOG.md` updated. `README.md` layer description

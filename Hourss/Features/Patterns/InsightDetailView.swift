@@ -13,6 +13,71 @@ struct InsightDetailView: View {
 
     private var current: Insight { store.insights.first { $0.id == insight.id } ?? insight }
 
+    /// The proposal for this claim, if the design layer can build one.
+    ///
+    /// Held in state and filled by a task rather than computed in `body`, because
+    /// building proposals runs the engine and the correction. This screen is pushed,
+    /// so that happens once per visit instead of once per redraw.
+    @State private var proposal: ExperimentDesign.Proposal?
+
+    /// This claim's own experiment, where one has been agreed to.
+    ///
+    /// Matched by hashing each stored key rather than by storing the insight id
+    /// alongside it: `Engine.identity` is one-way, so the only way back is forwards,
+    /// and it is a hash over a handful of strings rather than an engine run.
+    private var mine: Experiment? {
+        store.experiments.first { Engine.identity(of: $0.hypothesisId) == current.id }
+    }
+
+    /// What this claim offers, which is the one place the old `experiment` string
+    /// used to sit.
+    ///
+    /// **This replaces a sentence that did nothing.** `Hypothesis.experiment` was
+    /// rendered here as "Try this: try moving one morning block to a different hour
+    /// this week and see whether it still reads the same" — and nothing recorded that
+    /// anybody had, nothing measured a window, and nothing reported back. It was the
+    /// word without the mechanism, on two of six families, and it is why patterns
+    /// left nobody anything to do.
+    ///
+    /// Four states, and the order matters: what happened, then what is happening,
+    /// then what is on offer, then nothing. A claim with nothing to offer shows
+    /// nothing rather than an empty heading — `ExperimentDesign` documents which
+    /// shapes cannot honestly be tested, and a reader of one of those should not be
+    /// told a test is missing.
+    @ViewBuilder
+    private var experimentBlock: some View {
+        if let mine, let settlement = mine.settlement {
+            block(eyebrow: ExperimentCopy.verdictTitle(settlement.verdict),
+                  text: ExperimentCopy.result(for: mine, settlement: settlement))
+        } else if let mine, mine.phase == .active {
+            block(eyebrow: "You are testing this", text: mine.change)
+        } else if let proposal {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                HRule()
+                Eyebrow(proposal.standing == .confirmed ? "Test what held up" : "Worth testing")
+                Text(proposal.change)
+                    .textStyle(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                DirectionalLink(title: ExperimentCopy.startTitle, arrow: "→") {
+                    _ = store.acceptExperiment(proposal)
+                }
+                .accessibilityIdentifier("accept-experiment")
+            }
+        }
+    }
+
+    private func block(eyebrow: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            HRule()
+            Eyebrow(eyebrow)
+            Text(text)
+                .textStyle(.body)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(eyebrow). \(text)")
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
@@ -39,20 +104,19 @@ struct InsightDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if let experiment = current.experiment {
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        HRule()
-                        Eyebrow("Try this")
-                        Text(experiment)
-                            .textStyle(.body)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                experimentBlock
 
                 actions
             }
             .pageGutter()
             .padding(.bottom, Space.xl)
+        }
+        .task {
+            // Only when there is nothing to show already: a claim this person has
+            // tested does not need a proposal built for it, and that is the case
+            // where the engine run would be purely wasted.
+            guard mine == nil else { return }
+            proposal = store.experimentProposals().first { $0.id == current.id }
         }
         .background(Color.canvas)
         .navigationBarBackButtonHidden()
