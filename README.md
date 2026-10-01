@@ -191,6 +191,31 @@ files need no project-file edit.
 
 ## Notes for whoever picks this up
 
+**The evidence ladder has four rungs, and only the top one is gated.** This is
+the thing most likely to be misread from the code, because the gates are
+elaborate and the rungs below them are not.
+
+| Rung | What it is | Earliest | Where |
+| --- | --- | --- | --- |
+| Observed | one measurement, no relationship claimed | day 1 | `HealthDigest`, `RecordFacts` |
+| Worth testing | a lead, labelled as one, offering a test | ~3 rated days | `ExperimentDesign` + `Shrinkage` |
+| Tested | what happened when it was changed on purpose | lead + a fortnight | `ExperimentOutcome` |
+| Confirmed | cleared the interval gate and the correction | day 12+ | `Engine` |
+
+A pre-registered test carries **no multiplicity correction**, and that is not an
+oversight. Benjamini–Yekutieli exists in `Engine` because sixty hypotheses are
+tested at once and the best of sixty looks good by chance; an experiment declares
+one hypothesis and its direction before the window opens, so there is no search
+to correct for. `Experiment.predictsHigher` is what makes that legitimate rather
+than convenient — a verdict that chose the favourable direction afterwards would
+be the same fishing in a test's clothes. See `PRD-EXPERIMENTS.md` §3.
+
+Only `ExperimentCopy` may instruct. `NarrationGuard`'s instruction ban still
+holds everywhere it held before, and the causal and clinical bans hold there too
+— which is why a successful result says "settled at 4.2 against your 3.4" and
+never "improved".
+
+
 **The zero-radius rule is load-bearing.** `hourss-ui-system.json` sets
 `radius.default: 0px` — *"the product relies on type and lines, not rounded
 panels"* — and defines no shadows at all. That is why the tab bar, sheets and

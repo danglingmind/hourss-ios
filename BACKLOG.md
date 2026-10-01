@@ -859,3 +859,35 @@ foreground refresh trigger is ever added.
 included. `HourssUITests/UITestSupport.swift` is where shared helpers live. Worth
 folding together at the same time as making it a real assertion, once the fixture
 seeds Health.
+
+## Experiments — the loop, built
+
+**Status: phase 1 and 2 shipped.** See `PRD-EXPERIMENTS.md` for the whole design
+and its 27-step checklist.
+
+This closes the thing that made every other item on this list feel thin: the app
+could describe somebody's record and could not help them change it.
+`Recommendations.action(for:)` carried a comment forbidding itself from saying
+"try", so the paid tier emitted "Your morning is where blocks have held up best"
+— the claim, restated — and `Hypothesis.experiment` was a string on two of six
+families that nothing proposed, recorded or measured.
+
+What licenses acting on less evidence is not a lower bar on the same evidence.
+Observation cannot establish cause however much of it there is; intervention is
+a different instrument. A pre-registered test needs no multiplicity correction,
+because Benjamini–Yekutieli answers "the best of sixty candidates will look good
+by chance" and one declared hypothesis is not a search.
+
+**Still open, and deliberately:**
+
+- **`balance` gets no experiment.** Both of its insight types fail the
+  design's filters — nobody can move which days are workdays, and a draining
+  window cannot be tested by doing more of it. Pinned with a test rather than
+  papered over. Phase 3 (Health-seeded starters) is where it gets solved.
+- **Phase 3:** every focus area gets a proposal on day one from Health history
+  alone, so the first week is not empty for the four priorities that currently
+  have nothing.
+- **Phase 4:** randomised day assignment. The only phase that moves the honest
+  claim closer to cause rather than merely keeping it honest.
+- **Is 14 days right?** Decide from real adherence data, not now.
+- **Whether a settled card gets more room.** A judgement call left for review.

@@ -322,3 +322,36 @@ What makes both unnecessary is that nothing ever comes to rest in the middle. Th
 sits under it. The elegant handling of the middle case turned out to be to let the
 layout be honest about the fact that the `+` is not on the same row of the
 hierarchy as the tabs, and put the mark in a band the `+` does not reach.
+
+## A finished test is the loudest thing on Today, and a failed one just as loud
+
+Experiments added three states to the observation slot, and the ordering was the
+only real decision: a settled result sits above everything, including the
+unfinished-reflection ask that outranks the upgrade prompt. It earns that by
+being the one thing in the app somebody worked two weeks for, and by claiming
+the slot exactly once — acknowledging it is what gives it up.
+
+The rating ask is not displaced by any of them. It is carried stacked beneath,
+which is the rule a recommendation already set and which the active card has the
+strongest claim to: the rating being asked for is the measurement that fortnight
+is made of, so the two belong on screen together rather than competing.
+
+**"It did not hold up" is set at exactly the weight of "It held up"** — same
+eyebrow position, same lead emphasis, same caveat. There is a test pinning it.
+An app whose tests always succeed is not running tests, and the first step to
+not reporting a null result is reporting it quietly.
+
+**The countdown ban survived an argument for lifting it.** The slot's copy sweep
+forbids "days left", "days to go" and "until", because `evidenceProgress` must
+never forecast. A fortnight somebody chose is not a forecast, so the ban could
+have been scoped away for the active card. It was kept: a deadline reads as a
+deadline whichever state shows it, and a deadline is the shape that turns a
+count into something to defend. The card says "four more days of this
+fortnight", and adherence is a count that is never framed as a thing to protect
+— the same argument `RecordFacts` makes about streaks.
+
+**Nothing new was invented to carry any of it.** No colour, badge, border,
+second rule weight or type size. Whether a settled card should get *more room*
+than the others — the lever the "One rule weight" section above nominated — is
+deliberately still open, because two visual changes have been reverted whole and
+the right moment to decide is after looking at the cards rather than before.
