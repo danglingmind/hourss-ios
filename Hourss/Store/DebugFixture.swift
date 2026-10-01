@@ -30,6 +30,22 @@ enum DebugFixture {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
     }
 
+    /// Asks the fixture to land on Today rather than at the first onboarding beat.
+    ///
+    /// Separate from `launchArgument` on purpose. The fixture deliberately starts at
+    /// onboarding, because `DemoWalkthroughTests` walks the whole flow and needs it
+    /// there — so setting `hasCompletedOnboarding` inside `seed` would silently gut
+    /// the one test that covers the path a real person takes on their first launch.
+    ///
+    /// This exists for looking at the app: reaching Today otherwise costs a full
+    /// walk through seven beats, which is a long time to wait to see whether a card
+    /// renders.
+    static let skipOnboardingArgument = "-hourss-skip-onboarding"
+
+    static var skipsOnboarding: Bool {
+        ProcessInfo.processInfo.arguments.contains(skipOnboardingArgument)
+    }
+
     /// Small deterministic PRNG. `SystemRandomNumberGenerator` would make the demo
     /// different on every launch, which is exactly what we don't want.
     struct Seeded: RandomNumberGenerator {
@@ -294,6 +310,10 @@ enum DebugFixture {
         // After the rebuild, because a settled experiment is read against the rows
         // the engine holds and those do not exist until it has run.
         seedExperiments(into: store, today: today, calendar: cal)
+
+        // Last, and only when asked: every test that walks onboarding depends on
+        // this staying false by default.
+        if skipsOnboarding { store.hasCompletedOnboarding = true }
     }
 
     /// A settled experiment, so the result card is reachable without waiting a
