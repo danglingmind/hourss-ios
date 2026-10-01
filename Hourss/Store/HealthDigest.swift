@@ -23,12 +23,18 @@ struct HealthDigest {
         /// Which generator produced this. Three facts of the same shape read as one
         /// fact repeated, however different their subjects.
         ///
-        /// The first four come from Health history. `best` comes from the record
+        /// The first three come from Health history. `best` comes from the record
         /// somebody logged, and gets no entry in the priors table below — which
         /// scores it the neutral half a bit. That is deliberate, not an omission:
         /// a prior says what is ordinarily true of people, and there is nothing
         /// ordinary to know about whether your best session so far was this one.
-        enum Kind { case rhythm, contrast, drift, scale, best }
+        ///
+        /// There used to be a fifth, `scale`, which summed a metric over the whole
+        /// history — "2.4 million steps across 365 days". It was removed: a sum has
+        /// no comparison and no shape in it, so there is nothing in it that was
+        /// discovered, and it was already scored lowest and shown last. Its
+        /// spelling is retired rather than free — see `kindKey`.
+        enum Kind { case rhythm, contrast, drift, best }
         var mark: Mark
         /// Normalised effect size. Orders facts of the same kind; it no longer
         /// decides which kind leads. See `surprise`.
@@ -176,6 +182,25 @@ struct HealthDigest {
         /// concession is easiest to lose.
         case daysInARow
 
+        /// How much was logged in a single week.
+        ///
+        /// A separate topic from `dayTotal` rather than the same one measured
+        /// over a longer window, because the variety axis is the topic: filed
+        /// under `dayTotal` the two would never appear in the same fortnight,
+        /// and a week is a different question from a day to anybody reading it.
+        case weekTotal
+
+        /// Which kinds of activity the record contains.
+        ///
+        /// Existence, not magnitude — which is the whole of why this topic is
+        /// admissible at all. See the note above `RecordFacts.newestActivity`:
+        /// ranking activities against each other on time spent would be the
+        /// engine's question asked without the engine's gate.
+        case activities
+
+        /// The earliest in a day a logged session has started.
+        case earliestStart
+
         /// Names the subject, in the same register as `HealthMetric.title`: a
         /// noun for what was measured, never a verdict on it.
         var title: String {
@@ -184,6 +209,9 @@ struct HealthDigest {
             case .coverage: "Times of day"
             case .dayTotal: "A day's total"
             case .daysInARow: "Days in a row"
+            case .weekTotal: "A week's total"
+            case .activities: "Kinds of activity"
+            case .earliestStart: "Earliest start"
             }
         }
     }
@@ -235,10 +263,13 @@ struct HealthDigest {
         // the one people have noticed about themselves.
         "sleepHours.rhythm": Prior(raised: true, share: 0.55),
 
-        // Totals are arithmetic, not discovery. Striking to read, and nobody is
-        // surprised that a year contains a lot of hours.
-        "sleepHours.scale": Prior(raised: true, share: 0.80),
-        "steps.scale": Prior(raised: true, share: 0.78),
+        // `sleepHours.scale` and `steps.scale` sat here, at 0.80 and 0.78 — the
+        // highest shares in the table, because a total is the one thing nobody is
+        // surprised by. Scoring a card as banal is a weaker remedy than not
+        // building it, so the generator went and these went with it. Left named
+        // rather than silently deleted: the numbers are the argument for the
+        // removal, and the next person to propose a totals card should see that
+        // this table had already conceded the point.
 
         // Drift is absent from this table on purpose. That a signal has moved
         // over months is not something people track about themselves, in any
@@ -259,12 +290,20 @@ struct HealthDigest {
     /// A kind's stable spelling. Internal rather than private because the daily
     /// dispenser keys its memory of spent facts on metric and kind, and a second
     /// switch over the same four cases is a second table to keep in step.
+    /// **`scale` is a retired spelling and must never be reused.** Keys built from
+    /// these strings are written into `UserDefaults` as the memory of what has been
+    /// dispensed, so `steps.scale` is sitting on phones right now meaning "the
+    /// steps total has been shown". Minting that string again for a different
+    /// generator would make every one of those phones treat the new card as
+    /// already spent and never show it — a card that is silently missing for
+    /// existing users and present for new ones, which is the worst shape a bug of
+    /// this kind can take. A stale key matching nothing live is the correct
+    /// outcome: the fact it named no longer exists.
     static func kindKey(_ kind: Fact.Kind) -> String {
         switch kind {
         case .rhythm: "rhythm"
         case .contrast: "contrast"
         case .drift: "drift"
-        case .scale: "scale"
         case .best: "best"
         }
     }
@@ -309,7 +348,6 @@ struct HealthDigest {
                 weekdayRhythm(metric, byDay),
                 weekendContrast(metric, byDay),
                 drift(metric, byDay),
-                scale(metric, byDay),
             ].compactMap { $0 })
         }
 
@@ -478,26 +516,6 @@ struct HealthDigest {
         )
     }
 
-    /// Sheer accumulation. Never the most interesting fact, but it never fails to
-    /// be available, which makes it the reliable third.
-    private static func scale(_ metric: HealthMetric, _ byDay: [Date: Double]) -> Fact? {
-        guard metric.isCumulative else { return nil }
-        let total = byDay.values.reduce(0, +)
-        guard total > 0 else { return nil }
-        return Fact(
-            figure: total >= 1000
-                ? total.formatted(.number.precision(.fractionLength(0)))
-                : total.formatted(.number.precision(.fractionLength(0))),
-            sentence: "\(metric.totalPhrase(total)) across \(byDay.count) days.",
-            kind: .scale,
-            mark: .none,
-            // A total is arithmetic rather than discovery, and its prior says so.
-            strength: 0.05,
-            subject: .health(metric),
-            raised: true
-        )
-    }
-
     // MARK: - Formatting
 
     private static func difference(_ metric: HealthMetric, _ value: Double) -> String {
@@ -557,20 +575,6 @@ extension HealthMetric {
             "fewer"
         case .hrv, .restingHeartRate, .respiratoryRate, .activeEnergy, .heartRate:
             "lower"
-        }
-    }
-
-    func totalPhrase(_ total: Double) -> String {
-        let rounded = Int(total.rounded())
-        switch self {
-        case .sleepHours: return "\(rounded) hours asleep"
-        case .steps: return "\(rounded.formatted()) steps"
-        case .activeEnergy: return "\(rounded.formatted()) kcal burned"
-        case .workoutMinutes: return "\(rounded) minutes of workouts"
-        case .exerciseMinutes: return "\(rounded) minutes of exercise"
-        case .mindfulMinutes: return "\(rounded) minutes of quiet"
-        case .daylightMinutes: return "\(rounded) minutes outside"
-        default: return "\(rounded) \(shortUnit)"
         }
     }
 }

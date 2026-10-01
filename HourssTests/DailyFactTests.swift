@@ -77,7 +77,7 @@ struct DailyFactTests {
         let dispenser = DailyFact(defaults: scratchDefaults())
         let pool = [
             fact(.steps, .contrast), fact(.sleepHours, .rhythm), fact(.hrv, .drift),
-            fact(.daylightMinutes, .scale), fact(.restingHeartRate, .contrast),
+            fact(.daylightMinutes, .drift), fact(.restingHeartRate, .contrast),
             fact(.activeEnergy, .rhythm),
         ]
 
@@ -203,10 +203,17 @@ struct DailyFactTests {
 
     @Test("The pool holds everything onboarding threw away")
     func poolIsWiderThanTheDigest() {
+        // Five metrics rather than three, because onboarding keeps three facts and
+        // the digest now has three generators rather than four — the totals card
+        // was removed. With three metrics carrying one fact each there is nothing
+        // left over for the pool to be wider *by*, and the test would be asserting
+        // the inequality out of a fixture too thin to show it either way.
         let values: [HealthMetric: [Date: Double]] = [
             .sleepHours: year { _, weekend in weekend ? 8.3 : 7.1 },
             .steps: year { _, weekend in weekend ? 10_400 : 8_100 },
             .hrv: year { _, weekend in weekend ? 56 : 49 },
+            .respiratoryRate: year { _, weekend in weekend ? 16.1 : 14.5 },
+            .daylightMinutes: year { _, weekend in weekend ? 95 : 42 },
         ]
         let pool = HealthDigest.pool(from: values)
         let digest = HealthDigest.build(from: values)
