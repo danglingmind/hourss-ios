@@ -90,10 +90,12 @@ struct TodayView: View {
         // upgrade prompt names how many recommendations they would get, so the
         // count only exists if the count was computed.
         .task(id: recommendationInputs) {
-            recommendations = store.slotRecommendations()
-            // Both run the engine, so they share the one key rather than each
-            // getting a task that re-runs it on the same changes.
-            proposals = store.experimentProposals()
+            // One engine run for both. Calling the two layers separately tested
+            // sixty hypotheses at two thousand resamples twice, for two answers
+            // derived from the same findings.
+            let output = store.slotOutput()
+            recommendations = output.recommendations
+            proposals = output.proposals
             activeReading = store.activeExperiment.map { store.reading(for: $0) }
         }
         // The dispenser decides whether this is a day that spends a fact; asking

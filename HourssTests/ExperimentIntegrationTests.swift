@@ -101,6 +101,31 @@ struct ExperimentIntegrationTests {
         if let next = after.first { #expect(next.hypothesisId != first.hypothesisId) }
     }
 
+    /// That the shared path and the separate paths cannot disagree.
+    @Test("One engine run gives the same answers as two")
+    func slotOutputAgreesWithTheSeparatePaths() {
+        let store = store(for: SyntheticCohort.afternoonSlump)
+        let output = store.slotOutput()
+
+        // The engine is deterministic over the record, so these must match exactly.
+        // If they ever stop matching, the correction is being applied differently on
+        // the two paths and one of the surfaces is making a claim the other refused.
+        #expect(output.recommendations.map(\.id) == store.slotRecommendations().map(\.id))
+        #expect(output.proposals.map(\.id) == store.experimentProposals().map(\.id))
+    }
+
+    @Test("The shared path offers nothing mid-fortnight either")
+    func slotOutputRespectsAnActiveWindow() throws {
+        let store = store(for: SyntheticCohort.afternoonSlump)
+        let proposal = try #require(store.slotOutput().proposals.first)
+        store.acceptExperiment(proposal, now: Date())
+        // The guard is duplicated on the two paths, so it is asserted on both.
+        #expect(store.slotOutput().proposals.isEmpty)
+        #expect(store.experimentProposals().isEmpty)
+        // Recommendations are unaffected — they are a different surface.
+        #expect(!store.slotOutput().recommendations.isEmpty)
+    }
+
     @Test("Everything the chain produces is allowed on screen")
     func realCopyPassesTheGuard() {
         let store = store(for: SyntheticCohort.afternoonSlump,

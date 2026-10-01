@@ -48,6 +48,11 @@ extension HourssStore {
     /// Empty while one is running: the proposal surface has nothing to say to
     /// somebody mid-fortnight, and computing proposals they cannot accept would be
     /// a search run to be thrown away.
+    ///
+    /// Prefer `slotOutput()` on Today, which gets these and the recommendations from
+    /// a single engine run. This is kept for callers that want only one of the two —
+    /// `InsightDetailView` is one, and running the engine once there is the whole
+    /// cost of opening a screen rather than a cost paid on every refresh.
     func experimentProposals(resamples: Int = 2000) -> [ExperimentDesign.Proposal] {
         guard activeExperiment == nil else { return [] }
         return ExperimentDesign.proposals(
@@ -55,6 +60,41 @@ extension HourssStore {
             excluding: experimentKeysToExclude,
             resamples: resamples
         )
+    }
+
+    /// Recommendations and proposals, from one engine run.
+    ///
+    /// **Why this exists.** `Recommendations.build` and `ExperimentDesign.proposals`
+    /// each run `Engine.findings` and then the correction, and Today needs both — so
+    /// calling them separately tests sixty hypotheses at two thousand resamples
+    /// twice, for two answers derived from the identical set of findings. Both layers
+    /// already accept pre-corrected findings for exactly this reason.
+    ///
+    /// The findings are corrected once, here, and handed to both. Passing uncorrected
+    /// findings to either would silently promote claims the feed refused to make —
+    /// `ExperimentDesign` would read every lead as confirmed — which is why the
+    /// correction happens at this level rather than being left to the callers.
+    func slotOutput(resamples: Int = 2000)
+        -> (recommendations: [Recommendation], proposals: [ExperimentDesign.Proposal]) {
+        let rows = ObservationBuilder.rows(
+            sessions: sessions,
+            reflections: reflections,
+            activities: activities,
+            healthByDay: healthByDay,
+            residuals: physiologyReadings,
+            workdays: profile.workdays
+        )
+        let input = EngineInput(observations: rows, priorities: profile.priorities)
+        let findings = Engine.applyingCorrection(to: Engine.findings(for: input, resamples: resamples))
+
+        let recommendations = Recommendations.build(from: findings, input: input)
+        // Nothing to offer mid-fortnight, and the guard is here as well as in
+        // `experimentProposals` because this path does not go through it.
+        let proposals = activeExperiment == nil
+            ? ExperimentDesign.proposals(from: findings, input: input,
+                                         excluding: experimentKeysToExclude)
+            : []
+        return (recommendations, proposals)
     }
 
     /// How much of the change has happened so far, for the active card.
