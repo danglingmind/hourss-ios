@@ -43,38 +43,46 @@ struct TodayView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Space.lg) {
+            // Two levels, so the indicator can sit close to what follows it without
+            // moving any of the gaps below. A single VStack spaces every child
+            // identically, and the day's heading is the one child that is metadata
+            // rather than a section — it belongs to the screen, not beside the
+            // fact. Space.xs here against Space.lg everywhere else.
+            VStack(alignment: .leading, spacing: 0) {
                 dateHeading
+                    .padding(.bottom, Space.xs)
 
-                if let running = store.runningSession {
-                    ActiveSessionPanel(session: running)          // T2
-                }
+                VStack(alignment: .leading, spacing: Space.lg) {
+                    if let running = store.runningSession {
+                        ActiveSessionPanel(session: running)          // T2
+                    }
 
-                // Above both branches rather than inside the logged one. The whole
-                // point of the daily fact is that it costs nothing: it is already
-                // true about this person and needs no session, no rating and no
-                // streak. Putting it under the timeline would make the one thing
-                // here that asks nothing of them available only to people who had
-                // already given something.
-                dailyFactRow
+                    // Above both branches rather than inside the logged one. The whole
+                    // point of the daily fact is that it costs nothing: it is already
+                    // true about this person and needs no session, no rating and no
+                    // streak. Putting it under the timeline would make the one thing
+                    // here that asks nothing of them available only to people who had
+                    // already given something.
+                    dailyFactRow
 
-                if todaysSessions.isEmpty {
-                    emptyState                                     // T1
-                } else {
-                    DayTimeline(                                   // T3
-                        sessions: todaysSessions,
-                        day: today,
-                        selectedSessionId: $selectedSessionId
-                    )
-                    ObservationSlotView(
-                        state: store.slotState(on: today,
-                                               recommendations: recommendations,
-                                               proposals: proposals),
-                        recommendations: recommendations,
-                        proposals: proposals,
-                        activeReading: activeReading,
-                        daysRemaining: store.activeExperiment?.daysRemaining(at: today) ?? 0
-                    )
+                    if todaysSessions.isEmpty {
+                        emptyState                                     // T1
+                    } else {
+                        DayTimeline(                                   // T3
+                            sessions: todaysSessions,
+                            day: today,
+                            selectedSessionId: $selectedSessionId
+                        )
+                        ObservationSlotView(
+                            state: store.slotState(on: today,
+                                                   recommendations: recommendations,
+                                                   proposals: proposals),
+                            recommendations: recommendations,
+                            proposals: proposals,
+                            activeReading: activeReading,
+                            daysRemaining: store.activeExperiment?.daysRemaining(at: today) ?? 0
+                        )
+                    }
                 }
             }
             .pageGutter()
@@ -118,8 +126,12 @@ struct TodayView: View {
     @ViewBuilder
     private var dailyFactRow: some View {
         if let fact = dailyFact {
+            // No rule above the fact. It used to separate the fact from the day's
+            // heading, which was two lines at 34pt and needed separating from. The
+            // heading is now a single line of 11pt mono directly under the header's
+            // own rule, so a second line sixteen points below it was ruling off a
+            // strip of metadata from the thing it belongs to.
             VStack(alignment: .leading, spacing: 0) {
-                HRule()
                 HealthFactRow(fact: fact, identifier: "today-fact")
 
                 // Under the fact rather than beside it. The one-a-day pacing is
@@ -142,12 +154,13 @@ struct TodayView: View {
 
     private var header: some View {
         VStack(spacing: 0) {
+            // Wordmark alone. The date used to sit opposite it and was the second
+            // of two: the heading below already names the day, in full and in
+            // words, so the corner was spending the most valuable position on the
+            // screen on a thing the reader meets again four lines later.
             HStack {
                 Wordmark()
                 Spacer()
-                Text(Date().formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
-                    .textStyle(.label)
-                    .foregroundStyle(Color.muted)
             }
             .pageGutter()
             .padding(.vertical, Space.gutter)
@@ -156,22 +169,36 @@ struct TodayView: View {
         .background(Color.canvas)
     }
 
+    /// The day, as an indicator rather than a headline.
+    ///
+    /// **It used to be two lines at 34pt**, which on a phone is most of what you see
+    /// before scrolling — and what it was telling you is what day it is, which is
+    /// the one thing a reader already knows for certain. It is now `label`: the
+    /// 11pt mono this app uses for metadata everywhere else, which is what this is.
+    /// The weight it was holding belongs to the fact and the day's record below it.
+    ///
+    /// The date is not dropped altogether, because removing it from the header left
+    /// this as the only place it appears. It just stops competing.
+    ///
+    /// Date and summary share one line, separated by a middle dot, because two
+    /// stacked lines of the same 11pt mono read as a block of metadata rather than
+    /// as one quiet marker. It wraps rather than truncating at large type sizes.
+    ///
+    /// **One clock read, not three.** These used to call `Date()` separately while
+    /// `today` sat in scope — harmless for display, and the same shape as the bug
+    /// that put the log-time preset fifteen minutes out roughly half the time. There
+    /// is no reason for a view to ask what day it is more than once.
     private var dateHeading: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(Date().formatted(.dateTime.weekday(.wide)))
-                .textStyle(.dayNumeral)
-            Text(Date().formatted(.dateTime.day().month(.wide)))
-                .textStyle(.dayNumeral)
-                .foregroundStyle(Color.muted)
+        let date = today.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        let line = todaysSessions.isEmpty
+            ? date
+            : "\(date) · \(daySummary(minutes: store.totalLoggedMinutes(on: today), sessionCount: todaysSessions.count))"
 
-            if !todaysSessions.isEmpty {
-                Text(daySummary(minutes: store.totalLoggedMinutes(on: today), sessionCount: todaysSessions.count))
-                    .textStyle(.label)
-                    .foregroundStyle(Color.muted)
-                    .padding(.top, Space.xs)
-            }
-        }
-        .padding(.top, Space.md)
+        return Text(line)
+            .textStyle(.label)
+            .foregroundStyle(Color.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, Space.md)
     }
 
     /// T1 — nothing logged yet. An invitation, not an empty-state illustration.
