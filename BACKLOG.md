@@ -878,33 +878,55 @@ a different instrument. A pre-registered test needs no multiplicity correction,
 because Benjamini–Yekutieli answers "the best of sixty candidates will look good
 by chance" and one declared hypothesis is not a search.
 
-**Still open, and deliberately:**
+**Still open.** Ordered by what I would do next, not by size.
 
-- ~~**`balance` gets no experiment.**~~ **Closed, and it was never really a hole.**
-  The exclusion reasoned that nobody can move which days are workdays, which is
-  true and is not the question: the hypothesis's focus side is the *days off*, so
-  "put one block on each of your days off" adds days to the measured group exactly
-  as every other change does. It was as testable as the health associations
-  admitted on identical grounds — a filter applied one step too early. Every stated
-  priority now reaches a change, with a test pinning that.
-- **The record is not byte-stable, and something other than experiments is the
-  cause.** `RecordStore` writes with `.sortedKeys` so that the same state encodes
-  to the same bytes — that is why `physiology` is written sorted and why
-  `experiments` is. A test comparing two full encodings of identical state caught
-  a real difference once: same length, different content, which points at an
-  identifier or a hash-ordered collection rather than a sort. Six repeat runs
-  could not reproduce it, and it is not in `experiments` or `declinedExperiments`,
-  both of which are explicitly sorted. Candidates are `Profile.workdays`
-  (a `Set<Int>`) and the `UUID`-keyed dictionaries, which `JSONEncoder` writes as
-  flat arrays in hash order. Worth chasing with `SWIFT_DETERMINISTIC_HASHING=1`.
-- **Phase 3:** a proposal on day one, from Health history alone. Every priority
-  now has a testable change, but all of them still need roughly three rated days
-  before anything is offered — so the first week is quieter than it has to be when
-  a year of Health history is already sitting there. The premise can come from
-  Health while the change targets a hypothesis that becomes measurable once they
-  log; the ids are constructible, and settling already treats a hypothesis that is
-  not in the registry yet as "cannot tell" rather than as an error.
-- **Phase 4:** randomised day assignment. The only phase that moves the honest
-  claim closer to cause rather than merely keeping it honest.
-- **Is 14 days right?** Decide from real adherence data, not now.
-- **Whether a settled card gets more room.** A judgement call left for review.
+### Being built now
+
+- **Phase 3 — day-one starters.** A proposal from Health history alone, before any
+  ratings exist. Every priority now has a testable change, but all of them still
+  need roughly three rated days before anything is offered, so the first week is
+  quieter than it has to be with a year of Health history sitting there. The
+  premise comes from Health while the change targets a hypothesis that becomes
+  measurable once they log: the registry's ids are constructible
+  (`time.morning.vs.rest.feeling` and so on), and settling already treats a
+  hypothesis that is not in the registry yet as "cannot tell" rather than an error.
+- **The flush chips.** `SelectableChip` (activity picker, onboarding intents) and
+  `ProfileView`'s workday cells are the two blocks left square by the radius work.
+  Both stack flush inside a ruled strip, so rounding them notches every seam where
+  two fills meet and runs a 1pt rule across four corners. Rounding means giving
+  them gaps and dropping the rules — a layout change, not a radius change.
+- **The leads tier on Patterns.** Rung 2 exists in the engine and is only ever seen
+  when it becomes the Today proposal. There is no list of what the app is currently
+  watching, which was in the PRD's own §10 and did not get built.
+
+### Next
+
+- **A place to see past experiments.** A settled result is shown once on Today and
+  acknowledged away forever. After three experiments there is nowhere to see what
+  was tested or what happened, and the record of it is already stored — only the
+  surface is missing. Needed before anyone runs more than one or two.
+- **Phase 4 — randomised day assignment.** The app picks which days carry the
+  change, turning a pre-post comparison into a genuine within-person randomised
+  test. The only phase that moves the honest claim closer to cause rather than
+  merely keeping it honest, and the most demanding of the user.
+
+### Known defects
+
+- **The record is not byte-stable, and experiments are not the cause.**
+  `RecordStore` writes with `.sortedKeys` so that the same state encodes to the
+  same bytes — that is why `physiology` is written sorted, and why `experiments`
+  is. A test comparing two full encodings of identical state caught a real
+  difference once: same length, different content, which points at an identifier or
+  a hash-ordered collection rather than a sort. Six repeat runs could not reproduce
+  it, and it is not in `experiments` or `declinedExperiments`, both of which are
+  explicitly sorted on the way out. Candidates are `Profile.workdays` (a
+  `Set<Int>`) and the `UUID`-keyed dictionaries, which `JSONEncoder` writes as flat
+  alternating arrays in hash order. Chase it with `SWIFT_DETERMINISTIC_HASHING=1`.
+
+### Decided, not pending
+
+- **Is 14 the right radius?** The owner's number, tuned from 10. `Radius.block`.
+- **Is 14 days the right window?** Decide from real adherence data, not before.
+- **Can a settled experiment feed rung 4?** Default no. Mixing pre-registered and
+  mined evidence in one correction is exactly the confusion the no-correction
+  argument relies on avoiding.
