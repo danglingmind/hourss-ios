@@ -27,19 +27,25 @@ import Foundation
 ///    group. Asking somebody to do more of the thing that reads worst is perverse,
 ///    and a draining window's own mirror image — the window that reads best — is
 ///    usually a separate hypothesis that qualifies on its own.
-/// 3. **The change must be something a person can do.** This is the one that cuts
-///    deepest. Nobody can move which days are workdays, so `workdayContrast` is out
-///    however strong it is. A health association is in, but only as *responsive
-///    scheduling* — "on a day after a longer night, put your bigger block in" —
-///    never as "sleep more", which is advice the data does not reach and the app is
-///    not allowed to give.
+/// 3. **The change must be something a person can do.** A health association and a
+///    workday contrast both pass, but only as *responsive scheduling*: the
+///    condition cannot be moved, so the change is what gets put against it. "On a
+///    day after a longer night, put your bigger block in" is in; "sleep more" is
+///    not, because that is advice the data does not reach and the app is not
+///    allowed to give.
 ///
-/// **What this leaves uncovered, stated rather than discovered later.** Of the six
-/// stated priorities, `balance` maps only to `workdayContrast` and
-/// `drainingTimeWindow`, and both fail filter 3 or 2. Somebody who ranks balance
-/// first gets no experiment from this layer at all. That is a real hole, it is why
-/// the PRD has a phase for Health-seeded starters, and it must not be papered over
-/// by inventing a change nobody can carry out.
+/// **`workdayContrast` was excluded here and should not have been.** The reasoning
+/// was that nobody can move which days are workdays, which is true and is not the
+/// question. Its focus side is *non-workdays*, so the change — put a block on your
+/// days off — adds days to the focus group exactly as every other experiment does,
+/// and it is as testable as the health associations that were admitted on identical
+/// grounds. Excluding it left `balance` with no experiment at all, which was
+/// recorded as a hole to be filled by a later phase when it was really a filter
+/// applied one step too early.
+///
+/// `drainingTimeWindow` and `activityDrain` stay out, and that is filter 2 rather
+/// than filter 3: adherence counts days gained on the focus side, so there is no
+/// way to test doing *less* of something by doing more of it.
 enum ExperimentDesign {
 
     /// How much is behind a proposal, which the card states plainly.
@@ -98,7 +104,8 @@ enum ExperimentDesign {
 
     /// Types a change can honestly be built for. See filter 3 above.
     static let experimentableTypes: Set<InsightType> = [
-        .bestTimeWindow, .durationSweetSpot, .activityEnergizer, .sleepContext, .bodyContext
+        .bestTimeWindow, .durationSweetSpot, .activityEnergizer,
+        .sleepContext, .bodyContext, .workdayContrast
     ]
 
     // MARK: - Building

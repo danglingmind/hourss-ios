@@ -70,12 +70,24 @@ struct ExperimentDesignTests {
 
     @Test("A type nobody can act on is excluded however strong it is")
     func undoableTypesAreExcluded() {
-        // Nobody can move which days are workdays.
-        #expect(!ExperimentDesign.isEligible(
-            finding(id: "workday.non.vs.work.feeling", type: .workdayContrast,
-                    delta: 0.9, low: 0.7, high: 0.95)))
         #expect(!ExperimentDesign.isEligible(
             finding(id: "x.y.z", type: .fragmentation, delta: 0.9, low: 0.7, high: 0.95)))
+        // Filter 2: adherence counts days gained on the focus side, so doing less of
+        // a draining window cannot be tested by doing more of it.
+        #expect(!ExperimentDesign.isEligible(
+            finding(id: "time.afternoon.vs.rest.feeling", type: .drainingTimeWindow,
+                    delta: 0.9, low: 0.7, high: 0.95)))
+    }
+
+    /// The case that was excluded for the wrong reason.
+    @Test("A workday contrast is testable, because its focus side is the days off")
+    func workdayContrastIsDoable() throws {
+        let f = finding(id: "workday.non.vs.work.feeling", type: .workdayContrast,
+                        delta: 0.42, focusLabel: "Non-workdays")
+        #expect(ExperimentDesign.isEligible(f))
+        // Which days are workdays cannot be moved; what goes on them can.
+        let change = try #require(ExperimentCopy.change(for: f))
+        #expect(change.contains("days off"))
     }
 
     @Test("Responsive scheduling makes a health association doable")
@@ -168,16 +180,28 @@ struct ExperimentDesignTests {
         #expect(ExperimentDesign.proposals(from: [finding()], input: input([])).isEmpty)
     }
 
-    /// The hole the design documents rather than papers over.
-    @Test("Balance gets no proposal, because neither of its types can be acted on")
-    func balanceIsUncovered() {
+    /// This used to assert the opposite, and the hole it pinned was a filter applied
+    /// one step too early rather than a gap in the hypothesis space.
+    @Test("Balance gets a proposal, from the workday contrast")
+    func balanceIsCovered() throws {
         let findings = [
             finding(id: "workday.non.vs.work.feeling", type: .workdayContrast,
-                    delta: 0.9, low: 0.7, high: 0.95),
+                    delta: 0.42, focusLabel: "Non-workdays"),
             finding(id: "time.afternoon.vs.rest.feeling", type: .drainingTimeWindow,
                     delta: 0.9, low: 0.7, high: 0.95),
         ]
-        #expect(ExperimentDesign.proposals(from: findings, input: input([.balance])).isEmpty)
+        let proposal = try #require(
+            ExperimentDesign.proposals(from: findings, input: input([.balance])).first)
+        #expect(proposal.type == .workdayContrast)
+        #expect(proposal.priority == .balance)
+
+        // Every stated priority now reaches a change, which is the property that
+        // matters — a priority onboarding collects and the app can do nothing with
+        // is a promise it cannot keep.
+        for priority in Priority.allCases {
+            #expect(!priority.insightTypes.isDisjoint(with: ExperimentDesign.experimentableTypes),
+                    Comment(rawValue: "\(priority.title) has no testable insight type"))
+        }
     }
 
     // MARK: Acceptance

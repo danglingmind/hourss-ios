@@ -88,11 +88,20 @@ enum ExperimentCopy {
             guard let metric = HealthMetric(rawValue: Surprise.pattern(of: finding).subject) else { return nil }
             return "On a day \(metric.higherPhrase), put your bigger block in."
 
-        // Nobody can move which days are workdays, and the rest have no action.
+        // Responsive scheduling again, and the same distinction. Which days are
+        // workdays cannot be moved; what goes on them can. The focus side of this
+        // hypothesis is the days off, so putting a block there adds days to the
+        // group being measured exactly as every other change does.
+        case .workdayContrast:
+            return "Put one block on each of your days off this fortnight."
+
+        // Filter 2, not filter 3: adherence counts days gained on the focus side,
+        // so there is no way to test doing less of something by doing more of it.
+        // The rest have no action at all.
         // `ExperimentDesign.experimentableTypes` excludes these before this is
         // reached; the cases are here so that adding a type to that set without
         // writing its change is a compile error rather than a silent nil.
-        case .workdayContrast, .drainingTimeWindow, .activityDrain,
+        case .drainingTimeWindow, .activityDrain,
              .performanceFeelingSplit, .fragmentation, .emergingChange:
             return nil
         }

@@ -155,6 +155,12 @@ day 12+.
 Want to test it?"* Needs ~3 rated days. This is where most early experiments come
 from.
 
+**Every priority reaches a change.** `workdayContrast` was excluded at first on
+the grounds that nobody can move which days are workdays — true, and not the
+question, since its focus side is the days off. Admitting it closed the one gap:
+a priority onboarding collects and the app can do nothing with is a promise it
+cannot keep, and there is now a test over `Priority.allCases` pinning that.
+
 **(c) From Health history alone, seeded by the focus area (rung 1).** The day-one
 case, and the reason onboarding's focus ranking earns its place. No ratings
 exist, but a year of Health data does. Someone who ranks **Sleep** first and

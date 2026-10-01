@@ -880,13 +880,20 @@ by chance" and one declared hypothesis is not a search.
 
 **Still open, and deliberately:**
 
-- **`balance` gets no experiment.** Both of its insight types fail the
-  design's filters — nobody can move which days are workdays, and a draining
-  window cannot be tested by doing more of it. Pinned with a test rather than
-  papered over. Phase 3 (Health-seeded starters) is where it gets solved.
-- **Phase 3:** every focus area gets a proposal on day one from Health history
-  alone, so the first week is not empty for the four priorities that currently
-  have nothing.
+- ~~**`balance` gets no experiment.**~~ **Closed, and it was never really a hole.**
+  The exclusion reasoned that nobody can move which days are workdays, which is
+  true and is not the question: the hypothesis's focus side is the *days off*, so
+  "put one block on each of your days off" adds days to the measured group exactly
+  as every other change does. It was as testable as the health associations
+  admitted on identical grounds — a filter applied one step too early. Every stated
+  priority now reaches a change, with a test pinning that.
+- **Phase 3:** a proposal on day one, from Health history alone. Every priority
+  now has a testable change, but all of them still need roughly three rated days
+  before anything is offered — so the first week is quieter than it has to be when
+  a year of Health history is already sitting there. The premise can come from
+  Health while the change targets a hypothesis that becomes measurable once they
+  log; the ids are constructible, and settling already treats a hypothesis that is
+  not in the registry yet as "cannot tell" rather than as an error.
 - **Phase 4:** randomised day assignment. The only phase that moves the honest
   claim closer to cause rather than merely keeping it honest.
 - **Is 14 days right?** Decide from real adherence data, not now.
