@@ -49,3 +49,24 @@ runtime. Fix is `nonisolated` on the helper when it touches nothing isolated, or
 SourceKit diagnostics in this project are unreliable — "Cannot find 'Space' in
 scope" and similar appear constantly for types that plainly exist. Trust
 `xcodebuild`, never the editor diagnostics.
+
+## Never pipe xcodebuild to `head`
+
+```bash
+# Looks like a hang. Produces nothing for 25 minutes and then gets killed.
+xcodebuild ... test 2>&1 | grep -E "✘|TEST" | head -10
+
+# Works.
+xcodebuild ... test > /tmp/out.log 2>&1; grep -E "✘|TEST" /tmp/out.log
+```
+
+`grep` block-buffers when its stdout is a pipe rather than a terminal, so nothing
+appears until the buffer fills or the process exits — and `head` closing the pipe
+early turns that into no output at all. A UI run that is working normally then
+looks identical to a hung one, which is how a passing suite got stopped at 25
+minutes on the suspicion it had stalled. It had not: the same tests passed in
+eight minutes when written to a file.
+
+Redirect to a file and grep the file. The UI suite takes roughly 8-10 minutes, so
+it also needs more than the 600s foreground timeout — run it in two halves, or in
+the background and read the file.
