@@ -189,6 +189,20 @@ quantity is the residual rather than a rating — a test that needs no rating at
 for somebody who will never rate anything. The furthest this can go without a
 watch.
 
+## 9a. Why these are not three parallel jobs
+
+Phases 1, 2 and 3 are a dependency chain in overlapping files, and it is worth
+writing down so nobody tries to parallelise them again.
+
+Phase 2 cannot resolve a direction until phase 1's finding exists. Phase 3 cannot
+measure an experiment on the residual until phase 2 has given it one — the
+`isEligible` filter it has to clear is the thing phase 2 changes. And all three
+touch `EngineContracts.swift`, `HypothesisRegistry.swift` and
+`ExperimentDesign.swift`, so three agents would be editing the same four files to
+three different ends.
+
+**1 and 2 are therefore one job.** 3 waits for it.
+
 ## 10. Checklist
 
 ### The hypothesis
