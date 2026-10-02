@@ -54,7 +54,7 @@ struct InsightDetailView: View {
         } else if let proposal {
             VStack(alignment: .leading, spacing: Space.xs) {
                 HRule()
-                Eyebrow(proposal.standing == .confirmed ? "Test what held up" : "Worth testing")
+                Eyebrow(ExperimentCopy.eyebrow(for: proposal.standing))
                 Text(proposal.change)
                     .textStyle(.body)
                     .fixedSize(horizontal: false, vertical: true)

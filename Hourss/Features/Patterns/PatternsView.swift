@@ -219,7 +219,11 @@ struct PatternsView: View {
     private var leadSection: some View {
         if !leads.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                Eyebrow("Worth testing")
+                // Everything in this section is a lead by construction, so the
+                // standing is named once here rather than per row — but through the
+                // same function the cards use, so a rename cannot leave the list
+                // and the card calling the same thing two names.
+                Eyebrow(ExperimentCopy.eyebrow(for: .lead))
                     .padding(.bottom, Space.xs)
                 HRule()
                 ForEach(leads, id: \.hypothesis.id) { lead in

@@ -557,7 +557,12 @@ struct StarterStoreTests {
         #expect(ObservationSlot.content(for: state) == .experimentProposal(id: lead.id))
 
         let copy = ObservationSlot.copy(for: .experimentProposal(id: lead.id), proposal: lead)
-        #expect(copy.eyebrow == "Worth testing")
+        // Its own word, not the lead's. Both read "Worth testing" at first, which is
+        // true of each and hides the only difference: a lead has six rated days a
+        // side behind it and a starter has nothing but a Health reading about
+        // something else.
+        #expect(copy.eyebrow == ExperimentCopy.eyebrow(for: lead.standing))
+        #expect(copy.eyebrow != ExperimentCopy.eyebrow(for: .lead))
         #expect(copy.lines.first?.text == lead.change)
         #expect(copy.lines.first?.emphasis == .lead)
         #expect(copy.action == ExperimentCopy.startTitle)

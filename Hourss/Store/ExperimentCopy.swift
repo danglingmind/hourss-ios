@@ -48,10 +48,29 @@ enum ExperimentCopy {
         case .confirmed:
             return finding.hypothesis.phrase(finding)
         case .lead:
-            // "So far" and a count, with no verb that implies the pattern will
-            // hold. "Has read higher" rather than "is better".
-            return "\(finding.hypothesis.focusLabel) has read higher so far, across \(days) "
-                + (days == 1 ? "day" : "days") + "."
+            // "Has read higher", never "is better" — no verb that implies the
+            // pattern will hold.
+            //
+            // **Two forms, because "so far" is a lie past a certain count.** The
+            // first was written for a thin lead and reads correctly at four days:
+            // not much has been seen, and what has been seen leans one way. Real
+            // data produces leads at sixteen and twenty days, because the floor is
+            // six a side and a lead accrues evidence indefinitely without ever
+            // clearing the gates — and at that point "so far" says the app has not
+            // looked much, when it has looked a great deal and found nothing that
+            // separates. Those are opposite statements about the same number.
+            //
+            // The line is the experiment window. Fewer days than a fortnight and
+            // the group has not had a fortnight's worth of looking, so "so far" is
+            // honest; more, and it has, and the honest sentence says what did not
+            // happen instead.
+            let unit = days == 1 ? "day" : "days"
+            let label = finding.hypothesis.focusLabel
+            if days < Experiment.defaultWindowDays {
+                return "\(label) has read higher so far, across \(days) \(unit)."
+            }
+            return "\(label) has read a little higher across \(days) \(unit), "
+                + "without pulling clear of the rest."
         case .starter:
             // Unreachable from this function, and a case rather than a `default`
             // so that a fourth standing is a compile error here instead of a
@@ -216,6 +235,32 @@ enum ExperimentCopy {
         case .drainingTimeWindow, .activityDrain,
              .performanceFeelingSplit, .fragmentation, .emergingChange:
             return nil
+        }
+    }
+
+    // MARK: - Standing
+
+    /// What a card calls itself, from how much is behind it.
+    ///
+    /// Here rather than at the three view sites that need it, for the reason the
+    /// control titles below are here: a string authored inside a view body is a
+    /// string no sweep can see, and three copies of this decision are three places
+    /// it can drift.
+    ///
+    /// **A starter needs its own word, and shared one with a lead until now.** Both
+    /// read "Worth testing", which is true of each and hides the only thing that
+    /// separates them: a lead has six rated days on each side of a real split, and a
+    /// starter has nothing at all behind it but a Health reading about something
+    /// else. Telling somebody those are the same kind of offer is the quiet half of
+    /// overclaiming — nothing false is said, and the weaker card borrows the
+    /// stronger one's standing.
+    static func eyebrow(for standing: ExperimentDesign.Standing) -> String {
+        switch standing {
+        case .confirmed: "Test what held up"
+        case .lead: "Worth testing"
+        // Names no evidence, because there is none. "Start" is doing the work
+        // "worth" does in the lead's version, without implying anything was weighed.
+        case .starter: "A place to start"
         }
     }
 

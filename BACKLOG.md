@@ -882,12 +882,6 @@ by chance" and one declared hypothesis is not a search.
 
 ### Loose ends on what just shipped
 
-- **A lead's premise says "so far, across 16 days".** The sentence was written for
-  a thin lead — three or four days — and real data produces counts far higher,
-  because the lead floor is six a side and leads accumulate evidence without ever
-  clearing the gates. At sixteen days "so far" understates: that is not a thin
-  signal, it is one that is genuinely not separating. The copy should split those
-  two cases.
 - **`energy`'s starter names an activity on no evidence.** Health holds nothing
   that names an activity, so unlike the other five this starter's subject is
   *chosen* — the top of the person's own picker order — rather than read. It is the
@@ -900,9 +894,6 @@ by chance" and one declared hypothesis is not a search.
   The honest fix is a `.starter` arm in the slot's copy that labels the two lines
   ("What Health shows" / "What is not known yet") instead of running premise under
   change.
-- **A starter and a lead look identical.** Both read "Worth testing", though one has
-  six rated days behind it and the other has none. A third eyebrow would separate
-  them.
 
 ### Judge on device
 

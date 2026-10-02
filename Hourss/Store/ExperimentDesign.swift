@@ -56,7 +56,12 @@ import Foundation
 enum ExperimentDesign {
 
     /// How much is behind a proposal, which the card states plainly.
-    enum Standing: String, Equatable {
+    /// `CaseIterable` so a test can assert a property over *every* standing rather
+    /// than over the three that exist today — the point being that adding a fourth
+    /// without giving it its own eyebrow fails the suite instead of silently
+    /// borrowing another standing's word, which is the exact mistake `.starter`
+    /// shipped with.
+    enum Standing: String, Equatable, CaseIterable {
         /// Cleared the interval gate and the correction. Day 12 at the earliest.
         case confirmed
         /// Directional, with enough days to be worth a fortnight and not enough to

@@ -42,10 +42,23 @@ struct PatternsLeadTests {
     func everyRowCarriesItsCount() {
         let store = store(SyntheticCohort.afternoonSlump)
         for lead in PatternsView.leads(in: store) {
-            let line = ExperimentCopy.premise(for: lead, standing: .lead,
-                                              days: lead.comparison.focusDays)
-            #expect(line.contains("so far"))
-            #expect(line.contains("\(lead.comparison.focusDays)"))
+            let days = lead.comparison.focusDays
+            let line = ExperimentCopy.premise(for: lead, standing: .lead, days: days)
+
+            // The count is the invariant — it is what stops a row reading as a
+            // finding, and it is on both forms of the sentence.
+            #expect(line.contains("\(days)"))
+
+            // "So far" is not. This cohort's leads carry twenty, forty and
+            // forty-seven days, and at those counts "so far" would say the app has
+            // barely looked when it has looked a great deal and found nothing that
+            // separates. Which form applies is decided by the experiment window.
+            if days < Experiment.defaultWindowDays {
+                #expect(line.contains("so far"))
+            } else {
+                #expect(!line.contains("so far"))
+                #expect(line.contains("without pulling clear"))
+            }
         }
     }
 

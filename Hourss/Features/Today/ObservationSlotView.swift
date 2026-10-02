@@ -362,7 +362,9 @@ extension ObservationSlot {
 
         // The standing, said plainly. A lead that did not announce itself as a lead
         // would be a claim, and the honest label is the only thing between the two.
-        let eyebrow = proposal.standing == .confirmed ? "Test what held up" : "Worth testing"
+        // Three words for three standings — a starter borrowing the lead's used to
+        // be the one place this card said more than it knew.
+        let eyebrow = ExperimentCopy.eyebrow(for: proposal.standing)
 
         let copy = SlotCopy(
             eyebrow: eyebrow,
