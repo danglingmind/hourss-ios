@@ -915,16 +915,29 @@ by chance" and one declared hypothesis is not a search.
   token below `Space.xs`, so holding 44 square everywhere means a hardcoded gap or
   breaking the gutter.
 
-### Next
+### Owed to the record screen
 
-- **A place to see past experiments.** A settled result is shown once on Today and
-  acknowledged away forever. After three experiments there is nowhere to see what
-  was tested or what happened, and the record of it is already stored — only the
-  surface is missing. Needed before anyone runs more than one or two.
-- **Phase 4 — randomised day assignment.** The app picks which days carry the
-  change, turning a pre-post comparison into a genuine within-person randomised
-  test. The only phase that moves the honest claim closer to cause rather than
-  merely keeping it honest, and the most demanding of the user.
+`You → Tests` is built. Four things it asked for sit in files it did not own, and
+should land next time those files are open:
+
+- **`Experiment.Verdict: CaseIterable`.** Its suite hand-lists the three verdicts
+  and ties them to an exhaustive switch so a fourth is a compile error. One
+  conformance word does that properly, for every site that enumerates them.
+- **"Stopped" and "This one was stopped early, so it has no result." belong in
+  `ExperimentCopy`**, which is where every experiment sentence lives so that one
+  sweep sees all of them. They are `static let`s in the feature file for now, and
+  swept there.
+- **A `concludedExperiments` accessor on `HourssStore`**, beside `activeExperiment`
+  and `unacknowledgedExperiment`. "Newest first, excluding active" is store-shaped
+  logic currently living in a view file. It reads only stored values and runs no
+  engine, so it is cheap and correct where it is — just misplaced.
+- **`DebugFixture` seeds one settled experiment, which is not a list.** Looking at
+  this screen on device needs at least three settled with different verdicts plus
+  one abandoned, on distinct dates so the ordering shows, and one already
+  acknowledged — since "acknowledging dismisses the card, not the result" is the
+  screen's whole premise.
+- Minor: `ObservationSlotView` authors "You were testing:" inside a view body. One
+  string no sweep can see.
 
 ### Known defects
 
