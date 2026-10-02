@@ -35,6 +35,11 @@ struct PatternsView: View {
     /// often than the engine should.
     @State private var leads: [Finding] = []
 
+    /// One proposal per priority, cached for the same reason the leads are: building
+    /// them runs the engine and the correction, and a view body re-evaluates far
+    /// more often than the engine should.
+    @State private var proposals: [ExperimentDesign.Proposal] = []
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
@@ -47,7 +52,10 @@ struct PatternsView: View {
             .pageGutter()
             .padding(.bottom, Space.xl)
         }
-        .task(id: leadInputs) { leads = Self.leads(in: store) }
+        .task(id: leadInputs) {
+            leads = Self.leads(in: store)
+            proposals = store.experimentProposals()
+        }
         .background(Color.canvas)
         .safeAreaInset(edge: .top, spacing: 0) {
             ScreenHeader(title: "Patterns")
@@ -171,24 +179,14 @@ struct PatternsView: View {
                 .padding(.top, Space.md)
             }
 
-            ForEach(groups(insights.dropFirst().map { $0 }), id: \.0) { group, items in
-                VStack(alignment: .leading, spacing: 0) {
-                    Eyebrow(group)
-                        .padding(.bottom, Space.xs)
-                    HRule()
-                    ForEach(items) { insight in
-                        NavigationLink(value: insight) {
-                            InsightRow(insight: insight)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("insight-row")
-                        HRule()
-                    }
-                }
+            ForEach(byPriority(insights.dropFirst().map { $0 }), id: \.0) { priority, items in
+                prioritySection(priority, items)
+            }
 
+            // Outside the loop. It used to sit inside it, so a person with three
+            // groups saw the same conjunctions three times.
             InteractionSection(findings: store.interactions,
                                observations: store.engineObservations)
-            }
 
             leadSection
 
@@ -227,10 +225,20 @@ struct PatternsView: View {
                     .padding(.bottom, Space.xs)
                 HRule()
                 ForEach(leads, id: \.hypothesis.id) { lead in
+                    // Ink, not muted.
+                    //
+                    // These were grey, and grey is the wrong signal: on every other
+                    // screen it means a thing is off, spent or unavailable, so a
+                    // column of grey rows under a live heading read as disabled.
+                    // They are not. They are ordinary observations that have not
+                    // repeated enough to be claimed.
+                    //
+                    // Two things already say that — the heading above them and the
+                    // day count inside every row — so the colour was a third signal
+                    // doing a job two were already doing, and doing it wrongly.
                     Text(ExperimentCopy.premise(for: lead, standing: .lead,
                                                 days: lead.comparison.focusDays))
                         .textStyle(.body)
-                        .foregroundStyle(Color.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, Space.sm)
@@ -293,10 +301,81 @@ struct PatternsView: View {
         )
     }
 
-    private func groups(_ insights: [Insight]) -> [(String, [Insight])] {
-        Dictionary(grouping: insights, by: { $0.type.group })
-            .sorted { $0.key < $1.key }
-            .map { ($0.key, $0.value) }
+    /// One section per thing somebody said mattered, in the order they ranked them.
+    ///
+    /// **This used to group by `type.group`** — "Timing", "Activities", "Energy",
+    /// "Body". Those are the engine's words for its own families. Nobody chose them
+    /// and nobody was asked about them. Onboarding asks what matters and offers
+    /// Focus, Energy, Sleep, Movement, Calm and Balance, and until now the answer
+    /// only changed what order things came in. A person who said focus mattered had
+    /// no screen that answered how focus was going.
+    ///
+    /// An insight can serve more than one priority, so it is filed under the
+    /// highest-ranked one that claims it and appears once. Anything no stated
+    /// priority claims is kept in a final group rather than dropped — it is still
+    /// something true about them.
+    private func byPriority(_ insights: [Insight]) -> [(Priority?, [Insight])] {
+        var remaining = insights
+        var out: [(Priority?, [Insight])] = []
+
+        for priority in store.profile.priorities {
+            let mine = remaining.filter { priority.insightTypes.contains($0.type) }
+            remaining.removeAll { priority.insightTypes.contains($0.type) }
+            // Kept even when empty: a priority with nothing to show still gets a
+            // section saying so, because silence reads as the app having nothing
+            // rather than as nothing having repeated.
+            out.append((priority, mine))
+        }
+        if !remaining.isEmpty { out.append((nil, remaining)) }
+        return out
+    }
+
+    /// What one priority has to say: what held up, and the one thing to try.
+    @ViewBuilder
+    private func prioritySection(_ priority: Priority?, _ items: [Insight]) -> some View {
+        let proposal = priority.flatMap { p in proposals.first { $0.priority == p } }
+
+        VStack(alignment: .leading, spacing: 0) {
+            Eyebrow(priority?.title ?? "Everything else")
+                .padding(.bottom, Space.xs)
+            HRule()
+
+            ForEach(items) { insight in
+                NavigationLink(value: insight) {
+                    InsightRow(insight: insight)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("insight-row")
+                HRule()
+            }
+
+            if items.isEmpty && proposal == nil {
+                Text("Nothing here has repeated enough to show.")
+                    .textStyle(.body)
+                    .foregroundStyle(Color.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, Space.sm)
+                HRule()
+            }
+
+            // The one thing to try for this priority, where somebody is already
+            // looking at how it is going. Today shows the same offer; this is the
+            // same proposal and the same control, so accepting here or there is one
+            // act and cannot produce two experiments.
+            if let proposal {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text(proposal.change)
+                        .textStyle(.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                    DirectionalLink(title: ExperimentCopy.startTitle, arrow: "→") {
+                        _ = store.acceptExperiment(proposal)
+                    }
+                    .accessibilityIdentifier("accept-experiment")
+                }
+                .padding(.vertical, Space.sm)
+                HRule()
+            }
+        }
     }
 }
 

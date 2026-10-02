@@ -1014,6 +1014,13 @@ Still open:
 
 ### Known defects
 
+- **"about 0 bpm above your usual."** The physiology sentence rounds the residual
+  to whole beats with `%.0f`, so a real but small residual prints as zero and the
+  sentence says a number it then contradicts. Visible on the Patterns tab with the
+  fixture. The fix is either a floor on what is worth a sentence, or a phrase for
+  "about the same as usual" — both are decisions about when a difference is worth
+  mentioning, not formatting.
+
 - **A real Health read used to overwrite a seeded fixture.** `applyHealthContext`
   replaces the whole daily table, so on a simulator — where HealthKit answers every
   query with nothing — the launch read wiped the fixture's generated history a few
