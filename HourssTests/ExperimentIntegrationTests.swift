@@ -229,10 +229,17 @@ struct RandomisedExperimentIntegrationTests {
         if contrast < Experiment.minimumDays {
             #expect(reading.verdict == .cannotTell)
             #expect(contamination > 0)
+        } else if reading.armsSeparated == false {
+            // Clearing the contrast floor is not the same as having a contrast left to
+            // read. A heavy logger can leave six clean days beside eight carrying the
+            // change, and two arms that differ in the change on a minority of their
+            // days cannot be told apart whatever the floor says.
+            #expect(reading.verdict == .cannotTell)
+            #expect(contamination > 0)
         } else {
-            // A record this heavy clearing the contrast floor is possible and not a
-            // failure; what is asserted either way is that the two counts agree with
-            // the verdict rather than that one particular month came out one way.
+            // A record this heavy clearing both conditions is possible and not a
+            // failure; what is asserted either way is that the counts agree with the
+            // verdict rather than that one particular month came out one way.
             #expect(reading.adherenceDays < Experiment.minimumDays
                     || reading.verdict != .cannotTell)
         }

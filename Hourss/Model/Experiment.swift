@@ -191,6 +191,80 @@ struct Experiment: Identifiable, Hashable, Codable {
     /// looser floor for a test than for an observation would make the test the
     /// weaker instrument, which is backwards.
     static let minimumDays = 6
+
+    /// Whether a drawn window's two arms came out of the month still ordered the way
+    /// the draw put them.
+    ///
+    /// **The gate `minimumDays` cannot be.** Applied to adherence and to contrast,
+    /// that floor catches the *absence* of a contrast and not the *dilution* of one.
+    /// A month with fourteen rated unassigned days, eight of them carrying the change
+    /// and six not, clears both floors — six days of the change where it was asked
+    /// for, six days without it where it was not — and then runs an
+    /// intention-to-treat comparison whose control arm is majority-treated. The two
+    /// arms differ in the change on a minority of their days, so whatever the change
+    /// does is measured at a fraction of its size, and the card prints "No difference
+    /// you could act on." That is a sentence about the change. The honest sentence is
+    /// that the month could not separate the two sets of days, and those are
+    /// different statements about different things.
+    ///
+    /// **This introduces no number, because none of the candidates could be
+    /// derived.** The three counts a drawn window is read from are the days the
+    /// change happened on when it was asked for (`adherenceDays`), the days it did
+    /// not happen on when it was not asked for (`contrastDays`), and the days it
+    /// happened on anyway (`contaminationDays`). The first two are the contrast the
+    /// draw was for; the third is what erodes it. The rule is that the eroding count
+    /// has to be smaller than both of the counts it erodes, which is an ordering and
+    /// not a threshold: multiply all three by ten and the answer does not move.
+    ///
+    /// The two comparisons are the same requirement read off each arm:
+    ///
+    /// - `contaminationDays < contrastDays` — the arm the change was *withheld* from
+    ///   is still, in majority, days without it. This is the proportion threshold on
+    ///   the control arm written without naming a proportion. One half is not a tuned
+    ///   value: it is the point where "the days it was not picked for" stops being a
+    ///   true description of the arm the result is read against.
+    /// - `contaminationDays < adherenceDays` — the change was still more common on
+    ///   the picked days than on the unpicked ones. Without it a window where both
+    ///   counts land on six passes, and the two arms are then alike in the one
+    ///   respect the draw made them differ in.
+    ///
+    /// **Why not the compliance differential, which is the right quantity.** The
+    /// attenuation here is exactly the first stage of an instrumental-variable
+    /// reading: the measured difference is the difference among the people — here,
+    /// the days — the assignment moved, times the gap between the two arms' treated
+    /// *rates*. Thresholding that gap would be the precise instrument, and it needs
+    /// the assigned arm's rated-day count, which `Settlement` does not freeze. A gate
+    /// the frozen record cannot re-evaluate is a verdict whose reason is not in the
+    /// record, which is the drift `Settlement` exists to prevent and the reason
+    /// `contaminationDays` is written down at all. So the gate is a function of the
+    /// figures that are frozen, and it tests the *sign* of that gap, which is the part
+    /// that needs no constant. Thresholding its *magnitude* would need one, and there
+    /// is nothing in this app to borrow it from.
+    ///
+    /// **What this deliberately does not catch**, so that nobody reads it as more than
+    /// it is:
+    ///
+    /// - Dilution that leaves the arms ordered — five contaminated days against twelve
+    ///   adherent ones — is admitted and reported in the sentence instead, because
+    ///   "no difference" is still the honest reading of a window whose arms differed
+    ///   in the change on most of their days.
+    /// - Counts stand in for rates, which is only sound while the two arms carry
+    ///   similar numbers of rated days. The blocked draw makes that likely and does
+    ///   not guarantee it, so a month logged heavily on the picked days and thinly on
+    ///   the rest can pass this with a differential near zero. Closing it means
+    ///   freezing the assigned arm's rated-day count and bumping the schema for it.
+    /// - Thin adherence with no contamination at all. That is dilution of the *other*
+    ///   arm, and the floor on `adherenceDays` is the existing, borrowed answer to it.
+    ///
+    /// Dilution pulls the arms together, so it makes `heldUp` harder to reach and
+    /// never easier, and the gate is applied before the verdict rather than only to
+    /// the null for that reason: a window that cannot separate its arms cannot report
+    /// anything about the change, including good news.
+    static func armsSeparated(adherenceDays: Int,
+                              contaminationDays: Int,
+                              contrastDays: Int) -> Bool {
+        contaminationDays < contrastDays && contaminationDays < adherenceDays
+    }
 }
 
 // MARK: - Phase
@@ -337,6 +411,21 @@ extension Experiment {
         /// is what gates the verdict.
         var contrastDays: Int? {
             contaminationDays.map { max(0, baselineDays - $0) }
+        }
+
+        /// Whether the two arms came out of the month still ordered the way the draw
+        /// put them. Nil for a chosen window, which has no arms to order.
+        ///
+        /// Computed from the frozen counts rather than frozen itself, so a settled
+        /// card can say *why* a drawn window could not be read without a second
+        /// stored field that could disagree with the three already here. See
+        /// `Experiment.armsSeparated` for what it is and what it is not.
+        var armsSeparated: Bool? {
+            guard let contamination = contaminationDays,
+                  let contrast = contrastDays else { return nil }
+            return Experiment.armsSeparated(adherenceDays: adherenceDays,
+                                            contaminationDays: contamination,
+                                            contrastDays: contrast)
         }
     }
 

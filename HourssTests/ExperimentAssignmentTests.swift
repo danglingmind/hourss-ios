@@ -323,14 +323,19 @@ struct ExperimentAssignmentTests {
         #expect(reading.contaminationDays == 0)
     }
 
+    /// Logged however the case needs: `unassignedRated` is how many of the unassigned
+    /// days carry a rating at all, which is what lets the contrast floor be tested
+    /// separately from the dilution rule below.
+    private func reading(adherent: Int, contaminated: Int,
+                         unassignedRated: Int = Self.window / 2) -> ExperimentOutcome.Reading {
+        let observations = change(on: Array(Self.evens.prefix(adherent)), feeling: 4)
+            + change(on: Array(Self.odds.prefix(contaminated)), feeling: 4)
+            + other(on: Array(Self.odds.prefix(unassignedRated)), feeling: 2)
+        return read(experiment(assignment: assignment()), observations)
+    }
+
     @Test("Both floors bite at exactly the minimum, and the figures survive either way")
     func theBoundaries() {
-        func reading(adherent: Int, contaminated: Int) -> ExperimentOutcome.Reading {
-            let observations = change(on: Array(Self.evens.prefix(adherent)), feeling: 4)
-                + change(on: Array(Self.odds.prefix(contaminated)), feeling: 4)
-                + other(on: Self.odds, feeling: 2)
-            return read(experiment(assignment: assignment()), observations)
-        }
         let floor = Experiment.minimumDays
         #expect(reading(adherent: floor, contaminated: 0).verdict != .cannotTell)
         #expect(reading(adherent: floor - 1, contaminated: 0).verdict == .cannotTell)
@@ -338,10 +343,89 @@ struct ExperimentAssignmentTests {
         // Contrast is the unassigned rated days that did not carry the change, and
         // the floor applied to it is the same six — not a contamination percentage,
         // which would be a constant invented for this phase alone.
-        let clean = Self.window / 2 - floor
-        #expect(reading(adherent: floor, contaminated: clean).contrastDays == floor)
-        #expect(reading(adherent: floor, contaminated: clean).verdict != .cannotTell)
-        #expect(reading(adherent: floor, contaminated: clean + 1).verdict == .cannotTell)
+        //
+        // Tested here on a thinly logged arm rather than a contaminated one, which is
+        // where the floor is now the condition that bites on its own: a month logged
+        // across all fourteen unassigned days cannot get its contrast down to six
+        // without the change having taken eight of them, and that trips the separation
+        // rule first. Both conditions stay, because they answer different questions —
+        // one asks whether there were enough days, the other whether the days were
+        // still telling two things apart.
+        #expect(reading(adherent: floor, contaminated: 0, unassignedRated: floor)
+                    .contrastDays == floor)
+        #expect(reading(adherent: floor, contaminated: 0, unassignedRated: floor)
+                    .verdict != .cannotTell)
+        #expect(reading(adherent: floor, contaminated: 0, unassignedRated: floor - 1)
+                    .verdict == .cannotTell)
+    }
+
+    /// The failure the floors could not see, and the reason this gate exists.
+    @Test("A diluted contrast is not read, and is not reported as no difference")
+    func dilutionIsNotANullResult() {
+        let floor = Experiment.minimumDays
+
+        // The month this was added for. Six clean unassigned days beside eight
+        // carrying the change: both floors clear — ten days of adherence, six days of
+        // contrast — and the arm the change was withheld from is majority-treated. An
+        // intention-to-treat comparison there is between two sets of days that differ
+        // in the change on a minority of their days, so it is badly underpowered
+        // toward the null, and the card reported "No difference you could act on" —
+        // a statement about the change, when the only honest one available is about
+        // the month.
+        let diluted = reading(adherent: 10, contaminated: 8)
+        #expect(diluted.adherenceDays == 10)
+        #expect(diluted.contaminationDays == 8)
+        #expect(diluted.contrastDays == floor)
+        #expect(diluted.armsSeparated == false)
+        #expect(diluted.verdict == .cannotTell)
+        // Nothing was compared, so nothing is carried that a card could read a
+        // difference off.
+        #expect(diluted.comparison == nil)
+
+        // Level arms: the change on six picked days and six unpicked ones. Both floors
+        // clear again, the contrast floor has nothing to say about it, and the two arms
+        // are alike in the one respect the draw made them differ in.
+        let level = reading(adherent: floor, contaminated: floor)
+        #expect(level.contrastDays == Self.window / 2 - floor)
+        #expect(level.armsSeparated == false)
+        #expect(level.verdict == .cannotTell)
+
+        // And it is silent on every window the floors already admit. A rule that
+        // failed a month over one stray Tuesday would be stricter than the thing it
+        // protects, and the window at exactly the adherence floor with nothing
+        // contaminated reads exactly as it did before this existed.
+        #expect(reading(adherent: floor, contaminated: 0).armsSeparated == true)
+        #expect(reading(adherent: floor, contaminated: 0).verdict != .cannotTell)
+        #expect(reading(adherent: floor, contaminated: 1).verdict != .cannotTell)
+        #expect(reading(adherent: 12, contaminated: 5).verdict != .cannotTell)
+    }
+
+    /// Why this could be added at all: there is no number in it.
+    @Test("The separation rule is an ordering and not a threshold")
+    func theRuleIntroducesNoConstant() {
+        for adherence in 0...12 {
+            for contamination in 0...12 {
+                for contrast in 0...12 {
+                    let once = Experiment.armsSeparated(
+                        adherenceDays: adherence, contaminationDays: contamination,
+                        contrastDays: contrast)
+                    // A threshold anywhere in it would move when the counts are scaled.
+                    let tenfold = Experiment.armsSeparated(
+                        adherenceDays: adherence * 10, contaminationDays: contamination * 10,
+                        contrastDays: contrast * 10)
+                    #expect(once == tenfold,
+                            Comment(rawValue: "scaling changed the answer at "
+                                    + "\(adherence)/\(contamination)/\(contrast)"))
+                }
+            }
+        }
+        // The two orderings it claims to be, one per arm.
+        #expect(Experiment.armsSeparated(adherenceDays: 10, contaminationDays: 8,
+                                         contrastDays: 6) == false)
+        #expect(Experiment.armsSeparated(adherenceDays: 6, contaminationDays: 6,
+                                         contrastDays: 8) == false)
+        #expect(Experiment.armsSeparated(adherenceDays: 7, contaminationDays: 6,
+                                         contrastDays: 8) == true)
     }
 
     @Test("A drawn window the wrong way round did not hold up")
@@ -409,6 +493,9 @@ struct ExperimentAssignmentTests {
         #expect(chosen.contaminationDays == nil)
         #expect(!chosen.isRandomised)
         #expect(chosen.contrastDays == nil)
+        // No arms to order, so no answer rather than a default one — the same reason
+        // `contaminationDays` is nil here rather than zero.
+        #expect(chosen.armsSeparated == nil)
         // Seven morning days inside a fortnight, and fourteen afternoon days.
         #expect(chosen.adherenceDays == 7)
         #expect(chosen.baselineDays == Experiment.defaultWindowDays)
@@ -662,6 +749,68 @@ struct ExperimentAssignmentCopyTests {
         #expect(empty.contains("There were 2."))
     }
 
+    /// The one place this feature's copy could overstate, and what it says instead.
+    ///
+    /// **These two sentences are the whole point of the gate.** A window that could
+    /// not separate its two sets of days and a window that separated them and found
+    /// nothing are different statements, and only the second one is about the change.
+    /// A reader who could mistake one for the other would act on a null result the
+    /// month never produced.
+    @Test("A month that could not separate its days does not read as no difference")
+    func dilutionDoesNotReadAsANull() {
+        let diluted = ExperimentCopy.result(
+            for: drawn,
+            settlement: settlement(.cannotTell, adherence: 10, baseline: 14, contamination: 8))
+        // Both counts, so "could not be read" never arrives without saying what the
+        // month was made of.
+        #expect(diluted.contains("10 of the days it was picked for"))
+        #expect(diluted.contains("8 of the 14 days it was not"))
+        #expect(diluted.contains("too alike to read one against the other"))
+        // And none of the verdict's own words, in either direction.
+        #expect(!diluted.contains("No difference"))
+        #expect(!diluted.contains("held up"))
+        // Counted, never reproached. Nobody did anything wrong by putting a block in
+        // their morning on a Tuesday.
+        for blame in ["you should", "failed", "unfortunately", "did not follow", "broke",
+                      "too often", "should have"] {
+            #expect(!diluted.lowercased().contains(blame),
+                    Comment(rawValue: "the dilution sentence blamed somebody: \(diluted)"))
+        }
+
+        // The result it is not. A window whose arms stayed apart and found nothing says
+        // so plainly, and says nothing about being unable to tell.
+        let null = ExperimentCopy.result(
+            for: drawn, settlement: settlement(.didNotHoldUp, contamination: 0))
+        #expect(null.contains("No difference you could act on."))
+        #expect(!null.contains("too alike"))
+        #expect(!null.contains("also happened on"))
+        // The headings differ too, which is what a reader who looks once sees.
+        #expect(ExperimentCopy.verdictTitle(.cannotTell) != ExperimentCopy.verdictTitle(.didNotHoldUp))
+    }
+
+    /// Dilution that is not enough to stop the reading is still part of the reading.
+    @Test("A readable result counts the days the change happened on anyway")
+    func dilutionIsReportedBesideTheVerdict() {
+        for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp] {
+            let sentence = ExperimentCopy.result(
+                for: drawn,
+                settlement: settlement(verdict, adherence: 12, baseline: 14, contamination: 4))
+            #expect(sentence.contains(
+                "The change also happened on 4 of the 14 days it was not picked for"))
+            #expect(sentence.contains("closer together than the draw asked for"))
+            // The verdict still leads. The clause is what the window managed, not a
+            // hedge folded into what it measured.
+            #expect(sentence.hasPrefix("Your picked days settled at"))
+        }
+        // Nothing added when nothing happened on an unpicked day.
+        #expect(!ExperimentCopy.result(for: drawn, settlement: settlement(.heldUp, contamination: 0))
+                    .contains("also happened"))
+        // And a chosen window has no unasked days to count, so it says nothing at all.
+        #expect(!ExperimentCopy.result(for: experiment(assignment: nil),
+                                       settlement: settlement(.heldUp, contamination: nil))
+                    .contains("also happened"))
+    }
+
     /// The sweep, extended to everything this phase can put on a screen.
     ///
     /// `instruction` is excluded and only `instruction`, as everywhere else in this
@@ -679,6 +828,9 @@ struct ExperimentAssignmentCopyTests {
                 "Time of day travels with whatever you tend to schedule then."),
         ]
         strings += ExperimentCopy.controlTitles
+        // The one sentence this phase had left inside a view body. Swept here now that
+        // it is a string the sweep can see.
+        strings.append(ExperimentCopy.testedPrefix)
         for label in ["Morning", "Deep work", "30 to 89 minutes"] {
             for type in ExperimentDesign.randomisableTypes {
                 if let change = ExperimentCopy.randomisedChange(type: type, focusLabel: label) {
@@ -695,8 +847,12 @@ struct ExperimentAssignmentCopyTests {
                                                 calendar: Self.calendar) ?? "")
         }
         for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp, .cannotTell] {
+            // The last two are the diluted shapes: one the gate stops (ten adherent
+            // days against eight contaminated ones) and one it admits and reports in
+            // the sentence instead.
             for (adherence, baseline, contamination) in
-                [(12, 14, 0), (12, 14, 11), (3, 14, 2), (8, 2, 0), (0, 0, 0), (14, 14, 14)] {
+                [(12, 14, 0), (12, 14, 11), (3, 14, 2), (8, 2, 0), (0, 0, 0), (14, 14, 14),
+                 (10, 14, 8), (12, 14, 4)] {
                 strings.append(ExperimentCopy.result(
                     for: window,
                     settlement: settlement(verdict, adherence: adherence,

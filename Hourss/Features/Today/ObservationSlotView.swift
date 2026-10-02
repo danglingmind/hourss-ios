@@ -502,7 +502,8 @@ extension ObservationSlot {
         }
 
         return carrying(copy,
-                        spoken: "\(eyebrow). \(result) You were testing: \(experiment.change)"
+                        spoken: "\(eyebrow). \(result) \(ExperimentCopy.testedPrefix) "
+                            + "\(experiment.change)"
                             + (settlement.verdict == .cannotTell
                                ? "" : " Bear in mind: \(experiment.caveat)"),
                         displacedActivityName: displacedActivityName,

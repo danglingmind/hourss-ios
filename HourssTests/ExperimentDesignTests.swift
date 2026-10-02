@@ -353,8 +353,11 @@ struct ExperimentDesignTests {
             hypothesisId: drawn.hypothesisId, startedAt: drawn.startedAt,
             windowDays: Experiment.randomisedWindowDays)
         for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp, .cannotTell] {
+            // The last two are the diluted shapes — the contrast that was present and
+            // too alike to read, and the one reported beside a verdict.
             for (adherence, baseline, contamination) in
-                [(12, 14, 0), (12, 14, 11), (3, 14, 2), (8, 2, 0), (0, 0, 0)] {
+                [(12, 14, 0), (12, 14, 11), (3, 14, 2), (8, 2, 0), (0, 0, 0),
+                 (10, 14, 8), (12, 14, 4)] {
                 strings.append(ExperimentCopy.result(
                     for: drawn,
                     settlement: Experiment.Settlement(
@@ -364,6 +367,9 @@ struct ExperimentDesignTests {
                         intervalLow: 0.1, intervalHigh: 0.7, settledAt: Date())))
             }
         }
+
+        // Authored in a view body until this phase, where no sweep could reach it.
+        strings.append(ExperimentCopy.testedPrefix)
 
         for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp, .cannotTell] {
             strings.append(ExperimentCopy.verdictTitle(verdict))

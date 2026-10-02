@@ -90,6 +90,17 @@ enum ExperimentOutcome {
             contaminationDays.map { max(0, baselineDays - $0) }
         }
 
+        /// Whether the two arms are still ordered the way the draw put them — the
+        /// gate that catches a diluted contrast rather than an absent one. Nil for a
+        /// chosen window. `Experiment.armsSeparated` is the rule and the argument.
+        var armsSeparated: Bool? {
+            guard let contamination = contaminationDays,
+                  let contrast = contrastDays else { return nil }
+            return Experiment.armsSeparated(adherenceDays: adherenceDays,
+                                            contaminationDays: contamination,
+                                            contrastDays: contrast)
+        }
+
         /// Spelled out so `contaminationDays` can default to nil, which is what keeps
         /// every existing construction of a `Reading` — in this file, in the slot copy
         /// and in the suites — meaning what it meant before this phase.
@@ -219,6 +230,15 @@ enum ExperimentOutcome {
     /// would have passed windows with four clean days out of five, and it would have
     /// failed windows with twenty clean days out of forty.
     ///
+    /// **The floor catches an absent contrast and not a diluted one, so there is a
+    /// second condition.** Six clean unassigned days beside eight contaminated ones
+    /// clears the floor and then compares two arms that differ in the change on a
+    /// minority of their days: badly underpowered toward the null, and reported by a
+    /// card that says "No difference you could act on" when the honest reading is that
+    /// the month could not separate them. The second condition is that the arms came
+    /// out of the window still ordered the way the draw put them, it introduces no
+    /// number, and `Experiment.armsSeparated` is where it is stated and argued.
+    ///
     /// **Contaminated days stay in the comparison.** Only the gate excludes them.
     /// Dropping them from the unassigned arm would be a per-protocol analysis — the
     /// person chose which unassigned days to do it on anyway, and removing exactly
@@ -285,10 +305,16 @@ enum ExperimentOutcome {
 
         // Either floor unmet means there is nothing to read: the change did not
         // happen often enough when it was asked for, or it happened so often when it
-        // was not that no contrast is left. The counts survive both ways, so the card
-        // can say which of the two it was and what would have been enough.
+        // was not that no contrast is left. The third condition is the one the floors
+        // cannot express — the arms were both big enough and came out too alike to
+        // tell apart — and `Experiment.armsSeparated` carries the whole argument for
+        // it, including what it is not. The counts survive all three ways, so the
+        // card can say which of them it was and what would have been enough.
         guard adherenceDays >= Experiment.minimumDays,
-              contrastDays >= Experiment.minimumDays else {
+              contrastDays >= Experiment.minimumDays,
+              Experiment.armsSeparated(adherenceDays: adherenceDays,
+                                       contaminationDays: contaminationDays,
+                                       contrastDays: contrastDays) else {
             return reading(.cannotTell, comparison: nil)
         }
 

@@ -456,6 +456,13 @@ enum ExperimentCopy {
     static let controlTitles = [startTitle, declineTitle, stopTitle, acknowledgeTitle,
                                 randomiseTitle]
 
+    /// The spoken lead-in to the change on a settled card.
+    ///
+    /// Here rather than in the view body it is read in, for the reason every other
+    /// sentence in this feature is here: the guard sweep walks this file, and a string
+    /// authored inside a `View` is a sentence no sweep can see. It was the last one.
+    static let testedPrefix = "You were testing:"
+
     // MARK: - Result
 
     /// What the window produced, in one sentence.
@@ -486,10 +493,10 @@ enum ExperimentCopy {
             switch settlement.verdict {
             case .heldUp:
                 return "Your picked days settled at \(focus) against \(baseline) on the rest. "
-                    + "It held up when the days were chosen for you."
+                    + "It held up when the days were chosen for you." + dilution(settlement)
             case .didNotHoldUp:
                 return "Your picked days settled at \(focus) against \(baseline) on the rest. "
-                    + "No difference you could act on."
+                    + "No difference you could act on." + dilution(settlement)
             case .cannotTell:
                 return cannotTell(settlement)
             }
@@ -516,6 +523,33 @@ enum ExperimentCopy {
         case .didNotHoldUp: "It did not hold up"
         case .cannotTell: "Not enough to tell"
         }
+    }
+
+    /// How far the window managed to put the two arms apart, when something came
+    /// between them.
+    ///
+    /// **Why a readable verdict says this at all.** A drawn window that clears the
+    /// gate has arms that are still ordered the way the draw put them, so "no
+    /// difference you could act on" is an honest reading of it — but a window with
+    /// four contaminated days measured whatever the change does at less than its full
+    /// size, and a reader deciding what to do next is owed that. It is one more
+    /// sentence rather than a hedge inside the verdict's own, because the verdict
+    /// states what was measured and this states how far apart the month managed to get
+    /// the two sets of days. One sentence per fact is this file's register.
+    ///
+    /// **The same clause on both readable verdicts, deliberately.** Contamination
+    /// pulls the arms together, so it can only have made `heldUp` harder to reach —
+    /// which is worth knowing beside a result that reached it anyway. Reporting it
+    /// only under the null would be disclosing an inconvenience exactly when it was
+    /// convenient.
+    ///
+    /// Empty for a chosen window, which has no unasked days, and for a drawn one
+    /// where the change stayed on the days it was asked for.
+    private static func dilution(_ settlement: Experiment.Settlement) -> String {
+        guard let contamination = settlement.contaminationDays, contamination > 0 else { return "" }
+        return " The change also happened on \(contamination) of the "
+            + "\(settlement.baselineDays) days it was not picked for, so the two sets of days "
+            + "ended up closer together than the draw asked for."
     }
 
     /// What was short, and what would have been enough.
@@ -553,6 +587,22 @@ enum ExperimentCopy {
             if contrast < floor {
                 return "\(floor) days without it would have been enough to read against. "
                     + "There were \(contrast)."
+            }
+            // Both sides cleared the floor and the two arms still came out too alike
+            // to tell apart: the change was at least as common on the days it was not
+            // picked for as on the days it was, or it took the majority of the arm it
+            // had been withheld from. `Experiment.armsSeparated` is the rule.
+            //
+            // **This is the sentence the phase was missing.** Without it this window
+            // reported "No difference you could act on", which reads as a statement
+            // about the change, when the only honest statement available is about the
+            // month. So it says what the two sets of days came out as, in the same
+            // register as the contamination sentence above: two counts, and no
+            // suggestion that either of them was a mistake.
+            if settlement.armsSeparated == false {
+                return "The change happened on \(adherence) of the days it was picked for "
+                    + "and \(contamination) of the \(baseline) days it was not. "
+                    + "Those two sets came out too alike to read one against the other."
             }
             return "This one can no longer be read against your record."
         }
