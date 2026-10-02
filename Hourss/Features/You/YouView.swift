@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum YouRoute: Hashable {
-    case profile, preferences, privacy, health, account
+    case profile, preferences, privacy, health, account, tests
 }
 
 /// Y1 — a settings list, not a dashboard.
@@ -51,6 +51,8 @@ struct YouView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
                 summary
+
+                recordSection
 
                 VStack(spacing: 0) {
                     HRule()
@@ -105,7 +107,39 @@ struct YouView: View {
             case .privacy: PrivacyView()
             case .health: HealthConnectionView()
             case .account: AccountView()
+            case .tests: ExperimentHistoryView()
             }
+        }
+    }
+
+    /// Where a finished test goes once Today has let go of it.
+    ///
+    /// **Its own group, above the settings list rather than inside it.** The five
+    /// rows below are settings — things that change what the app does next. This one
+    /// is content, and the only row here that is: it opens a record of what this
+    /// person has already done. Dropping it into the same strip would make the strip
+    /// something other than what this screen's own note says it is, and the group
+    /// idiom for "a block that is not the settings list" already exists one section
+    /// down, in `membershipSection`.
+    ///
+    /// **The detail describes the destination and states nothing.** Profile, Health
+    /// and Account name live state because theirs is a single value worth seeing
+    /// before the tap. A tally here would be the one number this feature refuses to
+    /// compute — "two tests" is a step from "two tests, one held up" — and naming the
+    /// newest verdict would put a result in a second place and let the two drift. So
+    /// it reads like Preferences and Privacy do, which is the house form for a row
+    /// whose contents are a screen rather than a setting.
+    private var recordSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Eyebrow("Your record")
+                .padding(.bottom, Space.xs)
+            HRule()
+            NavigationLink(value: YouRoute.tests) {
+                SettingsRow(title: "Tests", detail: "What you tested, and what happened")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("row-tests")
+            HRule()
         }
     }
 

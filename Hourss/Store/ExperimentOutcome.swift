@@ -22,6 +22,22 @@ import Foundation
 /// entirely out of sample. The honest claim is "this held up when you changed it on
 /// purpose", which is what the copy says and is the most the design supports.
 ///
+/// **A randomised window is read differently, and the difference is the point.**
+/// When `Experiment.assignment` is set the two sides are no longer the hypothesis's
+/// focus and baseline groups: they are the days the app drew and the days it did
+/// not, and every rated session inside the window belongs to the arm its day was
+/// assigned to whether or not the person managed the change that day. That is
+/// intention-to-treat, and the alternative is the whole reason this phase exists.
+/// Comparing the days the change actually happened on against the days it did not
+/// would be conditioning on a choice the person made after the draw, which puts the
+/// self-selection back in and leaves the randomisation buying nothing: the days
+/// somebody manages a morning block on are not a random half of their month.
+///
+/// Compliance does not vanish from the reading, it moves: `adherenceDays` is the
+/// assigned days the change happened on, `contaminationDays` is the unassigned days
+/// it happened on anyway, and between them they decide whether there was a contrast
+/// to read at all.
+///
 /// **No multiplicity correction, deliberately.** `Engine.applyingCorrection`
 /// exists because sixty hypotheses are tested at once and the best of sixty looks
 /// good by chance. One pre-registered hypothesis is not a search, so there is
@@ -51,8 +67,47 @@ enum ExperimentOutcome {
         /// Nil when the floors were not met, because nothing was compared.
         let comparison: Statistics.Comparison?
 
+        /// Distinct days the change happened on when the app had not asked for it.
+        ///
+        /// Nil for a chosen window, where there is no such day: every day was the
+        /// person's to use and none of them was withheld. Nil rather than zero,
+        /// because zero is a real and different statement — somebody who kept off
+        /// every unassigned day — and a card that could not tell the two apart would
+        /// report perfect discipline for an experiment that never asked for any.
+        let contaminationDays: Int?
+
         /// Whether the result is worth a sentence about the change at all.
         var isReadable: Bool { verdict != .cannotTell }
+
+        /// Whether this window's days were drawn.
+        var isRandomised: Bool { contaminationDays != nil }
+
+        /// Unassigned days that carried a rated session and not the change.
+        ///
+        /// The only days a randomised window has to read its assigned days against,
+        /// and therefore the number the floor is applied to. Nil for a chosen window.
+        var contrastDays: Int? {
+            contaminationDays.map { max(0, baselineDays - $0) }
+        }
+
+        /// Spelled out so `contaminationDays` can default to nil, which is what keeps
+        /// every existing construction of a `Reading` — in this file, in the slot copy
+        /// and in the suites — meaning what it meant before this phase.
+        init(verdict: Experiment.Verdict,
+             adherenceDays: Int,
+             baselineDays: Int,
+             focusFigure: Double,
+             baselineFigure: Double,
+             comparison: Statistics.Comparison?,
+             contaminationDays: Int? = nil) {
+            self.verdict = verdict
+            self.adherenceDays = adherenceDays
+            self.baselineDays = baselineDays
+            self.focusFigure = focusFigure
+            self.baselineFigure = baselineFigure
+            self.comparison = comparison
+            self.contaminationDays = contaminationDays
+        }
     }
 
     /// Read a window.
@@ -75,6 +130,15 @@ enum ExperimentOutcome {
         calendar: Calendar = .current
     ) -> Reading {
         guard let hypothesis else { return unreadable() }
+
+        // The one fork in this file. An experiment carries its kind in whether the
+        // app drew its days, so there is nothing else to consult and no flag that
+        // could disagree with the days themselves.
+        if let assignment = experiment.assignment {
+            return readAssigned(experiment, assignment: assignment, hypothesis: hypothesis,
+                                observations: observations, resamples: resamples,
+                                calendar: calendar)
+        }
 
         let window = experiment.window(calendar: calendar)
         let outcome = experiment.outcome
@@ -126,6 +190,119 @@ enum ExperimentOutcome {
                        comparison: comparison)
     }
 
+    /// Read a window whose days the app drew.
+    ///
+    /// **The arms are days, not groups.** Every rated row inside the window joins
+    /// the arm its day was assigned to. Nothing is filtered by the hypothesis's
+    /// predicate, because the predicate describes what the person did and the whole
+    /// value of a drawn assignment is that the sides were decided before they did
+    /// anything. A day the change was asked for and did not happen on stays in the
+    /// assigned arm and dilutes it, which is the honest cost of them not doing it and
+    /// not a reason to quietly drop the day.
+    ///
+    /// **The predicate decides compliance instead**, on both sides: assigned days it
+    /// matched are adherence, unassigned days it matched are contamination.
+    ///
+    /// **Why contamination gates the verdict, and why through the same floor.** An
+    /// experiment where the change happened on all twenty-eight days has two arms
+    /// that differ in nothing, and a difference measured between them is a difference
+    /// between two indistinguishable halves of a month. That has to report that it
+    /// cannot be read, exactly as too little adherence does, and for the same reason:
+    /// the window did not produce the comparison it was for.
+    ///
+    /// The threshold is not a new number. The days that can serve as contrast are the
+    /// unassigned days that carried a rating and *not* the change, and
+    /// `Experiment.minimumDays` is already what this app requires of a side before it
+    /// will read it. So the gate is six days of contrast, which is the existing floor
+    /// applied to the only days that contrast. A contamination *percentage* was the
+    /// alternative and was refused: it would have been a constant invented here, it
+    /// would have passed windows with four clean days out of five, and it would have
+    /// failed windows with twenty clean days out of forty.
+    ///
+    /// **Contaminated days stay in the comparison.** Only the gate excludes them.
+    /// Dropping them from the unassigned arm would be a per-protocol analysis — the
+    /// person chose which unassigned days to do it on anyway, and removing exactly
+    /// those days reintroduces the selection the draw removed. They stay in, where
+    /// they pull the two arms together and make the test harder to pass, which is the
+    /// right direction for a bias to run.
+    private static func readAssigned(
+        _ experiment: Experiment,
+        assignment: Experiment.Assignment,
+        hypothesis: Hypothesis,
+        observations: [EngineObservation],
+        resamples: Int,
+        calendar: Calendar
+    ) -> Reading {
+        let window = experiment.window(calendar: calendar)
+        let outcome = experiment.outcome
+
+        var assigned: [Statistics.Observation] = []
+        var unassigned: [Statistics.Observation] = []
+        var adherence: Set<Date> = []
+        var contamination: Set<Date> = []
+
+        for row in observations {
+            // Two filters that should agree, and both applied rather than one
+            // trusted. The half-open window decides membership; the day offset
+            // decides the arm. A row that cleared one and not the other is dropped
+            // instead of being put in an arm by default, because the default would
+            // be unassigned and a silently mis-armed day is the one error here that
+            // would never show up as anything but a slightly wrong number.
+            guard window.contains(row.startAt), let value = row.value(of: outcome),
+                  let offset = assignment.dayOffset(
+                    of: row.startAt, startedAt: experiment.startedAt,
+                    windowDays: experiment.windowDays, calendar: calendar)
+            else { continue }
+
+            let isAssignedDay = assignment.isAssigned(dayOffset: offset)
+            let point = Statistics.Observation(day: row.day, value: value)
+            if isAssignedDay { assigned.append(point) } else { unassigned.append(point) }
+
+            // Compliance, which is about the change rather than about the rating.
+            // Counted off rated rows only, like adherence always has been: an
+            // unrated session contributes nothing to either arm, so counting it
+            // would make the clean-day arithmetic below subtract days that were
+            // never in the total.
+            if hypothesis.focus(row) {
+                if isAssignedDay { adherence.insert(row.day) } else { contamination.insert(row.day) }
+            }
+        }
+
+        let unassignedDays = Set(unassigned.map(\.day)).count
+        let adherenceDays = adherence.count
+        let contaminationDays = contamination.count
+        let contrastDays = max(0, unassignedDays - contaminationDays)
+        let assignedFigure = meanOfDayMeans(assigned)
+        let unassignedFigure = meanOfDayMeans(unassigned)
+
+        func reading(_ verdict: Experiment.Verdict,
+                     comparison: Statistics.Comparison?) -> Reading {
+            Reading(verdict: verdict,
+                    adherenceDays: adherenceDays, baselineDays: unassignedDays,
+                    focusFigure: assignedFigure, baselineFigure: unassignedFigure,
+                    comparison: comparison, contaminationDays: contaminationDays)
+        }
+
+        // Either floor unmet means there is nothing to read: the change did not
+        // happen often enough when it was asked for, or it happened so often when it
+        // was not that no contrast is left. The counts survive both ways, so the card
+        // can say which of the two it was and what would have been enough.
+        guard adherenceDays >= Experiment.minimumDays,
+              contrastDays >= Experiment.minimumDays else {
+            return reading(.cannotTell, comparison: nil)
+        }
+
+        let comparison = Statistics.compare(focus: assigned, baseline: unassigned,
+                                            resamples: resamples)
+        // The same two conditions as a chosen window, and the direction is read off
+        // the same field fixed before the window opened. Randomising the days changes
+        // what the arms are; it does not license deciding afterwards which way counted
+        // as success.
+        let ranAsPredicted = experiment.predictsHigher ? comparison.delta > 0 : comparison.delta < 0
+        return reading((!comparison.spansZero && ranAsPredicted) ? .heldUp : .didNotHoldUp,
+                       comparison: comparison)
+    }
+
     /// Freeze a reading onto the experiment.
     ///
     /// Called once, when the window has closed. Separate from `read` so that the
@@ -150,6 +327,10 @@ enum ExperimentOutcome {
             verdict: reading.verdict,
             adherenceDays: reading.adherenceDays,
             baselineDays: reading.baselineDays,
+            // Nil for a chosen window, which has no unasked days. Frozen with the
+            // rest because the reason a verdict could not be read is part of the
+            // result and the counts behind it move as the baseline window slides.
+            contaminationDays: reading.contaminationDays,
             focusFigure: reading.focusFigure,
             baselineFigure: reading.baselineFigure,
             delta: reading.comparison?.delta ?? 0,
@@ -173,7 +354,16 @@ enum ExperimentOutcome {
         guard !points.isEmpty else { return 0 }
         var byDay: [Date: [Double]] = [:]
         for point in points { byDay[point.day, default: []].append(point.value) }
-        let dayMeans = byDay.values.map { $0.reduce(0, +) / Double($0.count) }
+        // Sorted before summing, which looks like pedantry about a mean and is not.
+        // Dictionary iteration order is not stable between launches, floating-point
+        // addition is not associative, and the two together move the last decimal of
+        // a figure for a window that has not changed. A figure that moves between
+        // launches cannot be shown to anybody as a result — the whole argument
+        // `Settlement` makes about the baseline sliding, at a smaller scale.
+        let dayMeans = byDay.keys.sorted().map { day -> Double in
+            let values = byDay[day] ?? []
+            return values.reduce(0, +) / Double(values.count)
+        }
         return dayMeans.reduce(0, +) / Double(dayMeans.count)
     }
 }

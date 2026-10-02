@@ -243,6 +243,156 @@ enum ExperimentCopy {
         }
     }
 
+    // MARK: - A drawn window
+
+    /// The change, for a window whose days the app drew.
+    ///
+    /// **Why this cannot be the same sentence with a clause bolted on.** The chosen
+    /// form says "on most days this fortnight", which is deliberately not a number —
+    /// an instruction to do something exactly eight times is a target to fail, and
+    /// adherence is counted from what was logged anyway. A drawn window inverts that:
+    /// the days *are* the instruction, there is no latitude in them, and the sentence
+    /// has to say so or the person will do the thing on the days that suit them and
+    /// the contrast will be gone.
+    ///
+    /// **"And not on the rest" is load-bearing, not tidiness.** The second half of
+    /// what makes a drawn window readable is the days without the change in them. If
+    /// somebody does it every day the two arms differ in nothing and the verdict is
+    /// that nothing can be read — so asking for the restraint up front is the
+    /// difference between a month that answers and a month that does not. It is also
+    /// the part that asks far more of somebody than any other offer in this app, and
+    /// the proposal says so plainly rather than slipping it in here alone.
+    ///
+    /// Nil for every family whose focus side is not something a person decides about
+    /// a day. See `ExperimentDesign.randomisableTypes`.
+    static func randomisedChange(type: InsightType, focusLabel: String) -> String? {
+        let label = focusLabel.lowercased()
+        switch type {
+        case .bestTimeWindow:
+            return "Put one block in your \(label) on each of the days picked for you, "
+                + "and not on the rest."
+
+        case .durationSweetSpot:
+            return "End one block at the \(label) mark on each of the days picked for you, "
+                + "and not on the rest."
+
+        case .activityEnergizer:
+            return "Give \(focusLabel) a block of its own on each of the days picked for you, "
+                + "and not on the rest."
+
+        // Nil, and the cases are named rather than defaulted so that admitting a
+        // family to `ExperimentDesign.randomisableTypes` without writing its sentence
+        // is a compile error here instead of a proposal with no change in it.
+        //
+        // The two responsive families are the interesting refusals. A sleep or body
+        // association's focus side is a Health reading, and a workday contrast's is
+        // the calendar: the app can draw days for either, but the days it draws are
+        // not days of higher sleep and cannot be made into days off, so the two arms
+        // would differ in nothing a person could act on. Drawing days there would be
+        // the form of a randomised test with none of its content.
+        case .sleepContext, .bodyContext, .workdayContrast,
+             .drainingTimeWindow, .activityDrain,
+             .performanceFeelingSplit, .fragmentation, .emergingChange:
+            return nil
+        }
+    }
+
+    /// What is being asked, and what it buys. The paragraph the second control sits
+    /// under.
+    ///
+    /// **This has to earn an opt-in, and overclaiming is how it would fail.** A drawn
+    /// window asks for specific days, including days somebody would rather not, for
+    /// twice as long as the ordinary offer. The only honest return on that is a
+    /// stronger reading, so the sentence states what the reading becomes and stops
+    /// well short of cause: days the person did not choose are what separates a change
+    /// that held up from a month that was going well anyway. That is true, it is the
+    /// most the design supports, and it is the whole argument for this phase in one
+    /// sentence.
+    ///
+    /// Nothing here promises the change will work, and nothing hints that the app
+    /// knows it will. `NarrationGuard`'s causal list is not the constraint that keeps
+    /// it that way — `instruction` is the only list lifted in this file — but the
+    /// shape of the claim is, and a test sweeps it alongside everything else.
+    static func randomisedAsk(windowDays: Int, assignedDays: Int) -> String {
+        "\(assignedDays) days out of the next \(windowDays), picked by the app before you "
+            + "start — including days you would rather not. Days you did not choose are the "
+            + "only ones that can tell a change that held up from a stretch that was going "
+            + "well anyway."
+    }
+
+    /// The limit on a drawn window's result, appended to the hypothesis's own caveat.
+    ///
+    /// The hypothesis caveat still applies and is not replaced: whatever travels with
+    /// a morning block still travels with it on a day the app picked. What the draw
+    /// removes is the person's choice of *which* days, and what remains after it is
+    /// one person and four weeks — which is what this says, without saying the word
+    /// this app is not allowed to say about any of it.
+    /// Takes the window length rather than naming four weeks, for the reason the
+    /// drawn change does not call itself a fortnight: a caveat that describes a
+    /// different commitment from the one being made is worse than no caveat, and the
+    /// window is a parameter everywhere else in this feature.
+    static func randomisedCaveat(_ base: String,
+                                 windowDays: Int = Experiment.randomisedWindowDays) -> String {
+        "\(base) One person, \(span(windowDays)), with the days picked before any of it "
+            + "happened."
+    }
+
+    /// A window length in words.
+    ///
+    /// Spelled rather than written as a figure because every number this app shows is
+    /// a measurement of somebody's own record, and a digit inside a caveat reads as
+    /// one. The two lengths the app offers are named; anything else is a window a
+    /// caller asked for and is reported as the count of days it is.
+    private static func span(_ windowDays: Int) -> String {
+        switch windowDays {
+        case Experiment.randomisedWindowDays: "four weeks"
+        case Experiment.defaultWindowDays: "two weeks"
+        default: windowDays == 1 ? "one day" : "\(windowDays) days"
+        }
+    }
+
+    /// The assigned days, as a list somebody can keep.
+    ///
+    /// Nil for a chosen window, which has no such list. Formatted through the
+    /// calendar's own locale rather than a fixed English pattern, because a weekday
+    /// name is the one string in this feature the app does not write.
+    static func assignedDays(for experiment: Experiment,
+                             calendar: Calendar = .current) -> String? {
+        guard let assignment = experiment.assignment else { return nil }
+        let dates = assignment.assignedDates(startedAt: experiment.startedAt, calendar: calendar)
+        guard !dates.isEmpty else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = calendar.locale ?? .current
+        formatter.dateFormat = "EEE d"
+        return "Your days: " + dates.map { formatter.string(from: $0) }.joined(separator: ", ") + "."
+    }
+
+    /// Whether today carries the change.
+    ///
+    /// **A drawn window is unusable without this.** The ordinary offer is a standing
+    /// instruction somebody can hold in their head for a fortnight; a list of fourteen
+    /// dates is not, and an app that draws the days and then expects somebody to keep
+    /// the list themselves has made the harder offer and withheld the only thing that
+    /// makes it followable. Nil outside the window, so a closed or unstarted one says
+    /// nothing rather than something wrong.
+    ///
+    /// - Parameter now: passed in, never read here. One read of the clock per
+    ///   decision is a rule this codebase has already paid for breaking.
+    static func today(for experiment: Experiment, on now: Date,
+                      calendar: Calendar = .current) -> String? {
+        guard let assignment = experiment.assignment,
+              let offset = assignment.dayOffset(
+                of: now, startedAt: experiment.startedAt,
+                windowDays: experiment.windowDays, calendar: calendar)
+        else { return nil }
+        return assignment.isAssigned(dayOffset: offset)
+            ? "Today is one of your days."
+            : "Today is not one of your days."
+    }
+
     // MARK: - Standing
 
     /// What a card calls itself, from how much is behind it.
@@ -282,9 +432,16 @@ enum ExperimentCopy {
     /// Plain, and deliberately not "Give up". Stopping is free and uncounted.
     static let stopTitle = "Stop this test"
     static let acknowledgeTitle = "Got it"
+    /// The second way to accept the same proposal, and a different offer.
+    ///
+    /// Beside `startTitle` rather than instead of it: a drawn window is a second kind
+    /// and the simpler one stays available, because somebody who will not commit to
+    /// specific days should still be able to run the test they were offered.
+    static let randomiseTitle = "Pick the days for me"
 
     /// Every control title, for the sweep.
-    static let controlTitles = [startTitle, declineTitle, stopTitle, acknowledgeTitle]
+    static let controlTitles = [startTitle, declineTitle, stopTitle, acknowledgeTitle,
+                                randomiseTitle]
 
     // MARK: - Result
 
@@ -296,6 +453,34 @@ enum ExperimentCopy {
     static func result(for experiment: Experiment, settlement: Experiment.Settlement) -> String {
         let focus = figure(settlement.focusFigure)
         let baseline = figure(settlement.baselineFigure)
+
+        // A drawn window says what it is allowed to say and nothing more.
+        //
+        // **"When the days were chosen for you" is the whole upgrade, in words.** A
+        // chosen window licenses "this held up when you changed it on purpose", and
+        // every sentence in this file was written to that limit. Drawing the days
+        // beforehand means the comparison is not between days the person picked, so
+        // the claim can name that — and stops exactly there. It is still not "this
+        // causes", it is still one person and one month, and the caveat beside it says
+        // so.
+        //
+        // **The labels change with the arms.** `focusLabel` is not used here, and that
+        // is deliberate rather than an omission: the assigned arm holds every rated
+        // session on a picked day, including the days the change did not happen on, so
+        // calling that figure "Morning" would attach a label the number does not
+        // carry. "Your picked days" is what the arm actually is.
+        if experiment.isRandomised {
+            switch settlement.verdict {
+            case .heldUp:
+                return "Your picked days settled at \(focus) against \(baseline) on the rest. "
+                    + "It held up when the days were chosen for you."
+            case .didNotHoldUp:
+                return "Your picked days settled at \(focus) against \(baseline) on the rest. "
+                    + "No difference you could act on."
+            case .cannotTell:
+                return cannotTell(settlement)
+            }
+        }
 
         switch settlement.verdict {
         case .heldUp:
@@ -331,6 +516,33 @@ enum ExperimentCopy {
         let floor = Experiment.minimumDays
         let adherence = settlement.adherenceDays
         let baseline = settlement.baselineDays
+
+        // A drawn window has one more way to be unreadable than a chosen one, and it
+        // is the interesting one: the change happened on days it had not been asked
+        // for, until there were not enough days left without it to read against.
+        //
+        // Said as a count of what happened rather than as a reproach. Nobody did
+        // anything wrong by putting a block in their morning on a Tuesday, and the
+        // sentence that implied they had would be the app blaming somebody for living
+        // their life in the middle of its experiment. What it reports is that the
+        // month stopped being able to answer the question, which is a fact about the
+        // evidence — the same thing `cannotTell` says in every other arm.
+        if let contrast = settlement.contrastDays {
+            if adherence < floor {
+                return "\(floor) days of it would have been enough to read. There were \(adherence)."
+            }
+            let contamination = settlement.contaminationDays ?? 0
+            if contamination > 0 && contrast < floor {
+                return "The change happened on \(contamination) of the \(baseline) days it was "
+                    + "not picked for. That leaves \(contrast) to read against, "
+                    + "where \(floor) would have been enough."
+            }
+            if contrast < floor {
+                return "\(floor) days without it would have been enough to read against. "
+                    + "There were \(contrast)."
+            }
+            return "This one can no longer be read against your record."
+        }
 
         if adherence < floor && baseline < floor {
             return "\(floor) days of each would have been enough to read. "

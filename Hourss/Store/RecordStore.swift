@@ -26,8 +26,18 @@ struct Record: Codable {
     /// is needed is the moment somebody already has a file without it. Migration
     /// then becomes a decision rather than a discovery.
     var schemaVersion: Int = Record.currentSchemaVersion
-    /// 2 added `physiology`. 3 added `experiments` and `declinedExperiments`.
-    static let currentSchemaVersion = 3
+    /// 2 added `physiology`. 3 added `experiments` and `declinedExperiments`. 4 added
+    /// `Experiment.assignment` — the days the app drew for a randomised window.
+    ///
+    /// **Why 4 is bumped for a field that is not on this type.** The version tracks
+    /// the shape of the file rather than the properties of this struct, and an
+    /// experiment written at 4 carries a key no version before it wrote. Leaving the
+    /// version at 3 would mean two different file shapes claiming to be the same one,
+    /// which is precisely what makes a later migration a discovery rather than a
+    /// decision. The field is optional for the reason every field below is, so a
+    /// record written at 3 still decodes — the bump is the record of what changed, not
+    /// the mechanism that makes it safe.
+    static let currentSchemaVersion = 4
 
     var activities: [Activity] = []
     var sessions: [Session] = []

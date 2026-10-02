@@ -62,6 +62,22 @@ enum DebugFixture {
         ProcessInfo.processInfo.arguments.contains(dayOneArgument)
     }
 
+    /// Also seed a window whose days the app drew, settled and running.
+    ///
+    /// **Behind its own argument, and that is the whole reason it is here.** A
+    /// randomised window is four weeks long, so nobody is going to reach one by
+    /// running the app — and an active experiment of any kind suppresses the proposal
+    /// card, because nothing is offered mid-window. Seeding one unconditionally would
+    /// therefore hide the card the fixture exists to let somebody try, and it would
+    /// put a second result in front of the one `ExperimentHistoryUITests` acknowledges
+    /// on Today. Both are real regressions in a fixture whose only job is to make
+    /// things reachable, so this is opt-in: the default fixture is exactly what it was.
+    static let randomisedArgument = "-hourss-fixture-randomised"
+
+    static var seedsRandomised: Bool {
+        ProcessInfo.processInfo.arguments.contains(randomisedArgument)
+    }
+
     /// Small deterministic PRNG. `SystemRandomNumberGenerator` would make the demo
     /// different on every launch, which is exactly what we don't want.
     struct Seeded: RandomNumberGenerator {
@@ -391,7 +407,7 @@ enum DebugFixture {
             change: "Put one block in your morning on most days this fortnight.",
             caveat: morning.caveat
         )
-        store.experiments = [
+        var seeded: [Experiment] = [
             // 200 resamples, not the 2000 a real settling uses. This runs inside
             // `HourssStore.init`, on the main thread, before the first frame — a
             // full day-clustered bootstrap there is seconds of launch for a figure
@@ -403,7 +419,69 @@ enum DebugFixture {
                                      observations: store.engineObservations,
                                      now: today, resamples: 200)
         ]
+        if seedsRandomised {
+            seeded += randomised(morning: morning, store: store, today: today, calendar: calendar)
+        }
+        store.experiments = seeded
         store.persist()
+    }
+
+    /// A drawn window, settled, and a second one still running.
+    ///
+    /// Two rather than one because the two cards say different things and neither can
+    /// be reached from the other: the settled one is the result — the only place the
+    /// sentence about the days having been chosen for somebody appears — and the
+    /// active one is the day list and the question of whether today is one of them,
+    /// which is the part of this phase a person has to live with for a month.
+    ///
+    /// Both settle at the same instant the chosen window's result does — there is one
+    /// `today` in a fixture run and reading the clock twice is the bug this codebase
+    /// has already shipped once — so the order on Today is the order of this array,
+    /// which `unacknowledgedExperiment` keeps for equal stamps. Acknowledging twice
+    /// therefore walks chosen result, drawn result, drawn window in progress: three
+    /// taps for every card this feature has.
+    ///
+    /// **Whatever verdict the fixture's own history produces is the right one to
+    /// show, including the awkward one.** This record logs a morning block on most of
+    /// its days, which is high adherence on the drawn days and heavy contamination on
+    /// the rest — so the likeliest result here is that the window cannot be read, and
+    /// that is the card most worth being able to look at. Bending the generator to
+    /// manufacture a clean "held up" would be seeding the conclusion rather than the
+    /// state.
+    private static func randomised(morning: Hypothesis, store: HourssStore,
+                                   today: Date, calendar: Calendar) -> [Experiment] {
+        let window = Experiment.randomisedWindowDays
+        guard let settledOpened = calendar.date(byAdding: .day, value: -(window + 2), to: today),
+              let activeOpened = calendar.date(byAdding: .day, value: -10, to: today),
+              let change = ExperimentCopy.randomisedChange(
+                type: morning.type, focusLabel: morning.focusLabel)
+        else { return [] }
+
+        func drawn(opened: Date) -> Experiment {
+            Experiment(
+                hypothesisId: morning.id,
+                outcome: morning.outcome,
+                startedAt: opened,
+                windowDays: window,
+                focusLabel: morning.focusLabel,
+                baselineLabel: morning.baselineLabel,
+                // Through the same call the store uses, rather than a hand-written
+                // day list. A fixture that drew its days differently from the app
+                // would be a fixture nobody could trust about the one thing this
+                // phase added.
+                assignment: Experiment.Assignment.make(
+                    hypothesisId: morning.id, startedAt: opened, windowDays: window),
+                premise: "Your morning sessions have felt more energizing.",
+                change: change,
+                caveat: ExperimentCopy.randomisedCaveat(morning.caveat, windowDays: window))
+        }
+
+        return [
+            ExperimentOutcome.settle(drawn(opened: settledOpened), hypothesis: morning,
+                                     observations: store.engineObservations,
+                                     now: today, resamples: 200),
+            drawn(opened: activeOpened),
+        ]
     }
 
 

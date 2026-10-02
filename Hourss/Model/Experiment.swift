@@ -74,6 +74,30 @@ struct Experiment: Identifiable, Hashable, Codable {
     /// the focus group becomes the block in its new home.
     var predictsHigher: Bool = true
 
+    /// Which days of the window carry the change, when the app chose them.
+    ///
+    /// **Nil is the whole of how an experiment carries its kind.** Phases 1 to 3
+    /// compare the hypothesis's focus group against its baseline group inside one
+    /// window, and the person decides which days do which — out-of-sample
+    /// confirmation of a prediction fixed in advance, which is much stronger than
+    /// mining and weaker than a trial, because anything that moved with their choice
+    /// of days moved with the result. Nil says that is what this is. A value says the
+    /// app drew the days before the window opened, so the assignment cannot
+    /// correlate with how the days were going to go, and the comparison is between
+    /// days the person did not pick.
+    ///
+    /// Optional rather than a `Kind` enum beside it for the reason `phase` is
+    /// computed rather than stored: a kind field and an assignment field can
+    /// disagree about whether there are days, and then one of them is wrong and
+    /// nothing says which. There is one fact here — were days drawn — and one place
+    /// it lives. The default is what keeps every existing construction site, and
+    /// every record written at schema 3, meaning exactly what it meant before.
+    ///
+    /// Fixed at acceptance and never recomputed. `predictsHigher` records the
+    /// direction before any data exists and this records the days; both have to be
+    /// settled beforehand or the test is a search wearing a test's clothes.
+    var assignment: Assignment?
+
     /// Why this was proposed — the premise, which is descriptive and claims
     /// nothing.
     let premise: String
@@ -107,6 +131,7 @@ struct Experiment: Identifiable, Hashable, Codable {
         focusLabel: String,
         baselineLabel: String,
         predictsHigher: Bool = true,
+        assignment: Assignment? = nil,
         premise: String,
         change: String,
         caveat: String,
@@ -122,6 +147,7 @@ struct Experiment: Identifiable, Hashable, Codable {
         self.focusLabel = focusLabel
         self.baselineLabel = baselineLabel
         self.predictsHigher = predictsHigher
+        self.assignment = assignment
         self.premise = premise
         self.change = change
         self.caveat = caveat
@@ -131,6 +157,31 @@ struct Experiment: Identifiable, Hashable, Codable {
     }
 
     static let defaultWindowDays = 14
+
+    /// Four weeks, for a window whose days are drawn rather than chosen.
+    ///
+    /// **Derived from the floor rather than picked.** A fortnight is the shortest
+    /// window that gives a realistic shot at `minimumDays` qualifying days, and that
+    /// reasoning is unchanged — but a randomised window hands only *half* its days to
+    /// each side, so six on each side needs twice as many days to draw from. Fourteen
+    /// days randomised is seven assigned and seven not: somebody would have to adhere
+    /// on six of seven and also carry a rated session on six of the other seven, and
+    /// anything less reports that it cannot be read. That is a month of somebody's
+    /// life spent on a question the arithmetic already said could not be answered,
+    /// which is the objection `ExperimentStarters.metricMinimumDays` makes about
+    /// aiming a fortnight at a metric Health holds for four days.
+    ///
+    /// The alternative was keeping a fortnight and lowering the floor for randomised
+    /// windows only. Refused: the floor is `Hypothesis.minimumDays`, borrowed rather
+    /// than invented, and buying the stronger design with a weaker threshold would
+    /// hand back more than it bought.
+    static let randomisedWindowDays = 28
+
+    /// Whether the app drew this window's days.
+    ///
+    /// Computed from the assignment rather than stored next to it, so the two cannot
+    /// disagree about what kind of experiment this is.
+    var isRandomised: Bool { assignment != nil }
 
     /// Distinct days required before a side can be read at all.
     ///
@@ -216,12 +267,33 @@ extension Experiment {
         let verdict: Verdict
         /// Distinct days in the window that carried a qualifying rated session.
         /// Reported as a count and never as a streak.
+        ///
+        /// For a randomised window this counts only the *assigned* days: whether the
+        /// change happened when the app asked for it.
         let adherenceDays: Int
-        /// Distinct days behind the baseline side.
+        /// Distinct days behind the side this was read against. The baseline group
+        /// for a chosen window; the unassigned days for a drawn one.
         let baselineDays: Int
+        /// Distinct days the change happened on when it had **not** been asked for.
+        ///
+        /// Nil for a chosen window, where the quantity is undefined — there are no
+        /// unasked days, because every day was theirs to choose. Nil rather than zero
+        /// so a card cannot read "no contamination" off an experiment that never had
+        /// an assignment to break.
+        ///
+        /// Written down with the rest because it is part of the result: a window where
+        /// the change happened on every day has no contrast left, and the reason a
+        /// verdict could not be read belongs in the record alongside the verdict.
+        let contaminationDays: Int?
         /// Mean of the day means on each side. Day means rather than session means,
         /// because the bootstrap clusters on days and the figure shown has to be
         /// the figure that was tested.
+        ///
+        /// For a randomised window these are the assigned and unassigned arms rather
+        /// than the hypothesis's two groups, which is why `ExperimentCopy` does not
+        /// name them with `focusLabel` there: the assigned arm includes days the
+        /// person did not manage the change on, and calling that "Morning" would be a
+        /// label the number does not carry.
         let focusFigure: Double
         let baselineFigure: Double
         /// Cliff's delta and its day-clustered interval, from `Statistics`.
@@ -229,6 +301,43 @@ extension Experiment {
         let intervalLow: Double
         let intervalHigh: Double
         let settledAt: Date
+
+        /// Spelled out rather than synthesized so `contaminationDays` can default.
+        ///
+        /// A `let` with a default value is dropped from the memberwise initializer
+        /// altogether, and a `var` would say a frozen figure can be edited, which is
+        /// the one thing this type exists to deny. So the initializer is written.
+        init(verdict: Verdict,
+             adherenceDays: Int,
+             baselineDays: Int,
+             contaminationDays: Int? = nil,
+             focusFigure: Double,
+             baselineFigure: Double,
+             delta: Double,
+             intervalLow: Double,
+             intervalHigh: Double,
+             settledAt: Date) {
+            self.verdict = verdict
+            self.adherenceDays = adherenceDays
+            self.baselineDays = baselineDays
+            self.contaminationDays = contaminationDays
+            self.focusFigure = focusFigure
+            self.baselineFigure = baselineFigure
+            self.delta = delta
+            self.intervalLow = intervalLow
+            self.intervalHigh = intervalHigh
+            self.settledAt = settledAt
+        }
+
+        /// Unassigned days that carried a rated session and *not* the change — the
+        /// only days a randomised result has to read against.
+        ///
+        /// Nil for a chosen window, which has no such notion. See
+        /// `ExperimentOutcome` for why this rather than a contamination percentage
+        /// is what gates the verdict.
+        var contrastDays: Int? {
+            contaminationDays.map { max(0, baselineDays - $0) }
+        }
     }
 
     /// What an experiment can conclude.
@@ -250,5 +359,176 @@ extension Experiment {
         /// read it against, or the hypothesis is no longer in the registry.
         /// Deliberately not a verdict about the change.
         case cannotTell
+    }
+}
+
+// MARK: - Assignment
+
+extension Experiment {
+
+    /// The days the app drew, and the seed it drew them with.
+    ///
+    /// **Why this is the one change in the feature that moves the claim.** Phases 1
+    /// to 3 compare two groups inside one window, and the person decided which days
+    /// went into which group. That is out-of-sample confirmation of a prediction
+    /// fixed in advance — far better than mining a history — but whatever made them
+    /// choose a morning on Tuesday travelled into the result with it, and a good
+    /// fortnight is still a good fortnight. Drawing the days beforehand removes
+    /// exactly that: a set chosen by a generator before any of the data exists
+    /// cannot be correlated with how those days were going to go.
+    ///
+    /// **Drawn in pairs, not as a subset of the whole window.** The obvious scheme
+    /// is to shuffle the window's days and take half, which is uniform over every
+    /// half-sized subset. One of those subsets is the first fortnight, and another is
+    /// the second — so the scheme that is most random in the abstract will sometimes
+    /// hand back precisely the before-and-after comparison this design exists to
+    /// avoid, with a fortnight of flu or deadline or holiday landing entirely in one
+    /// arm. Taking one day at random out of each consecutive pair keeps the imbalance
+    /// between the arms to at most one day at every point in the window, so a trend
+    /// across the month contributes to both arms almost equally.
+    ///
+    /// What blocking costs is predictability: knowing one day is assigned says the
+    /// other day of its pair is not. In a trial that would be a concealment failure
+    /// worth refusing the scheme over. Here the person is handed the whole list
+    /// before they start — they have to be, or they cannot follow it — so the
+    /// information blocking leaks is information they already have, and the cost is
+    /// nil while the protection against a time trend is real.
+    ///
+    /// **Stored, never recomputed.** The days are what somebody agreed to, so they
+    /// are written down; re-deriving them from the seed on each launch would mean
+    /// that any future change to the drawing — a different generator, pairs of three,
+    /// a fixed first day — silently re-assigns the days of a window already running,
+    /// on somebody else's phone, with no error anywhere. The seed is stored beside
+    /// them so the draw remains auditable: `drawing(windowDays:seed:)` reproduces the
+    /// set exactly, and a test asserts it. The days are authoritative and the seed is
+    /// provenance; nothing at runtime reads the seed.
+    struct Assignment: Hashable, Codable {
+
+        /// What the days were drawn with. Provenance only.
+        let seed: UInt64
+
+        /// Offsets from the window's first day, sorted and all inside the window.
+        ///
+        /// Offsets rather than dates because the window's days are already defined
+        /// relative to `startedAt` everywhere else — `window(calendar:)` and
+        /// `endsAt(calendar:)` both count days through the calendar — and storing
+        /// absolute dates would be a second description of the same fortnight, free
+        /// to drift from the first across a daylight-saving boundary.
+        let dayOffsets: [Int]
+
+        /// How many days carry the change.
+        var assignedCount: Int { dayOffsets.count }
+
+        /// Whether a day of the window, counted from its first, carries the change.
+        func isAssigned(dayOffset: Int) -> Bool { dayOffsets.contains(dayOffset) }
+
+        /// Which day of the window a moment falls on, or nil for a moment outside it.
+        ///
+        /// Through calendar days on both sides, for the reason `endsAt` adds days
+        /// rather than seconds: a window that crosses a clock change is still the
+        /// same count of days, and an offset computed from elapsed seconds would be
+        /// one out for half of it.
+        func dayOffset(of moment: Date, startedAt: Date, windowDays: Int,
+                       calendar: Calendar = .current) -> Int? {
+            let from = calendar.startOfDay(for: startedAt)
+            let to = calendar.startOfDay(for: moment)
+            guard let days = calendar.dateComponents([.day], from: from, to: to).day,
+                  days >= 0, days < windowDays else { return nil }
+            return days
+        }
+
+        /// Whether a moment falls on an assigned day.
+        func isAssigned(_ moment: Date, startedAt: Date, windowDays: Int,
+                        calendar: Calendar = .current) -> Bool {
+            guard let offset = dayOffset(of: moment, startedAt: startedAt,
+                                         windowDays: windowDays, calendar: calendar)
+            else { return false }
+            return isAssigned(dayOffset: offset)
+        }
+
+        /// The assigned days as dates, for the list the person is shown.
+        func assignedDates(startedAt: Date, calendar: Calendar = .current) -> [Date] {
+            let first = calendar.startOfDay(for: startedAt)
+            return dayOffsets.compactMap { calendar.date(byAdding: .day, value: $0, to: first) }
+        }
+
+        // MARK: Drawing
+
+        /// One day out of each consecutive pair, drawn with `Statistics.Seeded`.
+        ///
+        /// `Seeded` rather than `SystemRandomNumberGenerator` because determinism is
+        /// a tested property everywhere in this app that shows somebody a number: the
+        /// bootstrap uses it so an interval cannot move between launches, and the same
+        /// argument applies with more force to a set of days somebody is living by.
+        ///
+        /// An odd window leaves one day over, and it is drawn on its own — so the
+        /// assigned count is half the window, rounded either way. Deliberate: the
+        /// alternative is always assigning the orphan or never assigning it, and both
+        /// make one particular day of the window special for a reason that has
+        /// nothing to do with the person.
+        static func drawing(windowDays: Int, seed: UInt64) -> [Int] {
+            guard windowDays > 0 else { return [] }
+            var generator = Statistics.Seeded(seed: seed)
+            var offsets: [Int] = []
+            var day = 0
+            while day + 1 < windowDays {
+                offsets.append(Bool.random(using: &generator) ? day : day + 1)
+                day += 2
+            }
+            // The odd day out, when there is one.
+            if day < windowDays, Bool.random(using: &generator) { offsets.append(day) }
+            return offsets
+        }
+
+        /// A seed from the commitment itself.
+        ///
+        /// **Not `hashValue`, and this is the trap.** Swift's hashing is seeded per
+        /// process, so a seed taken from `hypothesisId.hashValue` would be a different
+        /// number on the next launch and the draw would be unreproducible — which
+        /// matters not because anything recomputes it (nothing does) but because an
+        /// unauditable number should not be the thing that decided somebody's month.
+        /// FNV-1a over the bytes is stable across launches, devices and versions.
+        ///
+        /// **Why these two inputs.** The id alone would hand every person testing
+        /// their mornings the identical pattern of days, and since people accept on
+        /// the days they happen to be reading the app, a fixed pattern would line up
+        /// with the weekday they started on — assigning Mondays, Wednesdays and
+        /// Fridays to one arm across a whole population of Monday-evening acceptances.
+        /// Weekday is one of the things this app measures. Mixing the start instant in
+        /// breaks that without making the draw depend on anything about how the days
+        /// were going.
+        ///
+        /// Taken to the second, and masked to 48 bits. The record encodes dates as
+        /// ISO 8601 without fractional seconds, so a seed mixed from sub-second
+        /// precision could not be checked against the stored days after a reload;
+        /// and 48 bits is inside the range every JSON number path represents exactly,
+        /// so the seed survives the file whatever decodes it. Both are about the seed
+        /// still being the seed tomorrow.
+        static func seed(hypothesisId: String, startedAt: Date) -> UInt64 {
+            var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+            func mix(_ byte: UInt8) {
+                hash ^= UInt64(byte)
+                hash = hash &* 0x100_0000_01b3
+            }
+            for byte in hypothesisId.utf8 { mix(byte) }
+            let seconds = Int64(startedAt.timeIntervalSince1970.rounded())
+            let bits = UInt64(bitPattern: seconds)
+            for shift in stride(from: 0, through: 56, by: 8) {
+                mix(UInt8(truncatingIfNeeded: bits >> UInt64(shift)))
+            }
+            return hash & 0xffff_ffff_ffff
+        }
+
+        /// The assignment for a window about to open.
+        ///
+        /// The only way one is made. Called once, at acceptance, with the same `now`
+        /// that becomes `startedAt` — never a second read of the clock, which is a bug
+        /// this codebase has already shipped once in the slot picker and would show up
+        /// here as a day list that does not line up with the window it belongs to.
+        static func make(hypothesisId: String, startedAt: Date, windowDays: Int) -> Assignment {
+            let seed = seed(hypothesisId: hypothesisId, startedAt: startedAt)
+            return Assignment(seed: seed,
+                              dayOffsets: drawing(windowDays: windowDays, seed: seed).sorted())
+        }
     }
 }

@@ -145,6 +145,26 @@ enum ExperimentDesign {
         /// screen that does anything.
         var requiresMembership: Bool { standing == .confirmed }
 
+        /// Whether this one can also be offered with its days drawn by the app.
+        ///
+        /// Computed from the type rather than stored, so it cannot drift from the
+        /// filter that decides it. Independent of `standing`: a confirmed claim, a
+        /// lead and a day-one starter can all be tested on drawn days, because what
+        /// the draw needs is a change the person decides about a day — not evidence.
+        /// A starter is the strongest case for it, in fact, and the hardest sell: it
+        /// is the only offer the app has on day one, and drawing its days is the
+        /// difference between a month that confirms and a month that tests.
+        var canRandomise: Bool { ExperimentDesign.randomisableTypes.contains(type) }
+
+        /// What a drawn window would ask of this person, or nil where it cannot be
+        /// drawn. Here rather than in a view, like every other string in this feature.
+        var randomisedAsk: String? {
+            guard canRandomise else { return nil }
+            return ExperimentCopy.randomisedAsk(
+                windowDays: Experiment.randomisedWindowDays,
+                assignedDays: Experiment.randomisedWindowDays / 2)
+        }
+
         /// Whether this rests on nothing the app has measured about their sessions.
         ///
         /// Read at the merge point, where a real proposal has to win. Expressed
@@ -173,6 +193,33 @@ enum ExperimentDesign {
     /// later than the PRD promised, which is what makes phase 3's day-one starters
     /// load-bearing rather than merely nice.
     static let leadMinimumDays = 3
+
+    /// Types whose days the app can draw. **Filter 4**, and it is narrower than the
+    /// other three.
+    ///
+    /// A drawn assignment works by deciding, before anything happens, which days
+    /// carry the change — so it only means anything where carrying the change is
+    /// something the person decides about a day. Putting a block in the morning,
+    /// ending one at a particular length, giving an activity a block of its own: all
+    /// three are decisions about a day, and a day can be handed either of them.
+    ///
+    /// The two responsive families cannot be drawn, and it is worth being exact about
+    /// why, because they pass filters 1 to 3 comfortably. `sleepContext` and
+    /// `bodyContext` split on a Health reading, and the app can draw days but cannot
+    /// make a drawn day a day of longer sleep; `workdayContrast` splits on the
+    /// calendar, and a drawn day is not a day off. In both cases the assigned and
+    /// unassigned arms would differ in nothing but the draw, the measured contrast
+    /// would be between two indistinguishable halves of a month, and the result would
+    /// wear a randomised test's clothes with none of its content. That is a worse
+    /// failure than not offering it, because it would be *more* convincing and less
+    /// true.
+    ///
+    /// The draining families are out one filter earlier, as they always were: a drawn
+    /// window still counts days the change happened on, and there is no way to test
+    /// doing less of something by doing more of it.
+    static let randomisableTypes: Set<InsightType> = [
+        .bestTimeWindow, .durationSweetSpot, .activityEnergizer
+    ]
 
     /// Types a change can honestly be built for. See filter 3 above.
     static let experimentableTypes: Set<InsightType> = [
@@ -320,6 +367,63 @@ enum ExperimentDesign {
             premise: proposal.premise,
             change: proposal.change,
             caveat: proposal.caveat
+        )
+    }
+
+    /// The commitment somebody agreed to, with the days drawn by the app.
+    ///
+    /// **Nil rather than a fallback to the chosen kind.** A caller asking for a drawn
+    /// window on a hypothesis whose days cannot be drawn has a bug, and silently
+    /// handing back the ordinary kind would mean somebody tapped "pick the days for
+    /// me" and got an experiment with no days in it — the one failure here that
+    /// produces no error and no wrong number, only a quietly weaker test than the one
+    /// they chose.
+    ///
+    /// **The window is four weeks, not a fortnight.** `Experiment.randomisedWindowDays`
+    /// records the arithmetic: half the days go to each arm, and six on each side
+    /// needs twice as many days to draw from.
+    ///
+    /// **The assignment is made here, once, from the start date it is handed.** Not
+    /// at proposal time: proposals are rebuilt on every engine run, so a draw made
+    /// there would either need a seed fixed to the hypothesis — handing everybody who
+    /// tests their mornings the same pattern of weekdays, which is a pattern this app
+    /// measures — or it would change the day list between one glance at the card and
+    /// the next. Not at settling time either, obviously: that is the thing phase 4
+    /// exists to make impossible.
+    static func randomisedExperiment(
+        from proposal: Proposal,
+        startedAt: Date,
+        windowDays: Int = Experiment.randomisedWindowDays
+    ) -> Experiment? {
+        guard proposal.canRandomise,
+              let change = ExperimentCopy.randomisedChange(
+                type: proposal.type, focusLabel: proposal.focusLabel) else { return nil }
+
+        return Experiment(
+            hypothesisId: proposal.hypothesisId,
+            outcome: proposal.outcome,
+            startedAt: startedAt,
+            windowDays: windowDays,
+            focusLabel: proposal.focusLabel,
+            baselineLabel: proposal.baselineLabel,
+            // Filter 2 still holds — a drawn window counts days gained on the focus
+            // side exactly as a chosen one does — so the prediction is still that the
+            // assigned days read higher. Stored rather than assumed, because the
+            // record of what was predicted is what makes either kind a test.
+            predictsHigher: true,
+            assignment: Experiment.Assignment.make(
+                hypothesisId: proposal.hypothesisId,
+                startedAt: startedAt,
+                windowDays: windowDays),
+            premise: proposal.premise,
+            // The one string that is *not* carried from the proposal, and the reason
+            // the proposal card has to show both offers rather than one: a drawn
+            // window asks for particular days and for restraint on the rest, which is
+            // a different ask in different words. What somebody accepted is still what
+            // they were shown — `Proposal.randomisedAsk` is what the second control
+            // sits under — but it is not the same sentence as the first control's.
+            change: change,
+            caveat: ExperimentCopy.randomisedCaveat(proposal.caveat, windowDays: windowDays)
         )
     }
 

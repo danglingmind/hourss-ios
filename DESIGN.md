@@ -427,3 +427,64 @@ second rule weight or type size. Whether a settled card should get *more room*
 than the others — the lever the "One rule weight" section above nominated — is
 deliberately still open, because two visual changes have been reverted whole and
 the right moment to decide is after looking at the cards rather than before.
+
+---
+
+## A record of tests is a ruled list, not a column of cards
+
+The settled result on Today is a forest block, and the section above argues why: it
+is the rarest thing the app can show, it appears exactly once, and acknowledging it
+is what gives the slot up. That last clause is what made a second surface necessary
+— `ExperimentHistoryView`, on You — and the first thing to decide about it was
+whether the cards came with it. They did not.
+
+**Three forest blocks in a column is the house style with extra steps.** The
+argument is already written down twice, in `ObservationSlotView.isCarded` and in
+*Blocks round now*: a palette where four things are emphasised differently is a
+palette where nothing is, and a card that is emphatic every other week is just how
+the app looks. A list of settled results is by definition not rare. Worse, an
+identical fill behind three different verdicts invites the fill to be read as a
+status colour it is not — and the moment a reader starts scanning for the green
+ones, the record has become a scoreboard. So the rows are the house ruled-list
+idiom: `Eyebrow`, `HRule`, the existing type ramp, and nothing else.
+
+**Space is the lever, which is what the "One rule weight" section nominated.** Each
+record takes `Space.md` of vertical room inside its row and the rules between them
+stay at 1pt. No second rule weight, no new colour, no badge, no new type size —
+`roomAbove` on Today already pays the flatness cost this way and this is the same
+payment on a list. The open question that section leaves about Today's card is
+untouched; this closes it only for the list.
+
+**The subject is on the top step and the verdict on the second, which inverts
+Today.** The card is right to lead with the verdict: there is one of them, the
+person knows which fortnight they agreed to, and the answer is the only news. A
+list is not in that position. A column that opens every row with IT HELD UP / IT
+DID NOT HOLD UP is a column of verdicts to be compared with each other, however
+carefully each is worded, so the row leads with the change that was tested and
+attaches the outcome to it. This is the same correction `EvidenceReadout` made on
+Patterns, where the line named its subject four words after its figure.
+
+**The three verdicts are drawn by one function with no branch in it.** Same eyebrow
+position, same ramp, same room, same order; the only difference between a result
+that held up and one that did not is the sentence. The per-experiment caveat is the
+one thing that could not be kept per row — Today carries it and drops it for
+`cannotTell`, correctly, because there is nothing to qualify about a window that
+could not be read, and that asymmetry would draw two of the three verdicts a line
+taller than the third. So the rows carry the same four things each and the limit
+common to all of them sits under the list, where Patterns already puts
+"Observations, not rules".
+
+**Stopped experiments are in the list.** They carry no verdict and there is
+genuinely nothing to report about the change, which is a good argument for leaving
+them out. It loses to a simpler one: a record that silently drops the parts
+somebody stopped is a selection they cannot see being made, and the person who
+started three tests and finished one would find a history in which they only ever
+started one. What keeps a stopped row from reading as a fourth verdict is that it
+says in plain words that it has no result — and that nothing anywhere counts any of
+this.
+
+**Nothing is counted, and the screen's own copy is swept for it.** No rate, no
+streak, no "two of three held up". `abandonExperiment` keeps no tally because a
+number whose only use is a reproach does not get computed, and a list that totals
+its own verdicts is that number assembled by the reader instead. The test suite
+asserts that every string this screen authors quotes no figure at all.

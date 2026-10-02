@@ -2,7 +2,8 @@ import Foundation
 import Testing
 @testable import Hourss
 
-/// That schema 3 can read what schema 2 wrote, and that experiments round-trip.
+/// That each schema can read what the one before it wrote, and that experiments
+/// round-trip.
 ///
 /// The decode test is the one worth having. `experiments` and `declinedExperiments`
 /// are optional precisely so a record written before they existed still loads, and
@@ -70,7 +71,103 @@ struct ExperimentRecordTests {
 
         #expect(loaded.experiments == [experiment])
         #expect(loaded.declinedExperiments == ["duration.long.vs.rest.feeling"])
-        #expect(loaded.schemaVersion == 3)
+        #expect(loaded.schemaVersion == 4)
+        // A chosen window has no assignment, and that is how its kind is carried.
+        #expect(loaded.experiments?.first?.assignment == nil)
+        #expect(loaded.experiments?.first?.isRandomised == false)
+    }
+
+    /// A record written at schema 3, with an experiment in it and no assignment key.
+    ///
+    /// The test worth having for this version, for the same reason the schema 2 one
+    /// was: `assignment` is optional precisely so that every fortnight somebody
+    /// already agreed to still decodes, and the moment that matters is the moment
+    /// they already have the file. A non-optional property with a sensible default
+    /// would throw here instead, on launch, losing everything.
+    private var schemaThreeJSON: Data {
+        Data("""
+        {
+          "schemaVersion": 3,
+          "activities": [],
+          "sessions": [],
+          "reflections": [],
+          "profile": { "displayName": "", "timezone": "Europe/London", "priorities": [],
+                       "weekStart": 2, "workdays": [2, 3, 4, 5, 6], "reflectionHour": 20,
+                       "quietMode": false, "weeklyReflection": true },
+          "insightStatus": [],
+          "hasCompletedOnboarding": true,
+          "declinedExperiments": ["duration.long.vs.rest.feeling"],
+          "experiments": [
+            {
+              "id": "6B29FC40-CA47-1067-B31D-00DD010662DA",
+              "hypothesisId": "time.morning.vs.rest.feeling",
+              "outcome": "feeling",
+              "startedAt": "2026-01-01T00:00:00Z",
+              "windowDays": 14,
+              "focusLabel": "Morning",
+              "baselineLabel": "The rest of your day",
+              "predictsHigher": true,
+              "premise": "Your morning sessions have felt more energizing.",
+              "change": "Put one block in your morning on most days this fortnight.",
+              "caveat": "Time of day travels with whatever you tend to schedule then."
+            }
+          ]
+        }
+        """.utf8)
+    }
+
+    @Test("An experiment written before the draw existed still decodes, as a chosen one")
+    func decodesSchemaThree() throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let record = try decoder.decode(Record.self, from: schemaThreeJSON)
+
+        let experiment = try #require(record.experiments?.first)
+        #expect(experiment.assignment == nil)
+        #expect(!experiment.isRandomised)
+        #expect(experiment.windowDays == 14)
+        #expect(experiment.phase == .active)
+        #expect(record.declinedExperiments == ["duration.long.vs.rest.feeling"])
+    }
+
+    @Test("A drawn assignment survives the file, seed and days intact")
+    func assignmentRoundTrips() throws {
+        let started = Date(timeIntervalSince1970: 1_767_225_600)
+        let assignment = Experiment.Assignment.make(
+            hypothesisId: "time.morning.vs.rest.feeling", startedAt: started,
+            windowDays: Experiment.randomisedWindowDays)
+        var experiment = Experiment(
+            hypothesisId: "time.morning.vs.rest.feeling", outcome: .feeling,
+            startedAt: started, windowDays: Experiment.randomisedWindowDays,
+            focusLabel: "Morning", baselineLabel: "The rest of your day",
+            assignment: assignment,
+            premise: "p", change: "c", caveat: "v")
+        experiment.settlement = Experiment.Settlement(
+            verdict: .cannotTell, adherenceDays: 12, baselineDays: 14,
+            contaminationDays: 11, focusFigure: 4.2, baselineFigure: 3.4,
+            delta: 0.1, intervalLow: -0.2, intervalHigh: 0.4, settledAt: started)
+
+        // Through the file rather than through `InMemoryRecordRepository`, because the
+        // thing being tested is the encoding: a seed that came back as a different
+        // number would be a set of days nobody could ever check again.
+        let url = URL.temporaryDirectory.appending(path: "hourss-assign-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var record = Record()
+        record.experiments = [experiment]
+        try FileRecordRepository(url: url).save(record)
+        let loaded = try FileRecordRepository(url: url).load()
+
+        let read = try #require(loaded.experiments?.first)
+        #expect(read == experiment)
+        #expect(read.assignment?.seed == assignment.seed)
+        #expect(read.assignment?.dayOffsets == assignment.dayOffsets)
+        #expect(read.settlement?.contaminationDays == 11)
+        #expect(read.settlement?.contrastDays == 3)
+        // And the days are still derivable from the seed that came back, which is the
+        // whole of what "auditable" means here.
+        let seed = try #require(read.assignment?.seed)
+        #expect(Experiment.Assignment.drawing(windowDays: Experiment.randomisedWindowDays,
+                                              seed: seed) == assignment.dayOffsets)
     }
 
     @Test("Experiments and declines are written in a stable order")

@@ -157,6 +157,39 @@ extension HourssStore {
         return experiment
     }
 
+    /// Take on a proposal with the days drawn by the app.
+    ///
+    /// The second of two ways to accept the same offer, and a materially harder one:
+    /// four weeks rather than two, particular days rather than most days, and the
+    /// request to leave the rest alone. It is opt-in for that reason, and
+    /// `ExperimentCopy.randomisedAsk` is what has to earn the tap.
+    ///
+    /// - Returns: the experiment, or nil when one is already running, when this
+    ///   hypothesis's days cannot be drawn, or when the window is too short to be
+    ///   worth drawing over.
+    ///
+    /// **The window floor is a refusal, not a clamp.** A drawn window hands half its
+    /// days to each arm, so one shorter than twice `Experiment.minimumDays` cannot
+    /// supply six days to both sides however well somebody adheres — it could only
+    /// ever come back unreadable. Silently stretching it to four weeks would be the
+    /// app changing the terms of something somebody agreed to; returning nil is the
+    /// same answer `acceptExperiment` gives when one is already running, for the same
+    /// reason.
+    @discardableResult
+    func acceptRandomisedExperiment(
+        _ proposal: ExperimentDesign.Proposal,
+        now: Date = Date(),
+        windowDays: Int = Experiment.randomisedWindowDays
+    ) -> Experiment? {
+        guard activeExperiment == nil else { return nil }
+        guard windowDays >= 2 * Experiment.minimumDays else { return nil }
+        guard let experiment = ExperimentDesign.randomisedExperiment(
+            from: proposal, startedAt: now, windowDays: windowDays) else { return nil }
+        experiments.append(experiment)
+        persist()
+        return experiment
+    }
+
     /// Say no, permanently.
     ///
     /// Recorded against the hypothesis rather than the proposal, because the

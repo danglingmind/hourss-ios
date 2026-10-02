@@ -330,6 +330,41 @@ struct ExperimentDesignTests {
                 baselineLabel: "Everything else", metric: nil))
         }
 
+        // The drawn-window strings, swept here as well as in
+        // `ExperimentAssignmentCopyTests`: the bans are one rule, and the sweep that
+        // runs over every type is the one a new family would be added to.
+        strings.append(ExperimentCopy.randomisedAsk(
+            windowDays: Experiment.randomisedWindowDays,
+            assignedDays: Experiment.randomisedWindowDays / 2))
+        strings.append(ExperimentCopy.randomisedCaveat(
+            "Time of day travels with whatever you tend to schedule then."))
+        for type in [InsightType.bestTimeWindow, .durationSweetSpot, .activityEnergizer,
+                     .workdayContrast, .sleepContext, .bodyContext, .drainingTimeWindow,
+                     .activityDrain, .performanceFeelingSplit, .fragmentation,
+                     .emergingChange] {
+            for label in ["Morning", "Deep work", "30 to 89 minutes"] {
+                if let change = ExperimentCopy.randomisedChange(type: type, focusLabel: label) {
+                    strings.append(change)
+                }
+            }
+        }
+        var drawn = experiment
+        drawn.assignment = Experiment.Assignment.make(
+            hypothesisId: drawn.hypothesisId, startedAt: drawn.startedAt,
+            windowDays: Experiment.randomisedWindowDays)
+        for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp, .cannotTell] {
+            for (adherence, baseline, contamination) in
+                [(12, 14, 0), (12, 14, 11), (3, 14, 2), (8, 2, 0), (0, 0, 0)] {
+                strings.append(ExperimentCopy.result(
+                    for: drawn,
+                    settlement: Experiment.Settlement(
+                        verdict: verdict, adherenceDays: adherence, baselineDays: baseline,
+                        contaminationDays: contamination,
+                        focusFigure: 4.2, baselineFigure: 3.4, delta: 0.4,
+                        intervalLow: 0.1, intervalHigh: 0.7, settledAt: Date())))
+            }
+        }
+
         for verdict in [Experiment.Verdict.heldUp, .didNotHoldUp, .cannotTell] {
             strings.append(ExperimentCopy.verdictTitle(verdict))
             // Every shortfall shape, so each branch of `cannotTell` is swept.

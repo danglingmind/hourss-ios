@@ -915,6 +915,48 @@ by chance" and one declared hypothesis is not a search.
   token below `Space.xs`, so holding 44 square everywhere means a hardcoded gap or
   breaking the gutter.
 
+### Phase 4 is built and unreachable from Today
+
+The engine, the draw, the measurement and every string exist and are tested. The
+card cannot offer it, and that is structural rather than an oversight:
+`SlotCopy.action` is a single `String?`, so a second control is impossible without
+changing `ObservationSlotView`. Four things, in order:
+
+- **A second control on the proposal card.** Gate on `proposal.canRandomise`,
+  render `proposal.randomisedAsk`, add a control titled
+  `ExperimentCopy.randomiseTitle` beside "Start this", and call
+  `store.acceptRandomisedExperiment(proposal)`. `InsightDetailView` has the same
+  single-control shape and the same problem.
+- **`activeCopy` hardcodes "fortnight"** — "The fortnight closes today.", "One more
+  day of this fortnight." A drawn window is 28 days, so those are simply wrong for
+  it, and `ExperimentSlotTests.activeCardCounts` pins the strings. The wording has
+  to come from `experiment.windowDays`.
+- **The active card has to show the day list and whether today is one of them**,
+  from `ExperimentCopy.assignedDays(for:)` and `today(for:on:)`. A standing
+  instruction fits in somebody's head for a fortnight; fourteen dates do not, so
+  without this a drawn window is unfollowable.
+- Settled card needs nothing — verdict, result and caveat all flow through strings
+  the Store layer owns.
+
+Reachable in the simulator meanwhile via `-hourss-fixture-randomised`.
+
+### The weakest thing in phase 4, in its own words
+
+**The contrast gate catches absence of contrast, not dilution of it.** A month with
+6 clean unassigned days and 8 contaminated ones passes the gate, then runs a
+comparison whose control arm is 57% contaminated: the arms really are similar, the
+test is badly underpowered toward the null, and the card says "No difference you
+could act on." The honest reading is closer to "this month could not separate
+them". A second threshold on the *proportion* of the control arm that stayed clean
+is the obvious next move; no constant was invented for it.
+
+Three smaller ones, also its own: adherence still needs the qualifying session to
+be **rated**, so a done-but-unrated day looks non-adherent and can push a real
+month under the floor; the seed has no per-install entropy, so two people accepting
+the same hypothesis in the same second draw the same days; and the 28-day window
+doubles a commitment length the product has never measured adherence to — the
+PRD's open question about 14 days was answered with arithmetic rather than data.
+
 ### Owed to the record screen
 
 `You → Tests` is built. Four things it asked for sit in files it did not own, and
