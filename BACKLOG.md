@@ -904,33 +904,49 @@ by chance" and one declared hypothesis is not a search.
   object representing a week, and seven rounded squares at 8pt apart read more like
   seven keys. Levers, smallest first: tighten the gap; drop the fill opacity; or
   leave the workday cells square and take the radius only on the activity rows.
-- **The unselected fill, at two opacities.** Rounding meant unselected rows needed
-  a fill — a clear shape cannot be rounded, and without one seven of eight picker
-  rows became bare text in whitespace. They now paint `surface.track`, which is
-  `ink @ 0.08`, while `presetChip` and `SlotPicker`'s steppers use `ink @ 0.05`.
-  Both appear in the `+` sheet, 3% of alpha apart. One of the two should move.
+- **The unselected fill.** ~~Two opacities 3% apart in one sheet.~~ Closed: the
+  two hardcoded `ink @ 0.05` literals now take `surface.track` like everything
+  else. What is left to judge is the fill itself — rounding meant unselected rows
+  needed one, so the picker went from a hairline per row to a filled panel per row,
+  which is more tone on screen than before. If it reads as too much, the lever is
+  the opacity rather than the radius.
 - **Tap targets dip below 44pt wide on small phones.** Seven workday cells with six
   8pt gaps inside the page gutter leave each cell 43.7pt wide at 390pt (iPhone 16e,
   14, 13, 12) and 41.6pt at 375pt (SE 3). Height is always 44. There is no spacing
   token below `Space.xs`, so holding 44 square everywhere means a hardcoded gap or
   breaking the gutter.
 
-### The weakest thing in phase 4, in its own words
+### Phase 4's weakest point — closed
 
-**The contrast gate catches absence of contrast, not dilution of it.** A month with
-6 clean unassigned days and 8 contaminated ones passes the gate, then runs a
-comparison whose control arm is 57% contaminated: the arms really are similar, the
-test is badly underpowered toward the null, and the card says "No difference you
-could act on." The honest reading is closer to "this month could not separate
-them". A second threshold on the *proportion* of the control arm that stayed clean
-is the obvious next move; no constant was invented for it.
+The contrast gate caught absence of contrast and not dilution of it, so a month
+with 6 clean unassigned days against 8 contaminated ones passed and then reported
+"No difference you could act on" when the honest reading was "this month could not
+separate them".
 
-Three smaller ones, also its own: adherence still needs the qualifying session to
-be **rated**, so a done-but-unrated day looks non-adherent and can push a real
-month under the floor; the seed has no per-install entropy, so two people accepting
-the same hypothesis in the same second draw the same days; and the 28-day window
-doubles a commitment length the product has never measured adherence to — the
-PRD's open question about 14 days was answered with arithmetic rather than data.
+Closed with an ordering rather than a threshold, so no constant was invented:
+`contaminationDays < contrastDays && contaminationDays < adherenceDays` — the
+eroding count has to be smaller than both counts it erodes. Dilution too small to
+stop the reading is disclosed in the sentence instead, beside both verdicts rather
+than only the null.
+
+**Still open from that work, in its own words:**
+
+- An *admitted* diluted null still leads with "No difference you could act on" and
+  follows with the count that weakens it. A reader who stops after the first
+  sentence gets a stronger null than the month earned. Closing it needs a stored
+  rated-day count and a threshold on the compliance differential's magnitude —
+  **a constant that genuinely cannot be derived**, and the value is a decision
+  rather than a calculation.
+- Adherence still needs the qualifying session to be **rated**, so a done-but-
+  unrated day looks non-adherent and can push a real month under the floor.
+- The draw's seed has no per-install entropy, so two people accepting the same
+  hypothesis in the same second draw the same days.
+- The 28-day window doubles a commitment length the product has never measured
+  adherence to. The PRD's open question about 14 days was answered with arithmetic
+  rather than data, and still is.
+- A randomised experiment whose hypothesis has left the registry falls through to
+  the *chosen*-window copy chain and says "6 days of it would have been enough to
+  read. There were 0." rather than naming the registry. Pre-existing in phase 4.
 
 ### Owed to the record screen — all landed
 
