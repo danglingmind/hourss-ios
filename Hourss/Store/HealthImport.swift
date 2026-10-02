@@ -161,8 +161,26 @@ enum HealthImport {
 /// already happened once here: `applyPhysiology` sat built, tested and uncalled
 /// while two of the three screens that connect Health remembered only the other
 /// one. A third thing to remember would not have survived either.
+///
+/// **It leaves a seeded fixture alone.** `applyHealthContext` replaces the whole
+/// daily table, so on a simulator — where HealthKit answers every query with
+/// nothing — this read was overwriting the fixture's generated history with an
+/// empty one a few seconds after launch. Everything downstream of Health went with
+/// it: the daily fact had no pool to draw from, and the day-one starters, whose
+/// entire premise is a Health reading, silently stopped being offered. The screen
+/// settled on the evidence mark, which looks exactly like an engine that found
+/// nothing rather than like data that was taken away.
+///
+/// Caught by a probe showing the same launch computing three starters and then
+/// zero, with the metric count going from the fixture's ten to HealthKit's empty
+/// eleven in between.
 @MainActor
 func applyHealthRead(from health: HealthService, to store: HourssStore) async {
+    #if DEBUG
+    // A fixture exists to be deterministic. A real read landing on top of it is
+    // not a smaller version of that promise, it is the opposite of it.
+    guard !DebugFixture.isRequested else { return }
+    #endif
     store.applyHealthContext(health.dailyValues)
     // The feed `refresh()` already read, rather than a second trip for the same
     // sixty days of heart rate.

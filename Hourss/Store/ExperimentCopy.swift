@@ -109,6 +109,11 @@ enum ExperimentCopy {
     /// reading: it says in plain words that nothing logged speaks to this yet, so
     /// the Health reading is evidence that the app has their history and not
     /// evidence for the change.
+    /// **No longer what a card shows, and kept for what reads it.** The two halves
+    /// are separate fields on `Proposal` now, so that the Health reading cannot sit
+    /// directly beneath the change — see `Proposal.context`. This joins them in the
+    /// order they are spoken, which is what the accessibility label and the copy
+    /// sweep want: one string carrying everything a starter puts on screen.
     static func starterPremise(_ healthSentence: String, unknown: String) -> String {
         "\(healthSentence) \(unknown)"
     }

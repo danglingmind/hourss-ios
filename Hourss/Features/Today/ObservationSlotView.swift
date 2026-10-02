@@ -366,17 +366,33 @@ extension ObservationSlot {
         // be the one place this card said more than it knew.
         let eyebrow = ExperimentCopy.eyebrow(for: proposal.standing)
 
+        // Change, then what is not known, then — quietly — the reading it was built
+        // from. The order is the whole of the fix for a starter: joined into one
+        // sentence with the Health reading first, "your sleep reads 48m shorter on
+        // Tuesdays" sat directly beneath "put one block in your morning" and the two
+        // read as claim and reason. What sits under the change now is the sentence
+        // that denies exactly that, and the reading drops to the register this app
+        // uses for metadata, where it says the app has their history rather than
+        // offering itself as grounds.
+        var lines = [
+            SlotLine(text: proposal.change, emphasis: .lead, origin: .carried),
+            SlotLine(text: proposal.premise, emphasis: .body, origin: .carried),
+        ]
+        if let context = proposal.context {
+            lines.append(SlotLine(text: context, emphasis: .support, origin: .carried))
+        }
+
         let copy = SlotCopy(
             eyebrow: eyebrow,
-            lines: [
-                SlotLine(text: proposal.change, emphasis: .lead, origin: .carried),
-                SlotLine(text: proposal.premise, emphasis: .body, origin: .carried),
-            ],
+            lines: lines,
             caveat: proposal.caveat,
             action: ExperimentCopy.startTitle
         )
+        // Spoken in reading order, so a screen reader meets the denial before the
+        // reading for the same reason the eye does.
         return carrying(copy,
                         spoken: "\(eyebrow). \(proposal.change) \(proposal.premise) "
+                            + (proposal.context.map { "\($0) " } ?? "")
                             + "Bear in mind: \(proposal.caveat)",
                         displacedActivityName: displacedActivityName,
                         displacedSessionId: displacedSessionId)

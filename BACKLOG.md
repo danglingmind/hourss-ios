@@ -887,13 +887,13 @@ by chance" and one declared hypothesis is not a search.
   *chosen* — the top of the person's own picker order — rather than read. It is the
   only type `energy.insightTypes` and `experimentableTypes` share, so the
   alternative was breaking the priority correspondence. Weakest of the six.
-- **For `focus` and `energy` the Health premise is about something else.**
-  "Mondays run 208 kcal lower than Tuesdays" above "put one block in your morning".
-  Health holds no fact that names a time of day or an activity, so there is no
-  apter one to prefer, and the disclaiming second sentence carries the whole load.
-  The honest fix is a `.starter` arm in the slot's copy that labels the two lines
-  ("What Health shows" / "What is not known yet") instead of running premise under
-  change.
+- **For `focus` and `energy` the Health reading is about something else.**
+  Health holds no fact that names a time of day or an activity, so there is nothing
+  apter to prefer. Mitigated rather than solved: the reading no longer sits under
+  the change — the disclaimer does, and the reading drops to the quiet register
+  beneath it — so the two no longer read as claim and reason. The reading being
+  unrelated is still a weakness, and the fix for that is more Health facts worth
+  quoting rather than more copy.
 
 ### Judge on device
 
@@ -927,6 +927,17 @@ by chance" and one declared hypothesis is not a search.
   merely keeping it honest, and the most demanding of the user.
 
 ### Known defects
+
+- **A real Health read used to overwrite a seeded fixture.** `applyHealthContext`
+  replaces the whole daily table, so on a simulator — where HealthKit answers every
+  query with nothing — the launch read wiped the fixture's generated history a few
+  seconds after launch. Everything downstream went with it: no daily fact, and no
+  day-one starter, since a starter's whole premise is a Health reading. The screen
+  settled on the evidence mark, which looks exactly like an engine that found
+  nothing rather than like data that was taken away. Fixed by leaving a seeded
+  fixture alone. **The general lesson is worth keeping:** anything that replaces a
+  whole table wholesale will do this to a fixture, and the symptom is a feature that
+  appears not to work rather than an error.
 
 - **The heat-calendar UI test was date-dependent and silently so.** It opens the
   Journal on the current month and asserts some cell reports how its day felt. The

@@ -138,6 +138,7 @@ struct ExperimentSlotTests {
                 hypothesisId: "h", outcome: .feeling, type: .bestTimeWindow, standing: standing,
                 focusLabel: "Morning", baselineLabel: "Rest",
                 premise: "Morning has read higher so far, across 4 days.",
+                context: nil,
                 change: "Put one block in your morning on most days this fortnight.",
                 caveat: "Time of day travels with whatever you tend to schedule then.",
                 priority: .focus, priorityRank: 0, evidenceDays: 4,

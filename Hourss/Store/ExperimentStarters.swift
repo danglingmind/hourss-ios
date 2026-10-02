@@ -460,7 +460,11 @@ enum ExperimentStarters {
             standing: .starter,
             focusLabel: blueprint.focusLabel,
             baselineLabel: blueprint.baselineLabel,
-            premise: ExperimentCopy.starterPremise(fact.sentence, unknown: blueprint.unknown),
+            // The disclaimer leads and the Health reading follows it, rather than
+            // the two being joined into one sentence with the reading first. What
+            // sits immediately under the change is now what has *not* been read.
+            premise: blueprint.unknown,
+            context: fact.sentence,
             change: blueprint.change,
             caveat: blueprint.caveat,
             priority: priority,

@@ -265,15 +265,28 @@ struct ExperimentStarterTests {
     func premiseNamesTheGap() throws {
         for priority in Priority.allCases {
             let starter = try #require(starters([priority]).first)
+
+            // The premise *is* the gap now, rather than ending on it. These used to
+            // be one string with the Health reading first, which put the reading
+            // directly under the change on the card and made the two read as claim
+            // and reason — the exact inference the fortnight exists to test.
             #expect(starter.premise.contains("Nothing you have logged says yet"))
-            // Two sentences: a Health reading, then the gap. The Health half is
-            // carried from `HealthDigest` rather than written here, for the reason a
-            // confirmed premise reuses `hypothesis.phrase` — one wording per fact.
-            let health = starter.premise
-                .components(separatedBy: " Nothing you have logged").first ?? ""
-            #expect(!health.isEmpty)
+
+            // And the reading is carried alongside, from `HealthDigest` rather than
+            // written here, for the reason a confirmed premise reuses
+            // `hypothesis.phrase` — one wording per fact.
+            let health = try #require(starter.context)
             #expect(StarterFixture.pool.contains { $0.sentence == health },
                     Comment(rawValue: "\"\(health)\" is not a HealthDigest sentence"))
+
+            // The order is the whole of the fix, so it is asserted rather than
+            // assumed: a card reading change → reading → gap would be the shape this
+            // change removed.
+            let copy = ObservationSlot.copy(for: .experimentProposal(id: starter.id),
+                                            proposal: starter)
+            let texts = copy.lines.map(\.text)
+            #expect(texts == [starter.change, starter.premise, health])
+            #expect(copy.lines.last?.emphasis == .support)
         }
     }
 
@@ -390,7 +403,7 @@ struct ExperimentStarterTests {
             hypothesisId: "workday.non.vs.work.feeling", outcome: .feeling,
             type: .workdayContrast, standing: .lead,
             focusLabel: "Non-workdays", baselineLabel: "Workdays",
-            premise: real.premise, change: real.change, caveat: real.caveat,
+            premise: real.premise, context: nil, change: real.change, caveat: real.caveat,
             priority: .energy, priorityRank: 1, evidenceDays: 4,
             figure: 4, baselineFigure: 3.5)
         let out = ExperimentStarters.completing(
@@ -500,6 +513,7 @@ struct ExperimentStarterTests {
             type: .durationSweetSpot, standing: .lead,
             focusLabel: "30–89 min", baselineLabel: "Other lengths",
             premise: "30–89 min has read higher so far, across 4 days.",
+            context: nil,
             change: "End one block at the 30–89 min mark on most days this fortnight.",
             caveat: "Longer sessions may simply be the harder work.",
             priority: priority, priorityRank: rank, evidenceDays: 4,

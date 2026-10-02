@@ -19,6 +19,7 @@ struct ExperimentStoreTests {
             hypothesisId: id, outcome: .feeling, type: .bestTimeWindow, standing: .confirmed,
             focusLabel: "Morning", baselineLabel: "The rest of your day",
             premise: "Your morning sessions have felt more energizing.",
+            context: nil,
             change: "Put one block in your morning on most days this fortnight.",
             caveat: "Time of day travels with whatever you tend to schedule then.",
             priority: .focus, priorityRank: 0, evidenceDays: 20,

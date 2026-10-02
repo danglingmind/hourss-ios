@@ -112,6 +112,18 @@ enum ExperimentDesign {
         let focusLabel: String
         let baselineLabel: String
         let premise: String
+        /// The Health reading a starter was built from, shown quietly under the
+        /// premise. Nil for anything measured, which has no second source.
+        ///
+        /// **Separate from `premise` so the two cannot sit adjacent.** Joined into
+        /// one string, a Health sentence lands directly beneath the change and reads
+        /// as the reason for it — "your sleep reads 48m shorter on Tuesdays" above
+        /// "put one block in your morning" is two true sentences that together imply
+        /// a relationship nobody has measured, which is precisely what the fortnight
+        /// is for. Kept apart, the card can put the disclaimer under the change and
+        /// drop the reading into the quiet register, where it reads as evidence that
+        /// the app has their history rather than as evidence for the change.
+        let context: String?
         let change: String
         let caveat: String
         /// Which stated priority this serves, and where it sat in their list.
@@ -275,6 +287,9 @@ enum ExperimentDesign {
             focusLabel: finding.hypothesis.focusLabel,
             baselineLabel: finding.hypothesis.baselineLabel,
             premise: ExperimentCopy.premise(for: finding, standing: standing, days: figures.days),
+            // A measured proposal's premise is the claim itself; there is no second
+            // reading sitting behind it.
+            context: nil,
             change: change,
             caveat: finding.hypothesis.caveat,
             priority: priority,

@@ -46,6 +46,22 @@ enum DebugFixture {
         ProcessInfo.processInfo.arguments.contains(skipOnboardingArgument)
     }
 
+    /// Health history and nothing logged — the state somebody is in on their first
+    /// morning.
+    ///
+    /// **Without this, a day-one starter cannot be reached in the simulator at all.**
+    /// A starter needs Health, and in a simulator the only Health that exists is the
+    /// fixture's — but the fixture also seeds forty-two days of rated sessions, which
+    /// produce measured proposals, and a measured proposal always beats a starter.
+    /// So the one state the feature was built for was the one state nobody could
+    /// look at. That is the same hole seeding Health closed for three other features,
+    /// and a card nobody can get to is a card nobody reviews.
+    static let dayOneArgument = "-hourss-fixture-day-one"
+
+    static var isDayOne: Bool {
+        ProcessInfo.processInfo.arguments.contains(dayOneArgument)
+    }
+
     /// Small deterministic PRNG. `SystemRandomNumberGenerator` would make the demo
     /// different on every launch, which is exactly what we don't want.
     struct Seeded: RandomNumberGenerator {
@@ -106,6 +122,24 @@ enum DebugFixture {
         let today = cal.startOfDay(for: Date())
 
         store.profile.displayName = "Ren"
+
+        // Priorities, because onboarding will not let anybody past without at least
+        // one and the fixture was shipping a profile with none.
+        //
+        // That is not cosmetic. `Recommendations.build`, `ExperimentDesign.proposals`
+        // and `ExperimentStarters.starters` all return empty on an unstated
+        // priority — deliberately, since none of them will pick an area to work on
+        // for somebody who has not named one. So a fixture without priorities makes
+        // the recommendation, the proposal and the starter unreachable in the
+        // simulator simultaneously, and the slot falls back to the evidence mark as
+        // though the engine had found nothing. It looks like a feature that does not
+        // work rather than a profile that is missing a field.
+        //
+        // These three in this order because they are what the planted signal
+        // actually supports: deep work reads high in the morning (focus), meetings
+        // after three drain (energy), and the weekends are generated differently
+        // from the weekdays (balance).
+        store.profile.priorities = [.focus, .energy, .balance]
 
         let byName = Dictionary(uniqueKeysWithValues: store.activities.map { ($0.name, $0.id) })
         var sessions: [Session] = []
@@ -282,8 +316,12 @@ enum DebugFixture {
             )
         }
 
-        store.sessions = sessions.sorted { $0.startAt < $1.startAt }
-        store.reflections = reflections
+        // Day one keeps the Health history and drops everything logged. Applied
+        // here rather than by skipping the generation above, so that the two modes
+        // cannot drift: the same record is built either way and this is the only
+        // line that differs.
+        store.sessions = isDayOne ? [] : sessions.sorted { $0.startAt < $1.startAt }
+        store.reflections = isDayOne ? [:] : reflections
 
         // Health, which until now was generated and then never handed to anybody.
         //
@@ -308,8 +346,10 @@ enum DebugFixture {
         store.rebuildInsights()
 
         // After the rebuild, because a settled experiment is read against the rows
-        // the engine holds and those do not exist until it has run.
-        seedExperiments(into: store, today: today, calendar: cal)
+        // the engine holds and those do not exist until it has run. Not on day one:
+        // somebody with nothing logged has not run a fortnight either, and a settled
+        // result would claim the slot the starter is there to be looked at in.
+        if !isDayOne { seedExperiments(into: store, today: today, calendar: cal) }
 
         // Last, and only when asked: every test that walks onboarding depends on
         // this staying false by default.
