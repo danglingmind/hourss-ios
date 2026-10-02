@@ -110,3 +110,50 @@ struct ExperimentStandingCopyTests {
         }
     }
 }
+
+/// That the app uses one word for a session, everywhere somebody is asked to act.
+@Suite("Change vocabulary")
+struct ChangeVocabularyTests {
+
+    /// Every change sentence the app can produce, across both window kinds.
+    ///
+    /// Driven off `experimentableTypes` so a type admitted later is swept without
+    /// anybody remembering to add it here.
+    private var everyChange: [String] {
+        var out: [String] = []
+        for type in ExperimentDesign.experimentableTypes.sorted(by: { $0.rawValue < $1.rawValue }) {
+            for metric in [HealthMetric.sleepHours, .steps, nil] {
+                for outcome in [Outcome.feeling, .heartRateResidual] {
+                    if let c = ExperimentCopy.change(type: type, focusLabel: "Morning",
+                                                     metric: metric, outcome: outcome) {
+                        out.append(c)
+                    }
+                }
+            }
+            if let c = ExperimentCopy.randomisedChange(type: type, focusLabel: "Morning") {
+                out.append(c)
+            }
+        }
+        return out
+    }
+
+    @Test("No change sentence says block")
+    func noJargon() {
+        // "Block" appeared nowhere else in the app. Every other surface says
+        // sessions, so a reader met the word for the first time in the one sentence
+        // they were being asked to act on.
+        #expect(!everyChange.isEmpty, "no change sentences were produced")
+        for line in everyChange {
+            #expect(!line.lowercased().contains("block"),
+                    Comment(rawValue: "a change said 'block': \(line)"))
+        }
+    }
+
+    @Test("Every change names a session and a length of time")
+    func saysWhatAndHowLong() {
+        for line in everyChange {
+            #expect(line.lowercased().contains("session"),
+                    Comment(rawValue: "a change named no session: \(line)"))
+        }
+    }
+}

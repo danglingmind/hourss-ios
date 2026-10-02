@@ -169,6 +169,22 @@ enum ExperimentCopy {
 
     /// The one change, concrete enough that a person knows whether they did it.
     ///
+    /// **"Session", never "block".** These said "block" for a long time, and the word
+    /// appears nowhere else in this app: every other surface says sessions — "11h
+    /// 20m logged across 5 sessions", "your morning sessions have felt more
+    /// energizing". A reader met it for the first time in the one sentence they were
+    /// being asked to act on, and the owner had to ask what it meant. One name per
+    /// thing, and the name is the one the rest of the app already uses.
+    ///
+    /// **"Log", not "put".** "Put one block on a day off" does not say whether
+    /// somebody is being asked to do something or to record something. It is both,
+    /// and the measurable half is the record: adherence counts days carrying a rated
+    /// session, so a day nobody logged did not happen as far as the window is
+    /// concerned. The verb now says that.
+    ///
+    /// **"For two weeks", not "this fortnight".** Same length, plainer word, and it
+    /// reads correctly beside the drawn window's four.
+    ///
     /// Nil where nothing honest can be asked, which is not a gap to be filled: the
     /// shapes that return nil here are the ones `ExperimentDesign` documents as
     /// untestable, and inventing a change for them would be asking somebody to do
@@ -215,13 +231,13 @@ enum ExperimentCopy {
         let label = focusLabel
         switch type {
         case .bestTimeWindow:
-            return "Put one block in your \(label.lowercased()) on most days this fortnight."
+            return "Log one session in your \(label.lowercased()) on most days, for two weeks."
 
         case .durationSweetSpot:
-            return "End one block at the \(label.lowercased()) mark on most days this fortnight."
+            return "Let one session run to the \(label.lowercased()) mark on most days, for two weeks."
 
         case .activityEnergizer:
-            return "Give \(label) a block of its own on most days this fortnight."
+            return "Give \(label) a session of its own on most days, for two weeks."
 
         // Responsive scheduling, and the distinction that keeps it legal: this asks
         // somebody to choose *when* to put a block, never to change the reading. A
@@ -242,18 +258,18 @@ enum ExperimentCopy {
             // being moved is the same thing, and only the measurement differs. Two
             // wordings for one act would be the drift this file exists to prevent.
             if outcome == .heartRateResidual {
-                return "Give \(label) a block of its own on most days this fortnight. "
+                return "Give \(label) a session of its own on most days, for two weeks. "
                     + "This one is read from your heart rate, so it needs no ratings."
             }
             guard let metric else { return nil }
-            return "On a day \(metric.higherPhrase), put your bigger block in."
+            return "On a day \(metric.higherPhrase), do your longest session then."
 
         // Responsive scheduling again, and the same distinction. Which days are
         // workdays cannot be moved; what goes on them can. The focus side of this
         // hypothesis is the days off, so putting a block there adds days to the
         // group being measured exactly as every other change does.
         case .workdayContrast:
-            return "Put one block on each of your days off this fortnight."
+            return "Log one session on each of your days off, for two weeks."
 
         // Filter 2, not filter 3: adherence counts days gained on the focus side,
         // so there is no way to test doing less of something by doing more of it.
@@ -293,15 +309,15 @@ enum ExperimentCopy {
         let label = focusLabel.lowercased()
         switch type {
         case .bestTimeWindow:
-            return "Put one block in your \(label) on each of the days picked for you, "
+            return "Log one session in your \(label) on each of the days picked for you, "
                 + "and not on the rest."
 
         case .durationSweetSpot:
-            return "End one block at the \(label) mark on each of the days picked for you, "
+            return "Let one session run to the \(label) mark on each of the days picked for you, "
                 + "and not on the rest."
 
         case .activityEnergizer:
-            return "Give \(focusLabel) a block of its own on each of the days picked for you, "
+            return "Give \(focusLabel) a session of its own on each of the days picked for you, "
                 + "and not on the rest."
 
         // Nil, and the cases are named rather than defaulted so that admitting a

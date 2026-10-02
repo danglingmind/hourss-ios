@@ -98,7 +98,8 @@ struct ExperimentDesignTests {
         #expect(change != nil)
         // It asks when to put a block, never that the reading should change.
         let lowered = try! #require(change).lowercased()
-        #expect(lowered.contains("put your bigger block"))
+        // The ask is about which session, never about the reading.
+        #expect(lowered.contains("longest session"))
         #expect(!lowered.contains("sleep more"))
         #expect(!lowered.contains("sleep longer"))
     }
