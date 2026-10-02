@@ -382,12 +382,37 @@ the only phase that moves the honest claim closer to cause.
 Phase 1 is the commitment. 2 and 3 are the brief's day-one half. 4 is the upgrade
 that makes the evidence real rather than merely honest.
 
+### Where this actually got to
+
+Four things moved from the plan during the build, each recorded where it bites
+rather than only here:
+
+- **`workdayContrast` was excluded for the wrong reason**, leaving `balance` with
+  no experiment at all. Its focus side is the days off, so "put one block on each
+  of your days off" adds days to the measured group exactly as every other change
+  does. Every priority now reaches a change.
+- **Rung 2 arrives six days a side later than §4 first claimed**, because
+  `leadMinimumDays` can never bind under `Engine.findings`. That is what makes
+  phase 3 load-bearing rather than a nicety.
+- **A starter needed its own `Standing`.** Filed as a lead it would have been a
+  value violating the invariant `standing(of:)` enforces, and would eventually have
+  printed "across 0 days" on a card.
+- **A lead's premise needed two forms.** "So far" is honest at four days and a lie
+  at forty-seven, and leads reach forty-seven because they accrue evidence without
+  ever clearing the gates.
+
 ---
 
 ## 16. Implementation checklist
 
-**Progress:** steps 1–9 built and passing (456 unit tests, 102s, iPhone 17 Pro).
-Nothing committed yet.
+**Progress:** phases 1, 2 and 3 are built and shipped; phase 4 is in progress.
+All 27 steps below are done except **22** — whether a settled result gets more
+room — which was answered later and differently: it got more room *and* a forest
+surface. 546 unit tests, 32 UI tests.
+
+**This line was stale for most of the build**, because the edit that should have
+moved it used a string replace with no assertion and silently did nothing. Every
+later edit to this file asserts its match for that reason.
 
 Sequenced so every step is verifiable before the next depends on it. Steps 1–12
 are **shared by phases 1 and 2** and have no fork in them.

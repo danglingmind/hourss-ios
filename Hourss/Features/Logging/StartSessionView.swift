@@ -10,6 +10,9 @@ struct StartSessionView: View {
     @Environment(HourssStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// For the preset chips' unselected fill, which was a literal and is now the
+    /// same token the activity rows forty points above them use.
+    @Environment(\.surface) private var surface
 
     enum Mode: Hashable { case now, past }
 
@@ -212,7 +215,7 @@ struct StartSessionView: View {
                 .foregroundStyle(isSelected ? Color.ink : Color.muted)
                 .frame(maxWidth: .infinity)
                 .frame(height: Space.tapTarget)
-                .blockSurface(isSelected ? Color.lime : Color.ink.opacity(0.05))
+                .blockSurface(isSelected ? Color.lime : surface.track)
                 .contentShape(.rect)
                 .animation(Motion.content(reduced: reduceMotion), value: isSelected)
         }

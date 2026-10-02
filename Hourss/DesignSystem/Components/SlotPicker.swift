@@ -212,7 +212,13 @@ struct SlotStepper: View {
                 .font(.custom("DMSans-Medium", fixedSize: 22))
                 .foregroundStyle(surface.foreground)
                 .frame(width: Space.tapTarget, height: Space.tapTarget)
-                .blockSurface(Color.ink.opacity(0.05))
+                // `surface.track`, not a literal. `Surface.swift` exists so that
+                // nothing hardcodes a pairing the design system did not sanction,
+                // and this was 0.05 against the 0.08 the same sheet's activity rows
+                // use — three percent apart, forty points above each other, which is
+                // a difference nobody chose. It also broke on a forest surface, the
+                // failure a token prevents by construction.
+                .blockSurface(surface.track)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
