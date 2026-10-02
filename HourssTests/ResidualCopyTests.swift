@@ -13,9 +13,14 @@ import SwiftUI
 /// only way to make a value any surface can render, so the gate is tested once
 /// here rather than at every call site, which is the point of putting it there.
 ///
-/// **The register.** `Outcome.heartRateResidual.higherIsBetter` is nil on
-/// purpose: a heart rate above what movement explains is not "bad", and calling
-/// it so would be a medical claim. `Physiology` says the same about its own
+/// **The register.** A heart rate above what movement explains is not "bad", and
+/// calling it so would be a medical claim. That is why `OutcomeDirection` resolves
+/// a direction only from somebody's own confirmed calibration, and why *none of
+/// it reaches this copy*: these strings are shown for a single session, with no
+/// calibration necessarily behind them, and what a direction licenses is acting on
+/// claims about which sessions were which — never a verdict on the number itself.
+/// So the sweep below is unchanged by direction existing, and must stay that way.
+/// `Physiology` says the same about its own
 /// output — never stress, intensity, effort, or emotion — and `PhysiologyTests`
 /// already sweeps the movement contexts for exactly that. This is the same sweep
 /// one layer up, over the copy a person actually receives, because the layer
@@ -139,9 +144,10 @@ struct ResidualCopyTests {
                 "residual copy must not imply a cause: \"\(banned)\" in \"\(words)\""))
         }
 
-        // A direction is allowed to be a direction and nothing else. There is no
-        // good end of this scale — `Outcome.heartRateResidual.higherIsBetter` is
-        // nil — so a verdict here is a medical opinion, not a turn of phrase.
+        // A direction is allowed to be a direction and nothing else. Which end of
+        // this scale is the good one is a question only somebody's own calibration
+        // can answer, and it is not answered here — a verdict in this copy is a
+        // medical opinion, not a turn of phrase.
         for verdict in ["better", "worse", "good", "bad", "great", "poor",
                         "harder", "easier", "healthy", "unhealthy",
                         "recovery", "recovered", "elevated", "spike"] {

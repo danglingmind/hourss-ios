@@ -176,6 +176,27 @@ struct ExperimentSlotTests {
         #expect(copy(.cannotTell).caveat == nil)
     }
 
+    /// Every experiment sentence lives in `ExperimentCopy` so that one sweep finds all
+    /// of them. This one was authored inside a view body, where no sweep could see it.
+    @Test("The settled card's spoken label comes from the copy file")
+    func theSpokenLabelIsNotAuthoredInTheView() {
+        var e = Experiment(
+            hypothesisId: "h", outcome: .feeling, startedAt: Date(),
+            focusLabel: "Morning", baselineLabel: "Rest",
+            premise: "p", change: "Put one block in your morning.", caveat: "v")
+        e.settlement = Experiment.Settlement(
+            verdict: .heldUp, adherenceDays: 9, baselineDays: 12,
+            focusFigure: 4.2, baselineFigure: 3.4, delta: 0.4,
+            intervalLow: 0.1, intervalHigh: 0.7, settledAt: Date())
+        let copy = ObservationSlot.copy(for: .settledExperiment(id: e.id), experiment: e)
+
+        // The spoken label is what it always was, to the character. Moving a string
+        // into the sweep is not licence to reword what VoiceOver says.
+        #expect(ExperimentCopy.testedPrefix == "You were testing:")
+        #expect(copy.accessibilityLabel.contains(
+            "\(ExperimentCopy.testedPrefix) Put one block in your morning."))
+    }
+
     @Test("The active card counts what happened and never sets a deadline")
     func activeCardCounts() {
         let e = Experiment(

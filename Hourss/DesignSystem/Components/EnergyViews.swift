@@ -315,9 +315,16 @@ struct SessionResidual: Equatable {
 /// here, so there is one vocabulary to hold to the rules rather than two.
 ///
 /// **What may not be said, and why it is not a matter of taste.**
-/// `Outcome.heartRateResidual.higherIsBetter` is nil on purpose: a heart rate
-/// above what movement explains is not "bad", and calling it so would be a
-/// medical claim this app is not equipped or licensed to make. `Physiology`
+/// A heart rate above what movement explains is not "bad", and calling it so would
+/// be a medical claim this app is not equipped or licensed to make.
+///
+/// **A calibration does not change that, and the distinction matters here.** The
+/// engine can now learn, from somebody's own ratings, which way their residual
+/// travels with their better sessions — see `PRD-CALIBRATION.md` — and that
+/// direction licenses *acting on claims about sessions*. It licenses nothing about
+/// the number on this card. The direction is also per person and only exists once
+/// their own calibration has confirmed, while this card is drawn for anybody with a
+/// single scored session, so there is usually no direction behind it at all. `Physiology`
 /// states the same rule about its own output — "a number and a movement context,
 /// never a judgement; nothing here may state or imply stress, intensity, effort,
 /// or emotion". So the only direction words available are the bare ones: above,

@@ -228,7 +228,44 @@ enum Engine {
         for (index, finding) in ranked.enumerated() {
             corrected[finding].survivesCorrection = index + 1 <= cutoff
         }
-        return corrected
+        return resolvingDirection(in: corrected)
+    }
+
+    // MARK: - Direction
+
+    /// Stamp every finding with which way round "better" is for this person.
+    ///
+    /// Called from the tail of the correction rather than offered as a step
+    /// callers add, and that placement is the decision worth defending.
+    ///
+    /// It cannot run earlier. The direction comes from the calibration finding and
+    /// only a *confirmed* calibration directs anything, which means
+    /// `Finding.isReportable`, which reads `survivesCorrection` — nil until the
+    /// correction has run. So the correction is the earliest point an answer
+    /// exists.
+    ///
+    /// It should not run later. `Engine.applyingCorrection(to:
+    /// Engine.findings(for:))` is the idiom at every one of the six places that
+    /// test hypotheses — the feed, the recommendations, the proposals, the slot,
+    /// the interactions and Patterns — and a separate step is a step one of them
+    /// forgets. Forgetting it does not fail loudly: the finding simply carries
+    /// `.uncalibrated` and every physiology claim goes quietly undirected on that
+    /// one surface, which is the shape of bug this codebase has shipped before and
+    /// is the reason `physiologyReadings` is applied in exactly one place too.
+    ///
+    /// **The calibration is corrected with everything else, as one more
+    /// candidate.** It costs the other hypotheses a little power under
+    /// Benjamini–Hochberg and that is the correct price. Exempting it so it cleared
+    /// more easily would be routing around the engine's own guardrail from the
+    /// inside, on the single claim everything else now depends on.
+    static func resolvingDirection(in findings: [Finding]) -> [Finding] {
+        let direction = OutcomeDirection.resolved(from: findings)
+        var out = findings
+        // Stamped unconditionally, including when it resolves to `.uncalibrated`.
+        // Skipping that case would leave a stale direction in place on a second
+        // pass over findings whose calibration has since stopped holding.
+        for index in out.indices { out[index].direction = direction }
+        return out
     }
 
     // MARK: - Confidence
@@ -343,8 +380,11 @@ enum Engine {
     /// A hypothesis declares the positive pole of a matched pair; the evidence
     /// decides which of the two it turned out to be.
     private static func resolvedType(for finding: Finding) -> InsightType {
+        // The resolved direction, not the outcome's — which no longer has one. For
+        // a rating this is unchanged; for a residual it is nil until this person's
+        // own calibration has confirmed.
         guard finding.comparison.delta < 0,
-              finding.hypothesis.outcome.higherIsBetter == true,
+              finding.higherIsBetter == true,
               let opposite = finding.hypothesis.type.oppositeDirection else {
             return finding.hypothesis.type
         }

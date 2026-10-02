@@ -357,7 +357,12 @@ enum DebugFixture {
                 .filter(\.isDailyContext)
                 .map { ($0, seededDaily(for: $0)) }
         ))
-        store.applyPhysiology(feed: seededFeed())
+        // The feed is told which windows were rated and what they were rated, so
+        // the residual it produces has something for the calibration to find. See
+        // `seededFeed`. On day one there is nothing logged, so this is empty and
+        // the feed is the plain noise it always was.
+        store.applyPhysiology(feed: seededFeed(ratedWindows: ratedWindows(
+            sessions: store.sessions, reflections: store.reflections)))
 
         store.rebuildInsights()
 
@@ -550,11 +555,71 @@ enum DebugFixture {
     }
 
 
+    /// One logged window and what the person said about it, for the single purpose
+    /// of linking the seeded heart rate to the seeded rating.
+    struct RatedWindow {
+        let start: Date
+        let end: Date
+        let feeling: Int
+    }
+
+    /// The rated, pattern-eligible windows among a set of sessions.
+    static func ratedWindows(sessions: [Session],
+                             reflections: [UUID: Reflection]) -> [RatedWindow] {
+        sessions.compactMap { session in
+            guard session.isEligibleForPatterns,
+                  let end = session.endAt,
+                  let feeling = reflections[session.id]?.feelingScore
+            else { return nil }
+            return RatedWindow(start: session.startAt, end: end, feeling: feeling)
+        }
+    }
+
     /// Deterministic physiology for simulator builds, which have no Health data at
     /// all. Never reachable on a device: see the note in `HealthService.refresh()`
     /// about what happens when invented values are presented back to somebody as
     /// their own history.
-    static func seededFeed(days: Int = 60, now: Date = Date()) -> Physiology.Feed {
+    ///
+    /// ## Why the ratings reach in here
+    ///
+    /// **Without `ratedWindows`, the calibration cannot be reached in the
+    /// simulator.** The heart rate below is noise plus occasional walking bouts and
+    /// the ratings come from `rating(activity:hour:)`, so the two are independent by
+    /// construction — the residual is unrelated to how anything felt, no
+    /// calibration confirms, `OutcomeDirection` stays `.uncalibrated`, and the
+    /// entire `physiology.*` family stays exactly as unreachable as it was before
+    /// direction existed. Nobody could look at the thing that was built. Seeding
+    /// Health was the difference between three features being visible here and
+    /// being invisible, and a card nobody can get to is a card nobody reviews.
+    ///
+    /// So a rated window's samples carry an offset read off its own rating: a
+    /// session the person rated draining runs above what their curve predicts, one
+    /// they rated energizing runs below it. The direction that falls out is
+    /// therefore "higher is worse", and it falls out of the planted data rather
+    /// than being written down — nothing here sets `residualHigherIsBetter`, and
+    /// the calibration has to clear the interval gate and the correction on this
+    /// history like any other claim.
+    ///
+    /// Two things this is not:
+    ///
+    /// - **Not imputation.** Nothing is scored from a rating and fed back as an
+    ///   outcome. This is a *generator* making up a person's heart rate, which is
+    ///   the one thing in this file that is allowed to make anything up, and it is
+    ///   `#if DEBUG` for that reason.
+    /// - **Not a planted conclusion.** The link is deliberately strong — three and
+    ///   a half beats per rating point — because the alternative is a fixture where
+    ///   the chain is reachable only by luck, and a demo that depends on luck is a
+    ///   demo that is broken half the time. The verdict is still whatever the
+    ///   engine makes of it.
+    ///
+    /// The offset lands on individual samples rather than on the computed residual,
+    /// so it is diluted exactly as a real effect would be: the curve's own baseline
+    /// for an hour band is fitted over every 30-minute tile in that band, logged or
+    /// not, so the tiles inside a session move the baseline they are measured
+    /// against. The residual that survives is smaller than the offset, which is
+    /// correct and is why the offset is not subtle.
+    static func seededFeed(days: Int = 60, now: Date = Date(),
+                           ratedWindows: [RatedWindow] = []) -> Physiology.Feed {
         var state: UInt64 = 0x484F5552 &* 6364136223846793005 &+ 1442695040888963407
         func next() -> Double {
             state ^= state << 13
@@ -568,8 +633,29 @@ enum DebugFixture {
         var heartRate: [Physiology.Sample] = []
         var steps: [Physiology.Sample] = []
 
-        for offset in 0..<days {
-            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+        // Grouped by day so the inner loop scans a handful of windows rather than
+        // every window of the whole history — eleven thousand samples against a
+        // hundred and fifty windows is a cost nothing here needs to pay.
+        let windowsByDay = Dictionary(grouping: ratedWindows) {
+            calendar.startOfDay(for: $0.start)
+        }
+
+        /// Beats per minute a rated window runs away from this person's own curve.
+        ///
+        /// Centred on the middle of the scale, so the planted effect is a *spread*
+        /// around their usual rather than a shift of the whole history — a history
+        /// where every rated session ran high would simply move the baseline the
+        /// residual is measured against and plant nothing at all.
+        func offset(at instant: Date, on day: Date) -> Double {
+            guard let windows = windowsByDay[day] else { return 0 }
+            for window in windows where instant >= window.start && instant < window.end {
+                return Double(3 - window.feeling) * 3.5
+            }
+            return 0
+        }
+
+        for dayOffset in 0..<days {
+            guard let day = calendar.date(byAdding: .day, value: -dayOffset, to: today) else { continue }
             for minuteOfDay in stride(from: 7 * 60, to: 23 * 60, by: 5) {
                 let at = day.addingTimeInterval(Double(minuteOfDay) * 60)
                 let hour = Double(minuteOfDay) / 60
@@ -580,6 +666,12 @@ enum DebugFixture {
                     stepped += bout
                     bpm += bout / 30
                 }
+                // Added after the bout, so a window that was walked keeps its
+                // movement explanation and the offset sits on top of it. Added to
+                // the heart rate only: the steps are untouched, because a planted
+                // effect that moved the cadence too would be explained away by the
+                // curve, which is the whole job of the curve.
+                bpm += offset(at: at, on: day)
                 heartRate.append(Physiology.Sample(at: at, value: bpm))
                 steps.append(Physiology.Sample(at: at, value: stepped))
             }

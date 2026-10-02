@@ -181,7 +181,8 @@ enum ExperimentCopy {
     static func change(for finding: Finding) -> String? {
         change(type: finding.publishedType,
                focusLabel: finding.hypothesis.focusLabel,
-               metric: metric(of: finding))
+               metric: metric(of: finding),
+               outcome: finding.hypothesis.outcome)
     }
 
     /// Which Health metric a finding split on, or nil for a finding that split on
@@ -204,7 +205,13 @@ enum ExperimentCopy {
     /// anywhere: the measured path and the day-one path would be proposing the same
     /// fortnight in two voices, and only one of them would be swept by whichever
     /// test somebody wrote first.
-    static func change(type: InsightType, focusLabel: String, metric: HealthMetric?) -> String? {
+    /// - Parameter outcome: what the window will be measured on. Defaulted, because
+    ///   every change written before phase 3 was measured on a rating and none of
+    ///   their call sites should have to say so. It matters for exactly one case:
+    ///   `physiology.*` and a health association both publish as `.bodyContext`, and
+    ///   the outcome is the only thing that tells them apart.
+    static func change(type: InsightType, focusLabel: String, metric: HealthMetric?,
+                       outcome: Outcome = .feeling) -> String? {
         let label = focusLabel
         switch type {
         case .bestTimeWindow:
@@ -221,6 +228,23 @@ enum ExperimentCopy {
         // version of this that said "sleep longer" would be advice the data does not
         // reach, and the app does not give it.
         case .sleepContext, .bodyContext:
+            // A physiology claim rather than a health association. Both publish as
+            // `.bodyContext`; only the outcome separates them.
+            //
+            // **The lever is the activity and the measurement is the watch.** This
+            // is the only experiment in the app that needs nobody to rate anything —
+            // adherence counts days carrying a residual, not days carrying a rating —
+            // and that is worth saying before somebody accepts it, because it is the
+            // one offer here that asks less of them rather than more. Saying it also
+            // stops the result arriving in bpm as a surprise.
+            //
+            // The change itself is `activityEnergizer`'s, deliberately: the thing
+            // being moved is the same thing, and only the measurement differs. Two
+            // wordings for one act would be the drift this file exists to prevent.
+            if outcome == .heartRateResidual {
+                return "Give \(label) a block of its own on most days this fortnight. "
+                    + "This one is read from your heart rate, so it needs no ratings."
+            }
             guard let metric else { return nil }
             return "On a day \(metric.higherPhrase), put your bigger block in."
 
@@ -471,8 +495,8 @@ enum ExperimentCopy {
     /// change was the reason, because a concurrent control over one fortnight does
     /// not reach that and the caveat shown beside this says so.
     static func result(for experiment: Experiment, settlement: Experiment.Settlement) -> String {
-        let focus = figure(settlement.focusFigure)
-        let baseline = figure(settlement.baselineFigure)
+        let focus = figure(settlement.focusFigure, outcome: experiment.outcome)
+        let baseline = figure(settlement.baselineFigure, outcome: experiment.outcome)
 
         // A drawn window says what it is allowed to say and nothing more.
         //
@@ -621,6 +645,29 @@ enum ExperimentCopy {
         // Reached when the hypothesis has left the registry — the activity it named
         // may have been deleted. Says so without blaming the window.
         return "This one can no longer be read against your record."
+    }
+
+    /// A figure, in the unit the thing being measured is actually in.
+    ///
+    /// **A residual is bpm and a rating is not.** Everything in this file was
+    /// written when the only measured outcome was a feeling, where a bare "4.2"
+    /// against "3.4" reads correctly because the scale is understood. A residual
+    /// experiment settles at "4.2" meaning four and a bit beats above this person's
+    /// usual, and printed bare beside a sentence about days it reads as a rating —
+    /// a different quantity on a different scale, out by a factor nobody can see.
+    ///
+    /// The residual is also signed: below usual is a real and different answer from
+    /// above it, and dropping the sign would merge them.
+    private static func figure(_ value: Double, outcome: Outcome) -> String {
+        switch outcome {
+        case .feeling, .performance:
+            return figure(value)
+        case .heartRateResidual:
+            let magnitude = String(format: "%.1f", abs(value))
+            if abs(value) < 0.05 { return "your usual" }
+            return value > 0 ? "\(magnitude) bpm above your usual"
+                             : "\(magnitude) bpm below your usual"
+        }
     }
 
     /// One decimal, because the scale has five points and a second decimal would

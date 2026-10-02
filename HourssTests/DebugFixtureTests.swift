@@ -26,6 +26,50 @@ struct DemoDataTests {
                 "\(store.insights.count) were computed and none survived the bands"))
     }
 
+    /// Checklist item 13, and the one assertion in this file that is about a *chain*
+    /// rather than about a screen.
+    ///
+    /// A direction is nil until somebody's own calibration confirms, so on a
+    /// fixture whose heart rate and whose ratings are unrelated — which is what the
+    /// seeded feed was — the whole `physiology.*` family stays exactly as
+    /// unreachable as it was before direction existed, and nobody can look at the
+    /// thing that was built. Three features have already shipped behind that hole
+    /// here, most recently one that looked broken because a real Health read was
+    /// wiping the fixture. A card nobody can get to is a card nobody reviews.
+    @Test("The fixture produces a confirmed calibration, so direction is reachable")
+    func fixtureCalibrates() throws {
+        let store = HourssStore(repository: InMemoryRecordRepository())
+        DebugFixture.seed(into: store)
+
+        let scored = store.engineObservations.filter { $0.heartRateResidual != nil }
+        #expect(scored.count >= 12, Comment(rawValue:
+            "only \(scored.count) of \(store.engineObservations.count) rows carry a residual; "
+                + "the calibration cannot be tested below twelve"))
+
+        let corrected = Engine.applyingCorrection(
+            to: Engine.findings(for: EngineInput(observations: store.engineObservations,
+                                                priorities: store.profile.priorities),
+                                resamples: 400))
+        let calibration = try #require(
+            corrected.first { $0.hypothesis.id == HypothesisRegistry.residualCalibrationId },
+            "the fixture never even tested the calibration")
+        #expect(calibration.isReportable, Comment(rawValue:
+            "the fixture's calibration did not confirm, so nothing downstream is directed: "
+                + "delta \(calibration.comparison.delta), interval "
+                + "[\(calibration.comparison.low), \(calibration.comparison.high)], "
+                + "days \(calibration.comparison.focusDays)/\(calibration.comparison.baselineDays), "
+                + "correction \(String(describing: calibration.survivesCorrection))"))
+
+        // Which way round it came out is the generator's planted link read back, not
+        // a number written down: a session rated draining runs above this person's
+        // own curve, so higher is worse for them.
+        #expect(calibration.direction.residualHigherIsBetter == false)
+        for finding in corrected where finding.hypothesis.outcome == .heartRateResidual {
+            #expect(finding.higherIsBetter == false, Comment(rawValue:
+                "\(finding.hypothesis.id) is still undirected after a confirmed calibration"))
+        }
+    }
+
     @Test("The fixture's observations carry real evidence")
     func demoInsightsAreWellFormed() {
         let store = HourssStore(repository: InMemoryRecordRepository())

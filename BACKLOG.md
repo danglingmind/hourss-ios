@@ -963,9 +963,26 @@ first, excluding active", and the fixture seeds a real history — a held-up, a
 did-not, a stopped and a cannot-tell, on four start dates, all but one already
 acknowledged.
 
-### Proposed
+### Calibration — built, with one thing left
 
-- **Calibrating the heart-rate residual.** See `PRD-CALIBRATION.md`. Layer 3
+All three phases of `PRD-CALIBRATION.md` are in. A confirmed, *visible* calibration
+directs that person's residual; `physiology.*` findings become recommendations and
+experiments; and a residual experiment is measured from the watch, so it needs no
+ratings at all.
+
+Still open:
+
+- **One more hypothesis costs everybody power**, including people who will never
+  have a residual to calibrate from — they pay a little under the correction for a
+  question that can never be asked of them. Measured rather than asserted by
+  `theCalibrationPaysForItself`. Nothing in the PRD addresses it and no fix was
+  invented.
+- **The fixture's planted link is strong on purpose** (3.5 bpm per rating point), so
+  `fixtureCalibrates` proves the chain is reachable, not that it is reachable on
+  realistically noisy data. A weaker plant would make the demo work half the time,
+  which is worse — but the test is less of a stress test than it looks.
+
+~~**Calibrating the heart-rate residual.**~~ See `PRD-CALIBRATION.md`. Layer 3
   computes a movement-adjusted residual for every session with enough samples, and
   `Outcome.heartRateResidual.higherIsBetter` is `nil` — correctly, since whether a
   raised heart rate is good is a medical opinion the app does not have. The

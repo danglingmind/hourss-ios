@@ -189,6 +189,23 @@ quantity is the residual rather than a rating — a test that needs no rating at
 for somebody who will never rate anything. The furthest this can go without a
 watch.
 
+**Built.** `ExperimentOutcome` already read `value(of:)` generically, so the
+measurement path needed nothing: adherence counts days carrying a residual rather
+than days carrying a rating, by construction. What was missing was all copy. Two
+things had to be written:
+
+- **A change.** Both `.bodyContext` arms went looking for a `HealthMetric`, and a
+  physiology id's subject is an activity slug, so every newly-admitted claim
+  returned nil and was silently skipped — the gate opened onto nothing. The change
+  is `activityEnergizer`'s, deliberately: the thing being moved is the same thing
+  and only the measurement differs. It names the measurement, because this is the
+  one offer in the app that asks *less* of somebody rather than more.
+- **A unit.** Every figure in this file was written when the only outcome was a
+  rating, where a bare "4.2" reads correctly because the scale is understood. A
+  residual settling at 4.2 is beats above usual — a different quantity, out by a
+  factor nobody could see — and it is signed, so below usual is a real and
+  different answer from above it.
+
 ## 9a. Why these are not three parallel jobs
 
 Phases 1, 2 and 3 are a dependency chain in overlapping files, and it is worth
@@ -220,8 +237,16 @@ three different ends.
 ### Direction
 - [ ] **6.** `Outcome.higherIsBetter` moves from a static to a value resolved per
       run. Everything reading it today takes the resolved one.
-- [ ] **7.** Resolution requires `isReportable` — the correction included. A lead
-      directs nothing.
+- [x] **7.** Resolution requires `isReportable` — the correction included. A lead
+      directs nothing. **Amended during the build:** `isReportable` alone is the
+      wrong bar by exactly one condition. `Engine.run` additionally drops anything
+      whose confidence band is `.internalOnly`, and a finding can clear
+      `isReportable` and still land there — so a direction could be in force while
+      the sentence it rests on was nowhere on screen. That is a premise reorienting
+      every physiology claim somebody sees, which they were never shown and
+      therefore cannot disagree with. Everything else in this engine is built to be
+      arguable; this is the claim with the most resting on it. Resolution now
+      requires the visible band too.
 - [ ] **8.** Tests: an unconfirmed calibration leaves every physiology finding
       undirected; a confirmed one directs them all; a reversed one reverses them.
 - [ ] **9.** `Recommendations` and `ExperimentDesign` reach physiology findings once

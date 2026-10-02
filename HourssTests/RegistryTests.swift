@@ -129,6 +129,31 @@ struct RegistryTests {
         }
     }
 
+    /// The two invariants above, over a history that actually carries residuals.
+    ///
+    /// The cohort bridge sets `heartRateResidual` to nil for every row — the
+    /// generator predates layer 3 — so neither sweep has ever seen the physiology
+    /// family or the calibration. Without this, a hypothesis that collided with
+    /// another id or put a session on both sides of its own median would pass the
+    /// whole suite.
+    @Test("The id and disjointness invariants hold for the residual hypotheses too")
+    func residualHypothesesHoldTheInvariants() {
+        let rows = CalibrationTests.observations()
+        let hypotheses = HypothesisRegistry.hypotheses(for: rows)
+        let ids = hypotheses.map(\.id)
+        #expect(ids.count == Set(ids).count, Comment(rawValue:
+            "duplicate ids among \(ids.count): "
+                + "\(Dictionary(grouping: ids, by: { $0 }).filter { $0.value.count > 1 }.keys.sorted())"))
+        #expect(ids.contains(HypothesisRegistry.residualCalibrationId),
+                "a history full of rated residuals produced no calibration")
+
+        for hypothesis in hypotheses {
+            let overlap = rows.filter { hypothesis.focus($0) && hypothesis.baseline($0) }
+            #expect(overlap.isEmpty, Comment(rawValue:
+                "\(hypothesis.id) puts \(overlap.count) sessions on both sides"))
+        }
+    }
+
     @Test("The registry covers what the old engine covered, and generates the rest")
     func coversTheOldEngine() {
         let rows = Self.observations(for: SyntheticCohort.afternoonSlump)
@@ -434,8 +459,16 @@ struct RegistryTests {
                         "\(person.name): '\(word)' in \(insight.statement) / \(insight.caveat)"))
                 }
             }
+            // The day anchor is a rule about *daily* context: a metric is a property
+            // of the day, so a claim built on one has to sit on the day rather than
+            // on the person. The calibration shares the `bodyContext` type and is
+            // not a daily claim — it splits sessions inside a day — so it is
+            // anchored on the session instead, and exempted here by id rather than
+            // by hoping it never surfaces in a cohort that has no residuals.
+            let calibration = Engine.identity(of: HypothesisRegistry.residualCalibrationId)
             for insight in Engine.run(Self.input(for: person))
-            where insight.type == .sleepContext || insight.type == .bodyContext {
+            where (insight.type == .sleepContext || insight.type == .bodyContext)
+                && insight.id != calibration {
                 #expect(insight.statement.hasPrefix("On days "), Comment(rawValue:
                     "health claim not anchored on the day: \(insight.statement)"))
                 #expect(!insight.caveat.isEmpty, "health claim without a caveat")

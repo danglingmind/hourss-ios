@@ -385,7 +385,7 @@ extension Finding {
     /// it cites. If either copy changes, both must.
     var publishedType: InsightType {
         guard comparison.delta < 0,
-              hypothesis.outcome.higherIsBetter == true,
+              higherIsBetter == true,
               let opposite = hypothesis.type.oppositeDirection else { return hypothesis.type }
         return opposite
     }
@@ -442,9 +442,21 @@ enum Recommendations {
             $0.isReportable
                 && Confidence.band(Engine.confidence($0.comparison)) != .internalOnly
                 // An undirected outcome has no better side, so no action can be
-                // derived from it. A heart-rate residual is a measurement to show,
-                // never a thing to move a meeting for.
-                && $0.hypothesis.outcome.higherIsBetter != nil
+                // derived from it. A heart-rate residual used to be undirected
+                // always; now it is undirected until this person's own calibration
+                // has confirmed, and `Finding.direction` is where that answer lives.
+                // The measurement is still never a thing to move a meeting *for* —
+                // what a direction buys is the right to act on claims about the
+                // *sessions*, which is what `action(for:)` emits.
+                && $0.higherIsBetter != nil
+                // The calibration itself is not actionable and must not be
+                // offered. The only change it could suggest is a change to a heart
+                // rate, which this app does not suggest. It is excluded here rather
+                // than left to `action(for:)` returning nil, because that nil comes
+                // from a `HealthMetric(rawValue:)` lookup failing on the id's
+                // subject — an accident that happens to be right, which is not the
+                // same as a rule.
+                && $0.hypothesis.id != HypothesisRegistry.residualCalibrationId
         }
         guard !survivors.isEmpty else { return [] }
 
@@ -616,11 +628,42 @@ enum Recommendations {
                 ? "Your days off are where things have held up best."
                 : "Your workdays are where things have held up best."
 
+        // A physiology claim, which a confirmed calibration has just made reachable.
+        //
+        // **The lever is the activity, not the heart rate.** Nothing here may
+        // suggest raising or lowering a reading — the direction exists so claims
+        // about *sessions* can be acted on, and the only thing this finding names
+        // that somebody can move is which activity gets the block. So the sentence
+        // is about the activity and says where it sits relative to their own better
+        // sessions, which is what the calibration established and the only thing it
+        // established.
+        //
+        // No verdict on the number in either direction: "read closest to" and "read
+        // furthest from" are statements about where this activity falls among their
+        // own sessions, not about the heart rate being good, bad, high or low.
+        case _ where finding.hypothesis.outcome == .heartRateResidual:
+            let favourable = (finding.comparison.delta > 0) == (finding.higherIsBetter == true)
+            return favourable
+                ? "\(label) has read closest to your better sessions."
+                : "\(label) has read furthest from your better sessions."
+
         case .sleepContext, .bodyContext:
             // The claim is about which days go better, so the only thing it
             // supports is *when* to put a block. It cannot support telling anybody
             // to sleep more or move more, which would be advice the data does not
             // reach and the app is not allowed to give.
+            //
+            // The nil arm is no longer only a guard against a type with no metric.
+            // A confirmed calibration admits `physiology.<activity>` findings past
+            // the direction filter above for the first time, and their subject is
+            // an activity slug rather than a metric, so they land here and return
+            // nil. That is deliberate and it is where this phase stops: the
+            // instruction voice for a residual claim would have to be written twice
+            // — here and in `ExperimentCopy`, which is the one file in this app
+            // allowed to say "try" — and two wordings of one instruction is the
+            // drift that file exists to prevent. A directed physiology finding is
+            // therefore reachable by this filter and still produces no sentence,
+            // which is an honest nothing rather than a guessed something.
             guard let metric = HealthMetric(rawValue: Surprise.pattern(of: finding).subject) else { return nil }
             let better = finding.comparison.delta > 0 ? metric.higherPhrase : metric.lowerPhrase
             return "Your bigger blocks have held up best on days \(better)."

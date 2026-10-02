@@ -25,7 +25,7 @@ enum HypothesisRegistry {
     static func hypotheses(for observations: [EngineObservation]) -> [Hypothesis] {
         timeWindows() + activities(in: observations) + durations()
             + [workdayContrast()] + healthAssociations(in: observations)
-            + physiology(in: observations)
+            + physiology(in: observations) + residualCalibration(in: observations)
     }
 
     // MARK: - Physiology
@@ -33,13 +33,16 @@ enum HypothesisRegistry {
     /// One per activity, over the movement-adjusted heart-rate residual.
     ///
     /// The same machinery as every other question — the residual is a column, not
-    /// a special case. What differs is what may be said about it. A residual has
-    /// no good direction: `Outcome.heartRateResidual.higherIsBetter` is nil on
-    /// purpose, because a heart rate running above what movement explains is not a
-    /// verdict on anything. The phrasing below reports the number and the movement
-    /// context and stops there. Anything past that — intensity, stress, strain —
-    /// is a claim about a person's inner state that no wrist sensor can support,
-    /// and making it would change what this product legally is.
+    /// a special case. What differs is what may be said about it. A residual has no
+    /// good direction *the app knows*: `OutcomeDirection` answers that from this
+    /// person's own calibration or not at all, because a heart rate running above
+    /// what movement explains is not a verdict on anything. The phrasing below
+    /// reports the number and the movement context and stops there, and it does so
+    /// whether a calibration exists or not — what a direction licenses is acting on
+    /// claims about the *sessions*, never a word about the body. Anything past that
+    /// — intensity, stress, strain — is a claim about a person's inner state that
+    /// no wrist sensor can support, and making it would change what this product
+    /// legally is.
     ///
     /// These are only registered for activities that actually carry residuals.
     /// Most sessions have none: the window needs enough heart-rate samples, a
@@ -71,10 +74,123 @@ enum HypothesisRegistry {
                         + (higher ? "above" : "below") + " your usual for those hours, "
                         + movementPhrase(pace) + "."
                 },
-                caveat: "Heart rate moves with more than effort — a warm room, caffeine, or talking will do it.",
+                caveat: residualCaveat,
                 experiment: nil
             )
         }
+    }
+
+    /// The limit that travels with every claim resting on a heart-rate residual.
+    ///
+    /// One string, read by the physiology family and by the calibration below.
+    /// The calibration's outcome is a rating rather than a heart rate, but the
+    /// thing it splits on is the residual, so it inherits the residual's limit —
+    /// and inherits it verbatim rather than in a second wording. Two caveats about
+    /// one number is two places for one of them to drift into naming a cause, and
+    /// `ResidualCopyTests.caveatMatchesTheRegistry` already holds a third copy of
+    /// this sentence to this one.
+    static let residualCaveat =
+        "Heart rate moves with more than effort — a warm room, caffeine, or talking will do it."
+
+    // MARK: - Calibration
+
+    /// The one question whose answer is which way round a raised heart rate is for
+    /// this person.
+    ///
+    /// Named rather than spelled out at each use, because three other places have
+    /// to recognise exactly this question: `OutcomeDirection.resolved` reads its
+    /// direction, and `Recommendations` and `ExperimentDesign` both refuse to act
+    /// on it. Stable, like every id here, because insight identity rides on it.
+    static let residualCalibrationId = "residual.higher.vs.lower.\(Outcome.feeling.rawValue)"
+
+    /// Which way round a raised heart rate is, for this person.
+    ///
+    /// **The inversion against `physiology(in:)` is the whole mechanism.** That
+    /// family has the residual as the *outcome* and splits on activity; this has
+    /// the residual as the *split* and feeling as the outcome. Same number,
+    /// opposite role — and only this way round can answer "is a heart rate above my
+    /// usual a good sign or a bad one for me", which is the question
+    /// `Outcome.heartRateResidual` has no answer to and `OutcomeDirection` needs
+    /// one for.
+    ///
+    /// Everything else mirrors `healthAssociations`: the split is the person's own
+    /// median over rows carrying both halves of the comparison, the sides are their
+    /// own higher and lower and nobody else's, and the phrasing is anchored on the
+    /// higher side with the direction supplied by the evidence.
+    ///
+    /// Two things are deliberately *not* mirrored, both because a residual is per
+    /// session where `dayHealth` is per day:
+    ///
+    /// - **The median is over sessions, not days.** A day has no residual; two
+    ///   sessions on one afternoon have two of them. Collapsing them to a day
+    ///   would throw away the only thing this question has that the daily splits
+    ///   do not.
+    /// - **A day can land on both sides**, and that is the strongest property of
+    ///   the design rather than a flaw in it. `Statistics.compare` resamples whole
+    ///   days, so a drawn day carries its sessions into both arms, and everything
+    ///   that travels with a day — how much somebody slept, whether it was a
+    ///   workday, what kind of week it was — is held constant *inside* the
+    ///   comparison instead of being a confound the caveat has to apologise for.
+    ///   `CalibrationTests.comparesWithinDays` asserts it, against the
+    ///   health family as the control.
+    private static func residualCalibration(in observations: [EngineObservation]) -> [Hypothesis] {
+        // Rows that could contribute to the comparison at all: both the thing being
+        // split on and the thing being measured. A median taken over sessions
+        // nobody rated would split the data at a point no evidence sits on either
+        // side of — the same reason `healthAssociations` filters before taking one.
+        //
+        // The obvious next thought — score the unrated sessions from their own
+        // residual and feed those back as outcomes — is forbidden rather than
+        // merely unhelpful. It would test a hypothesis on numbers the app invented.
+        // The residual is already its own outcome in `physiology(in:)`; nobody
+        // guesses a rating.
+        let values = observations
+            .filter { $0.feeling != nil }
+            .compactMap(\.heartRateResidual)
+            .sorted()
+
+        // Four, the same floor `healthAssociations` uses: below that a median is a
+        // coin toss between two numbers.
+        //
+        // The twelve-residual floor `physiology(in:)` carries is deliberately not
+        // repeated here. It exists there to stop one hypothesis *per activity*
+        // being registered for a family that mostly has no data, and the cost it
+        // avoids is the power every other hypothesis loses under the correction.
+        // This is a single hypothesis whose binding constraint is `minimumDays`:
+        // six distinct rated days on each side of the median is already at least
+        // twelve rated sessions spread over at least twelve days, so the second
+        // guard would refuse nothing the engine does not already refuse.
+        guard values.count >= 4 else { return [] }
+        let median = values[values.count / 2]
+
+        return [Hypothesis(
+            id: residualCalibrationId,
+            type: .bodyContext,
+            outcome: .feeling,
+            focusLabel: "Above your usual",
+            baselineLabel: "Below your usual",
+            // `.nan` on both sides, so a session with no residual lands on
+            // neither: every comparison against nan is false. The same device
+            // `healthAssociations` uses for a day with no value for the metric, and
+            // what `sidesAreDisjoint` rests on.
+            focus: { ($0.heartRateResidual ?? .nan) >= median },
+            baseline: { ($0.heartRateResidual ?? .nan) < median },
+            phrase: { finding in
+                // Anchored on the higher side, exactly as the health associations
+                // are, with `direction` supplying which way it went. Written the
+                // other way round it would need an elliptical lower phrasing and
+                // would invite reading the heart rate itself as the good or bad
+                // thing, which is the one reading this claim must not support.
+                "Sessions where your heart rate ran above your usual have felt "
+                    + direction(finding) + " than your others."
+            },
+            caveat: residualCaveat,
+            // No experiment, and this is not an omission. A test of this claim
+            // would be a test of the heart rate itself, and nothing in this app may
+            // ever suggest raising or lowering one. `ExperimentDesign.isEligible`
+            // refuses this id outright for the same reason.
+            experiment: nil
+        )]
     }
 
     /// How much movement there was, in words. Descriptive only: the sentence has

@@ -265,16 +265,43 @@ enum ExperimentDesign {
             let candidates = Surprise.ranked(eligible.filter {
                 priority.insightTypes.contains($0.publishedType) && !used.contains($0.hypothesis.id)
             })
+            /// The most surprising of these that there is actually something to
+            /// propose about.
+            ///
+            /// Walking down the list rather than taking the head and giving up is
+            /// not a weakening — every entry here cleared `isEligible`, the same
+            /// gates, in the same order — it only skips candidates
+            /// `ExperimentCopy.change` has no change for. `Recommendations.build`
+            /// has always walked its list for exactly this reason.
+            ///
+            /// It matters now in a way it did not before. Until direction was
+            /// resolved per person, no `physiology.*` finding could clear
+            /// `isEligible` at all; a confirmed calibration admits them, and
+            /// `ExperimentCopy.change` reads a `HealthMetric` off the id's subject,
+            /// which for `physiology.deep-work.…` is an activity slug and so is
+            /// nil. Those findings also tend to *outrank* the health associations,
+            /// because the surprise table has no prior for them and has a strong
+            /// one for sleep. Taking the head and bailing would therefore let a
+            /// newly-admitted candidate claim a priority's slot and yield nothing,
+            /// silently costing that priority the proposal it used to get — an
+            /// unlock that makes the feature quieter.
+            func firstProposal(_ among: [Finding]) -> (finding: Finding, proposal: Proposal)? {
+                for candidate in among {
+                    if let proposal = proposal(from: candidate, priority: priority,
+                                               rank: rank, input: input) {
+                        return (candidate, proposal)
+                    }
+                }
+                return nil
+            }
+
             // A confirmed claim outranks a lead however surprising the lead is:
             // offering the weaker of two available tests would be choosing to know
             // less. Within a standing, surprise decides.
-            let chosen = candidates.first(where: { standing(of: $0) == .confirmed })
-                ?? candidates.first
-            guard let chosen,
-                  let proposal = proposal(from: chosen, priority: priority,
-                                          rank: rank, input: input) else { continue }
-            used.insert(chosen.hypothesis.id)
-            out.append(proposal)
+            guard let chosen = firstProposal(candidates.filter { standing(of: $0) == .confirmed })
+                ?? firstProposal(candidates) else { continue }
+            used.insert(chosen.finding.hypothesis.id)
+            out.append(chosen.proposal)
         }
         return out
     }
@@ -293,8 +320,23 @@ enum ExperimentDesign {
     /// Whether a finding could become a change at all. The three filters, in order
     /// of how much they remove.
     static func isEligible(_ finding: Finding) -> Bool {
+        // The calibration directs; it is never itself a thing to test. Its focus
+        // side is "sessions where your heart rate ran above your usual", so the only
+        // change that could add days to it is a change to a heart rate, and nothing
+        // in this app asks for one.
+        //
+        // Stated here as a rule rather than left to `ExperimentCopy.change`
+        // returning nil for want of a `HealthMetric`. That nil is an accident of how
+        // the metric is read off the id — it happens to be right, which is not the
+        // same as being a decision, and a refusal this important should be
+        // discoverable where the refusals live.
+        guard finding.hypothesis.id != HypothesisRegistry.residualCalibrationId else { return false }
+
+        // The resolved direction, which for a residual is nil until this person's
+        // own calibration has confirmed and `true` or `false` after. This is the
+        // filter that made the whole `physiology.*` family unreachable.
         guard experimentableTypes.contains(finding.publishedType),
-              finding.hypothesis.outcome.higherIsBetter == true
+              finding.higherIsBetter == true
         else { return false }
 
         // The focus side has to be the better side, because adherence is measured

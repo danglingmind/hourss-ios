@@ -291,9 +291,12 @@ enum DayContextCopy {
         // Whose baseline it is, and how much movement there was. Nothing about
         // the rating, and no direction word past "higher" and "lower" — the same
         // discipline this file already applies to `superlative`, for the harder
-        // version of the same reason: `Outcome.heartRateResidual.higherIsBetter`
-        // is nil because a heart rate above what movement explains is not "bad",
-        // and calling it so would be a medical claim rather than an opinion.
+        // version of the same reason: a heart rate above what movement explains is
+        // not "bad", and calling it so would be a medical claim rather than an
+        // opinion. A confirmed calibration gives the residual a direction *for that
+        // person*, and that licenses acting on claims about their sessions — never
+        // a verdict on the number this card prints, which is shown with no
+        // calibration necessarily behind it.
         case .residual(let residual):
             return ResidualCopy.sentence(residual)
         }
