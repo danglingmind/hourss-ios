@@ -963,6 +963,22 @@ first, excluding active", and the fixture seeds a real history — a held-up, a
 did-not, a stopped and a cannot-tell, on four start dates, all but one already
 acknowledged.
 
+### Proposed
+
+- **Calibrating the heart-rate residual.** See `PRD-CALIBRATION.md`. Layer 3
+  computes a movement-adjusted residual for every session with enough samples, and
+  `Outcome.heartRateResidual.higherIsBetter` is `nil` — correctly, since whether a
+  raised heart rate is good is a medical opinion the app does not have. The
+  consequence is that **no `physiology.*` finding can ever become a recommendation
+  or an experiment**: `Recommendations.build` filters on `higherIsBetter != nil` and
+  `ExperimentDesign.isEligible` requires `== true`. The app does the hardest
+  computation it has and then declines to use it.
+  Let the person's own ratings supply the direction — one hypothesis splitting on
+  their median residual with feeling as the outcome, mirroring `healthAssociations`.
+  It needs no watch app and no new data. It is also the only evidence in the app
+  that arrives **without a rating**, which is the constraint everything else keeps
+  running into.
+
 ### Known defects
 
 - **A real Health read used to overwrite a seeded fixture.** `applyHealthContext`
