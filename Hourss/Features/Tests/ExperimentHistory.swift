@@ -1,8 +1,8 @@
-import SwiftUI
+import Foundation
 
 /// What this person has tested, and what came of each one.
 ///
-/// **Why this screen exists.** A settled result claims Today's slot exactly once
+/// **Why the record exists.** A settled result claims Today's slot exactly once
 /// and acknowledging it gives the slot up — which is correct for the card and
 /// leaves nowhere to look afterwards. The record itself was never the thing
 /// missing: `Experiment` writes down what was agreed to *in the words it was
@@ -11,19 +11,26 @@ import SwiftUI
 /// screen that first showed it. Only the screen was missing, and until it exists
 /// nobody can reasonably run a third experiment, because the first two are gone.
 ///
-/// **Why it is on You and not on Patterns.** Patterns is mined evidence: the engine
-/// tested sixty hypotheses, the correction decided which of them survived, and
-/// every row there is recomputed from the sessions underneath it. An experiment is
-/// the opposite on both counts — one prediction fixed in writing before the window
-/// opened, and a figure deliberately frozen because re-deriving it next month
-/// against a rolling baseline would hand back a different number for a fortnight
-/// that has not changed. `BACKLOG.md` already refuses to let a settled experiment
-/// feed rung 4, on the grounds that mixing pre-registered and mined evidence inside
-/// one correction is exactly the confusion the correction exists to prevent; putting
-/// the two in one feed is that same confusion moved to the surface, where the person
-/// reading would be the one expected to keep them apart. You is where the app states
-/// what this person has *done* — its header already counts their sessions and their
-/// days — and a fortnight somebody agreed to and lived through belongs there.
+/// **Why it is reached from You and not from Patterns.** Patterns is mined evidence:
+/// the engine tested sixty hypotheses, the correction decided which of them
+/// survived, and every row there is recomputed from the sessions underneath it. An
+/// experiment is the opposite on both counts — one prediction fixed in writing
+/// before the window opened, and a figure deliberately frozen because re-deriving
+/// it next month against a rolling baseline would hand back a different number for
+/// a fortnight that has not changed. `BACKLOG.md` already refuses to let a settled
+/// experiment feed rung 4, on the grounds that mixing pre-registered and mined
+/// evidence inside one correction is exactly the confusion the correction exists to
+/// prevent; putting the two in one feed is that same confusion moved to the
+/// surface, where the person reading would be the one expected to keep them apart.
+/// You is where the app states what this person has *done* — its header already
+/// counts their sessions and their days — and a fortnight somebody agreed to and
+/// lived through belongs there.
+///
+/// **It is now one section of three rather than a screen of its own.** `TestsView`
+/// holds what is on offer, what is running and everything finished, because the
+/// three states of one feature living in three places meant none of them was the
+/// feature. Nothing below changed in the move: the record is still the only one of
+/// the three with a list in it, and every rule it keeps is a rule about this list.
 ///
 /// **What it must not become.** Nothing here is counted. There is no "two of three
 /// held up", no rate and no streak: `abandonExperiment` keeps no tally on purpose,
@@ -101,8 +108,6 @@ enum ExperimentHistory {
     /// how a true sentence becomes a false one when a second shape arrives.
     static let stoppedReport = ExperimentCopy.stoppedReport
 
-    static let emptyEyebrow = "Nothing tested"
-
     /// **No "yet" and no "soon".** `ObservationSlotView`'s own empty state sets the
     /// precedent and names the reason: for somebody who never accepts a proposal,
     /// "yet" is a promise in one syllable that the app cannot keep. So this states
@@ -110,7 +115,14 @@ enum ExperimentHistory {
     ///
     /// "Finished" rather than "run", because somebody mid-fortnight is standing in
     /// front of this screen with a test in progress and "you have not run a test"
-    /// would be false to them.
+    /// would be false to them — and now doubly so, because the running one is three
+    /// inches further up the same screen.
+    ///
+    /// **The eyebrow that used to sit above this is gone.** It read "Nothing tested",
+    /// which was the heading of a screen whose whole content was this absence. The
+    /// absence is one section of three now and the section has a heading of its own,
+    /// so the old one would have stacked a second 11pt mono line directly under the
+    /// first and said the same thing twice.
     static let emptyLead = "You have not finished a test."
 
     /// What a test is, so the empty screen is informative rather than apologetic —
@@ -141,7 +153,7 @@ enum ExperimentHistory {
     /// `ExperimentCopy.result`, `verdictTitle`, and the frozen change — are swept
     /// where they are written and are deliberately not re-swept here.
     static let authored = [stoppedStanding, stoppedReport,
-                           emptyEyebrow, emptyLead, emptySupport, footnote]
+                           emptyLead, emptySupport, footnote]
 
     // MARK: - Building the record
 
@@ -160,9 +172,12 @@ enum ExperimentHistory {
     /// What stops a stopped entry reading as a fourth verdict is that it says in
     /// plain words that it has no result, and that nothing anywhere counts these.
     ///
-    /// **A running experiment is out.** Today owns the active card and shows it every
-    /// day of the fortnight; a row with no outcome sitting at the top of a list of
-    /// outcomes would be the one entry here making a promise.
+    /// **A running experiment is out of this list, and is its own section now.** It
+    /// used to be excluded on the grounds that a row with no outcome at the top of a
+    /// list of outcomes would be the one entry here making a promise. That argument
+    /// is unchanged and is why the running test is drawn above the list rather than
+    /// in it: it has a heading saying what it is, it has no verdict slot to leave
+    /// blank, and nothing about it can be mistaken for a result.
     /// - Parameter experiments: already filtered and ordered by
     ///   `HourssStore.concludedExperiments`, which is where that rule lives now —
     ///   "newest first, excluding what is still running" is a statement about the
@@ -187,8 +202,8 @@ enum ExperimentHistory {
 
     private static func entry(for experiment: Experiment, calendar: Calendar) -> Entry {
         let ended = concluded(experiment, calendar: calendar)
-        let window = "\(short(experiment.startedAt)) – \(short(ended))"
-        let spokenWindow = "\(spoken(experiment.startedAt)) to \(spoken(ended))"
+        let window = "\(TestsScreen.short(experiment.startedAt)) – \(TestsScreen.short(ended))"
+        let spokenWindow = "\(TestsScreen.spoken(experiment.startedAt)) to \(TestsScreen.spoken(ended))"
 
         let standing: String
         let report: String
@@ -212,168 +227,5 @@ enum ExperimentHistory {
             // what any of them was about.
             accessibilityLabel: "\(experiment.change) \(standing). \(report) \(spokenWindow)."
         )
-    }
-
-    /// "14 Sep", the format the Journal rows and the evidence list already use.
-    private static func short(_ date: Date) -> String {
-        date.formatted(.dateTime.day().month(.abbreviated))
-    }
-
-    /// Spelled out for VoiceOver, which reads an abbreviated month as an
-    /// abbreviation.
-    private static func spoken(_ date: Date) -> String {
-        date.formatted(.dateTime.day().month(.wide))
-    }
-}
-
-// MARK: - The screen
-
-/// The record, as a ruled list.
-///
-/// **Not a column of forest cards, deliberately.** Today's settled result is filled
-/// because it is the rarest thing the app can show and appears exactly once;
-/// `ObservationSlotView` states the rule it is applying — a card that is emphatic
-/// every other week is just the house style, and a palette where four things are
-/// emphasised differently is a palette where nothing is. A list of settled results
-/// is by definition not rare, so three identical forest blocks would spend the
-/// app's one emphasis on its most predictable screen and say nothing by it. Worse,
-/// identical fills behind three different verdicts invite the fill to be read as a
-/// status colour it is not, and the moment a reader starts looking for the green
-/// ones the list has become a scoreboard.
-///
-/// **Space is the lever, as `DESIGN.md` nominated.** The separation between records
-/// is `Space.md` of vertical room inside each row rather than a second rule weight
-/// or a new colour — the two visual changes this project has reverted whole were a
-/// 2pt `SectionRule` and a full-bleed canvas, and the conclusion recorded after the
-/// first was that the lever is probably space. `HRule`, `Eyebrow`, `Space` and the
-/// existing type ramp are the whole of what this screen is built from.
-struct ExperimentHistoryView: View {
-    @Environment(HourssStore.self) private var store
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// Cheap enough to read in a body, unlike the Patterns lead section: this is a
-    /// filter and a sort over stored values and runs no engine, so there is nothing
-    /// here to cache and nothing a re-evaluation can cost.
-    private var entries: [ExperimentHistory.Entry] {
-        ExperimentHistory.entries(from: store.experiments)
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Space.lg) {
-                DisplayHeadline([
-                    Text("What you").styled(.sectionTitle),
-                    Text("tested.").styled(.emphasis(42)),
-                ], style: .sectionTitle)
-                .padding(.top, Space.md)
-
-                if entries.isEmpty {
-                    empty
-                } else {
-                    list
-                }
-            }
-            .pageGutter()
-            .padding(.bottom, Space.xl)
-        }
-        .background(Color.canvas)
-        .safeAreaInset(edge: .top, spacing: 0) { BackHeader(title: "You") }
-        .navigationBarBackButtonHidden()
-    }
-
-    private var list: some View {
-        let rows = entries
-        return VStack(alignment: .leading, spacing: 0) {
-            HRule()
-            ForEach(rows) { entry in
-                row(entry)
-                HRule()
-            }
-
-            Text(ExperimentHistory.footnote)
-                .textStyle(.label)
-                .foregroundStyle(Color.muted)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, Space.sm)
-        }
-        // The one state change this screen has: settling runs on returning to the
-        // foreground, so a window that closed while the phone was down adds a row
-        // under somebody already looking at the list. `content` is the token for a
-        // set of things being replaced rather than one object travelling, and
-        // Reduce Motion lands on the finished list with no transition at all.
-        .animation(Motion.content(reduced: reduceMotion), value: rows.count)
-        // `children: .contain` so the identifier resolves to a container. Without it
-        // the rows stay independent elements, the identifier lands on nothing a
-        // query can find, and a UI test reports the list absent while it is plainly
-        // on screen — the same trap `PatternsView`'s lead section documents.
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("experiment-history")
-    }
-
-    /// One record: what was tested, what happened, when.
-    ///
-    /// **The subject is on the top step and the verdict on the second.** Today's card
-    /// puts the verdict in the eyebrow and is right to — there is one card, the
-    /// person knows what they agreed to, and the answer is the only news. A list
-    /// inverts that: a column that opens every row with IT HELD UP / IT DID NOT HOLD
-    /// UP is a column of verdicts to be scanned and compared, which is a scoreboard
-    /// however carefully each one is worded. Leading with the change makes each row a
-    /// commitment with its outcome attached, which is what the record actually is —
-    /// and it is the same correction `EvidenceReadout` made on Patterns, where the
-    /// line named its subject four words after its figure.
-    ///
-    /// **All three verdicts are drawn by this one function.** There is no branch on
-    /// the verdict anywhere in this file: same eyebrow position, same type ramp, same
-    /// room, same order. The only thing that differs between a result that held up
-    /// and one that did not is the sentence, which is the distinction surviving
-    /// greyscale and VoiceOver both.
-    private func row(_ entry: ExperimentHistory.Entry) -> some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            Text(entry.subject)
-                .textStyle(.body)
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Eyebrow(entry.standing)
-                Text(entry.report)
-                    .textStyle(.body)
-                    .foregroundStyle(Color.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // 11pt mono — the register `HealthFactRow` names for metadata rather than
-            // for prose, which is what a date is.
-            Text(entry.window)
-                .textStyle(.label)
-                .foregroundStyle(Color.muted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, Space.md)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.accessibilityLabel)
-        .accessibilityIdentifier("history-row")
-    }
-
-    /// Somebody who has tested nothing.
-    ///
-    /// Three lines in the shape `stillLookingCopy` already uses — eyebrow, lead,
-    /// support — and no illustration. A placeholder drawing on this screen would be
-    /// decoration standing where a record goes, and the one true thing to say is
-    /// short enough to say.
-    private var empty: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            Eyebrow(ExperimentHistory.emptyEyebrow)
-            Text(ExperimentHistory.emptyLead)
-                .textStyle(.sectionLead)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(ExperimentHistory.emptySupport)
-                .textStyle(.label)
-                .foregroundStyle(Color.muted)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(ExperimentHistory.emptyLead) \(ExperimentHistory.emptySupport)")
-        .accessibilityIdentifier("experiment-history-empty")
     }
 }

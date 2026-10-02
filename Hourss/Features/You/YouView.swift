@@ -52,7 +52,7 @@ struct YouView: View {
             VStack(alignment: .leading, spacing: Space.lg) {
                 summary
 
-                recordSection
+                testsSection
 
                 VStack(spacing: 0) {
                     HRule()
@@ -107,35 +107,44 @@ struct YouView: View {
             case .privacy: PrivacyView()
             case .health: HealthConnectionView()
             case .account: AccountView()
-            case .tests: ExperimentHistoryView()
+            case .tests: TestsView()
             }
         }
     }
 
-    /// Where a finished test goes once Today has let go of it.
+    /// The way into the tests feature.
     ///
     /// **Its own group, above the settings list rather than inside it.** The five
     /// rows below are settings — things that change what the app does next. This one
-    /// is content, and the only row here that is: it opens a record of what this
-    /// person has already done. Dropping it into the same strip would make the strip
-    /// something other than what this screen's own note says it is, and the group
-    /// idiom for "a block that is not the settings list" already exists one section
-    /// down, in `membershipSection`.
+    /// is content, and the only row here that is: it opens what this person has been
+    /// offered, is running, and has already finished. Dropping it into the same strip
+    /// would make the strip something other than what this screen's own note says it
+    /// is, and the group idiom for "a block that is not the settings list" already
+    /// exists one section down, in `membershipSection`.
+    ///
+    /// **It used to be headed "Your record" and point at the record alone.** It now
+    /// points at `TestsView`, which holds all three states of a test, so the heading
+    /// had to stop naming only the last of them: somebody tapping a row headed "your
+    /// record" and landing on a screen that opens with what is on offer has been
+    /// shown something other than what was on the sign. `TestsView` carries the
+    /// argument for why the whole feature is reached from here rather than from a
+    /// sixth tab.
     ///
     /// **The detail describes the destination and states nothing.** Profile, Health
     /// and Account name live state because theirs is a single value worth seeing
     /// before the tap. A tally here would be the one number this feature refuses to
     /// compute — "two tests" is a step from "two tests, one held up" — and naming the
-    /// newest verdict would put a result in a second place and let the two drift. So
-    /// it reads like Preferences and Privacy do, which is the house form for a row
-    /// whose contents are a screen rather than a setting.
-    private var recordSection: some View {
+    /// newest verdict, or that something is on offer, would put a result or an offer
+    /// in a second place and let the two drift. So it names the three sections in
+    /// their order and nothing about their contents, which is the house form for a
+    /// row whose contents are a screen rather than a setting.
+    private var testsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow("Your record")
+            Eyebrow("Testing")
                 .padding(.bottom, Space.xs)
             HRule()
             NavigationLink(value: YouRoute.tests) {
-                SettingsRow(title: "Tests", detail: "What you tested, and what happened")
+                SettingsRow(title: "Tests", detail: "On offer, running, and finished")
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("row-tests")

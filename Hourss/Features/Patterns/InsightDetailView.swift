@@ -20,6 +20,14 @@ struct InsightDetailView: View {
     /// so that happens once per visit instead of once per redraw.
     @State private var proposal: ExperimentDesign.Proposal?
 
+    /// Whether the accept sheet is up.
+    ///
+    /// A bool rather than an optional proposal, because unlike Today and Patterns
+    /// this screen offers exactly one — `proposal` is already the only candidate,
+    /// so a second copy of it held for the presentation would be a second thing that
+    /// can disagree with the first.
+    @State private var isDeciding = false
+
     /// This claim's own experiment, where one has been agreed to.
     ///
     /// Matched by hashing each stored key rather than by storing the insight id
@@ -50,33 +58,25 @@ struct InsightDetailView: View {
             block(eyebrow: ExperimentCopy.verdictTitle(settlement.verdict),
                   text: ExperimentCopy.result(for: mine, settlement: settlement))
         } else if let mine, mine.phase == .active {
-            block(eyebrow: "You are testing this", text: mine.change)
+            block(eyebrow: ExperimentCopy.activeStanding, text: mine.change)
         } else if let proposal {
+            // One way in, and it decides nothing. This block used to carry both
+            // accepts and the drawn window's ask, set in 11pt mono at the bottom of
+            // a screen that already holds a claim, an arc, a session list and a
+            // caveat - which is the least likely place in the app for a paragraph
+            // asking for four weeks of particular days to be read. All three moved
+            // into `TestProposalSheet`, the same sheet Today and Patterns raise: one
+            // offer, one set of answers, one act.
             VStack(alignment: .leading, spacing: Space.xs) {
                 HRule()
                 Eyebrow(ExperimentCopy.eyebrow(for: proposal.standing))
                 Text(proposal.change)
                     .textStyle(.body)
                     .fixedSize(horizontal: false, vertical: true)
-                DirectionalLink(title: ExperimentCopy.startTitle, arrow: "→") {
-                    _ = store.acceptExperiment(proposal)
+                DirectionalLink(title: ExperimentCopy.openTitle, arrow: "→") {
+                    isDeciding = true
                 }
-                .accessibilityIdentifier("accept-experiment")
-
-                // The same second offer Today carries, for the same reason and with
-                // the same ask attached. A claim somebody opened the detail screen
-                // to read is if anything the likelier place to take the harder test.
-                if let ask = proposal.randomisedAsk {
-                    DirectionalLink(title: ExperimentCopy.randomiseTitle, arrow: "→") {
-                        _ = store.acceptRandomisedExperiment(proposal)
-                    }
-                    .accessibilityIdentifier("randomise-experiment")
-
-                    Text(ask)
-                        .textStyle(.label)
-                        .foregroundStyle(Color.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .accessibilityIdentifier("open-proposal")
             }
         }
     }
@@ -134,6 +134,13 @@ struct InsightDetailView: View {
             proposal = store.experimentProposals().first { $0.id == current.id }
         }
         .background(Color.canvas)
+        // Raised from here rather than from the block, so the sheet is not inside the
+        // `if` that stops drawing the offer the moment it is accepted.
+        .sheet(isPresented: $isDeciding) {
+            if let proposal {
+                TestProposalSheet(proposal: proposal)
+            }
+        }
         .navigationBarBackButtonHidden()
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 0) {

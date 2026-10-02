@@ -467,9 +467,10 @@ struct HealthDigest {
         guard strength > 0.08 else { return nil }
 
         let higherAtWeekends = weekendMean > weekdayMean
+        let size = contrastSize(strength, higher: higherAtWeekends)
         return Fact(
-            figure: "\(Int((strength * 100).rounded()))%",
-            sentence: "Your \(metric.plainName) reads \(Int((strength * 100).rounded()))% \(higherAtWeekends ? "higher" : "lower") at weekends.",
+            figure: size.figure,
+            sentence: "Your \(metric.plainName) reads \(size.phrase) at weekends.",
             kind: .contrast,
             mark: .comparison(
                 highLabel: higherAtWeekends ? "Weekends" : "Weekdays",
@@ -481,6 +482,35 @@ struct HealthDigest {
             subject: .health(metric),
             raised: higherAtWeekends
         )
+    }
+
+    /// How big a difference is, in the unit people actually use for that size.
+    ///
+    /// **A percentage stops meaning anything once it passes a double.** The weekend
+    /// contrast divides by the weekday mean, and for a metric that is near zero on
+    /// weekdays — workout minutes, mindful minutes, anything somebody only does at
+    /// the weekend — that ratio is unbounded. It produced "your workout time reads
+    /// 423% higher at weekends", which is arithmetically correct, reads as a broken
+    /// number, and tells nobody anything they could not have guessed.
+    ///
+    /// Nothing is capped or hidden: past a doubling the sentence switches to the
+    /// unit people say out loud. Nobody describes a tripling as 200% more. The line
+    /// is a doubling because that is where ordinary speech changes over, not because
+    /// a threshold was wanted.
+    /// - Returns: the figure for the card's own line, and the comparative phrase
+    ///   the sentence uses. Two values because the card shows a bare figure and the
+    ///   sentence needs it grammatical — "42% higher", but "about twice as high".
+    static func contrastSize(_ strength: Double, higher: Bool) -> (figure: String, phrase: String) {
+        // Only the higher side can run away. `strength` is the gap over the weekday
+        // mean, so when weekends read *lower* it cannot exceed 1 — the weekend mean
+        // would have to go below zero. A multiple is therefore always "as high".
+        guard higher, strength >= 1 else {
+            let percent = "\(Int((strength * 100).rounded()))%"
+            return (percent, "\(percent) \(higher ? "higher" : "lower")")
+        }
+        let times = strength + 1
+        if times < 2.5 { return ("2×", "about twice as high") }
+        return ("\(Int(times.rounded()))×", "about \(Int(times.rounded())) times as high")
     }
 
     /// The recent half against the earlier half — what has been changing.

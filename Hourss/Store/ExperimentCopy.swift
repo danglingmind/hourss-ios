@@ -383,7 +383,13 @@ enum ExperimentCopy {
     /// a measurement of somebody's own record, and a digit inside a caveat reads as
     /// one. The two lengths the app offers are named; anything else is a window a
     /// caller asked for and is reported as the count of days it is.
-    private static func span(_ windowDays: Int) -> String {
+    ///
+    /// Internal rather than private since the accept sheet's "how long" needs the
+    /// same two words the caveat uses. One spelling of a length, in one place: a
+    /// sheet that said "a fortnight" above a caveat saying "two weeks" would be two
+    /// vocabularies for one commitment, which is the drift this whole file is built
+    /// to stop.
+    static func span(_ windowDays: Int) -> String {
         switch windowDays {
         case Experiment.randomisedWindowDays: "four weeks"
         case Experiment.defaultWindowDays: "two weeks"
@@ -482,6 +488,32 @@ enum ExperimentCopy {
     /// for the next proposal, which is accurate — a decline is permanent for one
     /// hypothesis and for nothing else.
     static let declineTitle = "Not this one"
+
+    /// What a card's own control does now, which is open the sheet rather than start
+    /// anything.
+    ///
+    /// **A separate title because it is a separate act, and the old one had become a
+    /// lie.** `startTitle` used to sit on the card and begin a fortnight on one tap.
+    /// The card now offers only the reading, and a link still reading "Start this"
+    /// that opened a sheet would be the worst of both: a control whose words promise
+    /// a commitment and whose behaviour withholds it, so nobody would trust either.
+    ///
+    /// Deliberately not "Learn more" or "Details". Both are chrome words that say
+    /// nothing about what is behind them; this names the question somebody actually
+    /// has before agreeing to a fortnight.
+    static let openTitle = "See what this involves"
+
+    /// What saying no costs, in one line.
+    ///
+    /// Under the decline control rather than beside it, because it is the one thing
+    /// about this offer that cannot be undone and a permanent act with no stated
+    /// consequence is a trap. Two sentences: what stops, and what does not. The
+    /// second half is the half that makes the first safe to tap — `declineTitle`
+    /// says "Not this one" precisely because the refusal is for one question, and a
+    /// reader who thought they were switching the feature off would simply never
+    /// use it.
+    static let declineNote = "This one will not be offered again. Anything else that "
+        + "comes up still will."
     /// Plain, and deliberately not "Give up". Stopping is free and uncounted.
     static let stopTitle = "Stop this test"
     static let acknowledgeTitle = "Got it"
@@ -494,7 +526,7 @@ enum ExperimentCopy {
 
     /// Every control title, for the sweep.
     static let controlTitles = [startTitle, declineTitle, stopTitle, acknowledgeTitle,
-                                randomiseTitle]
+                                randomiseTitle, openTitle]
 
     /// The spoken lead-in to the change on a settled card.
     ///
@@ -502,6 +534,325 @@ enum ExperimentCopy {
     /// sentence in this feature is here: the guard sweep walks this file, and a string
     /// authored inside a `View` is a sentence no sweep can see. It was the last one.
     static let testedPrefix = "You were testing:"
+
+    /// The eyebrow over a window in progress.
+    ///
+    /// Here rather than in the three view bodies that drew it. It was authored in
+    /// `ObservationSlotView`, in `InsightDetailView` and — once the accept sheet
+    /// needed a confirmation — would have been authored a third time, which is three
+    /// chances for one phrase to drift and no sweep able to see any of them.
+    static let activeStanding = "You are testing this"
+
+    // MARK: - The accept sheet
+
+    /// Every sentence the accept sheet shows, assembled before anything draws it.
+    ///
+    /// **Why a value and not a view.** The sheet is the most consequential screen in
+    /// the app — it is where somebody agrees to spend a fortnight — and the thing
+    /// most likely to go wrong about it is not its layout but its words. A struct is
+    /// swept, diffed and asserted against; a `body` can only be looked at. This is
+    /// the same split `SlotCopy` makes for the band on Today and for the same
+    /// reason.
+    ///
+    /// **What is authored here and what is carried.** `change`, `premise`, `context`
+    /// and `limit` are the proposal's own strings and are reproduced untouched —
+    /// word for word what the card showed, because a sheet that rephrased the offer
+    /// would mean the thing somebody agreed to was not the thing they were shown.
+    /// Everything else is written here, and `authoredStrings` is what the copy sweep
+    /// walks.
+    struct ProposalSheet: Equatable {
+
+        /// One block: a heading and the lines under it, in reading order.
+        struct Section: Equatable {
+            let heading: String
+            let lines: [String]
+
+            /// What VoiceOver reads for the block.
+            ///
+            /// Heading first, so the subject arrives before anything else — the rule
+            /// `DESIGN.md` records as *Readouts name their subject first*, and the
+            /// reason no label here opens with a figure.
+            var spoken: String { ([heading] + lines).joined(separator: ". ") }
+        }
+
+        /// The second way to accept, with the paragraph that has to earn it.
+        struct Randomised: Equatable {
+            let title: String
+            let ask: String
+        }
+
+        /// What this rests on, in the card's own words. Stated at the top because a
+        /// lead that did not announce itself as a lead would be a claim.
+        let standing: String
+
+        /// Section 1. The change, and nothing with it — this is the sentence that
+        /// gets set large, and the only part there is anything to do about.
+        let whatYouWouldDo: Section
+        /// Section 2. What the app saw, with its numbers and its day count.
+        let whyThisOne: Section
+        /// Section 3. What was compared, and that it was compared with itself.
+        let howItDecided: Section
+        /// Section 4. All three verdicts, in the words the result will use.
+        let whatYouGet: Section
+
+        let howLong: Section
+        /// Nil for the one outcome whose measurement the change already names. See
+        /// `ExperimentCopy.whatIsMeasured(_:)`.
+        let whatIsMeasured: Section?
+        /// The hypothesis's own caveat, carried.
+        let limit: Section
+
+        let startTitle: String
+        /// Nil where the days cannot be drawn.
+        let randomised: Randomised?
+        let declineTitle: String
+        let declineNote: String
+
+        /// Strings this file is answerable for. The proposal's four carried
+        /// sentences are swept where they are built.
+        ///
+        /// Assembled with `append` rather than as one chain of `+`. The chained
+        /// version did compile and then stopped: eleven heterogeneous operands with
+        /// two optional unwraps among them is the shape that makes Swift's type
+        /// checker give up, and it gave up with a message about compile time rather
+        /// than about the expression.
+        var authoredStrings: [String] {
+            var out: [String] = [standing]
+            out.append(whatYouWouldDo.heading)
+            out.append(whyThisOne.heading)
+            out.append(howItDecided.heading)
+            out.append(contentsOf: howItDecided.lines)
+            out.append(whatYouGet.heading)
+            out.append(contentsOf: whatYouGet.lines)
+            out.append(howLong.heading)
+            out.append(contentsOf: howLong.lines)
+            if let measured = whatIsMeasured {
+                out.append(measured.heading)
+                out.append(contentsOf: measured.lines)
+            }
+            out.append(limit.heading)
+            out.append(startTitle)
+            out.append(declineTitle)
+            out.append(declineNote)
+            if let randomised {
+                out.append(randomised.title)
+                out.append(randomised.ask)
+            }
+            return out
+        }
+
+        /// Everything that reaches the screen, carried sentences included.
+        var allStrings: [String] {
+            authoredStrings + whatYouWouldDo.lines + whyThisOne.lines + limit.lines
+        }
+
+        /// The four sections, in the order they are read. A sheet that answered them
+        /// in any other order would be asking somebody to agree before saying what
+        /// they get.
+        var orderedSections: [Section] {
+            [whatYouWouldDo, whyThisOne, howItDecided, whatYouGet, howLong]
+                + [whatIsMeasured].compactMap { $0 } + [limit]
+        }
+    }
+
+    /// The sheet for one proposal.
+    ///
+    /// - Parameter windowDays: how long the ordinary offer runs, which is the one
+    ///   the start control takes. The drawn option states its own length inside
+    ///   `randomisedAsk`, so nothing here has to hedge between two numbers.
+    static func sheet(for proposal: ExperimentDesign.Proposal,
+                      windowDays: Int = Experiment.defaultWindowDays) -> ProposalSheet {
+        ProposalSheet(
+            standing: eyebrow(for: proposal.standing),
+            whatYouWouldDo: .init(heading: whatYouWouldDoHeading, lines: [proposal.change]),
+            // The premise, then — quietly, and only for a starter — the Health
+            // reading it was built from. Same order as the card, for the same
+            // reason: a Health sentence directly under the change reads as the
+            // reason for it, and the sentence that denies exactly that has to come
+            // between them.
+            whyThisOne: .init(heading: whyThisOneHeading,
+                              lines: [proposal.premise] + [proposal.context].compactMap { $0 }),
+            howItDecided: .init(heading: howItDecidedHeading,
+                                lines: [howItDecided(proposal.standing)]),
+            whatYouGet: .init(heading: whatYouGetHeading, lines: whatYouGetLines),
+            howLong: .init(heading: howLongHeading, lines: [howLong(windowDays: windowDays)]),
+            whatIsMeasured: whatIsMeasured(proposal.outcome).map {
+                .init(heading: whatIsMeasuredHeading, lines: [$0])
+            },
+            limit: .init(heading: limitHeading, lines: [proposal.caveat]),
+            startTitle: startTitle,
+            randomised: proposal.randomisedAsk.map {
+                .init(title: randomiseTitle, ask: $0)
+            },
+            declineTitle: declineTitle,
+            declineNote: declineNote
+        )
+    }
+
+    // MARK: Sheet headings
+
+    /// Four questions and three terms, each phrased as the question somebody has
+    /// rather than as a label for a field.
+    ///
+    /// **The order is the design and it is not interchangeable.** A research consent
+    /// flow reads what this is, what you will do, how long, what is measured, then
+    /// agree — and it feels significant because the sequence puts the commitment
+    /// last. "What you get at the end" sits above the terms for the same reason: the
+    /// three verdicts are the part a reader has to have met *before* tapping, since
+    /// the whole purpose of naming them up front is that a null result arriving in a
+    /// fortnight is not a surprise.
+    static let whatYouWouldDoHeading = "What you would do"
+    static let whyThisOneHeading = "Why this one"
+    static let howItDecidedHeading = "How it decided"
+    static let whatYouGetHeading = "What you get at the end"
+    static let howLongHeading = "How long"
+    static let whatIsMeasuredHeading = "What is measured"
+    /// The app's existing word for a caveat, reused rather than renamed. Today's
+    /// band, the insight detail screen and the history list all head a limit with
+    /// this, and inventing "The limit" for the sheet would be a second name for the
+    /// one thing the reader is meant to recognise across four screens.
+    static let limitHeading = "Bear in mind"
+
+    // MARK: How it decided
+
+    /// What was compared, and that it was compared with this person and nobody else.
+    ///
+    /// **One line per standing, because the three are not the same claim and a
+    /// shared line would have to be true of the weakest.** A starter has measured
+    /// nothing at all; a line saying "it compared your sessions" would be false of
+    /// it, and a line vague enough to cover it would undersell the confirmed case
+    /// that cleared the correction. So three lines, and the eyebrow above already
+    /// says which one a reader is looking at.
+    ///
+    /// **No maths, and that is a constraint rather than a simplification.** The
+    /// honest thing to say about a bootstrap interval over day-clustered resamples
+    /// is not a smaller version of the arithmetic — it is what the arithmetic was
+    /// for. "Still standing after every other pattern was checked the same way" is
+    /// the correction, in the only register that tells somebody anything.
+    static func howItDecided(_ standing: ExperimentDesign.Standing) -> String {
+        switch standing {
+        case .confirmed:
+            // The correction, said as what it does rather than as what it is. A
+            // confirmed claim is the only one that has been through it.
+            return "It compared the sessions in this group against the rest of your own "
+                + "record, and nobody else's. This one was still standing after every other "
+                + "pattern in your record had been checked the same way."
+        case .lead:
+            // The same comparison and the thing that has not happened to it. "Leans"
+            // rather than "shows", for the reason the lead premise says "has read
+            // higher" and never "is better".
+            return "It compared the sessions in this group against the rest of your own "
+                + "record, and nobody else's. This one leans one way, and has not been "
+                + "watched long enough to be more than a lean."
+        case .starter:
+            // Says outright that nothing was measured. A starter is built from a
+            // Health reading about something else, and the sentence that makes that
+            // honest is the one admitting the comparison has not happened.
+            return "It has compared nothing. Nothing you have logged has been measured "
+                + "against anything yet, so this is a place to start rather than something "
+                + "your own record has shown."
+        }
+    }
+
+    // MARK: What you get at the end
+
+    /// All three verdicts, named before anybody agrees to anything.
+    ///
+    /// **This section is the reason the sheet exists.** Everything else here is an
+    /// honest description of an offer; this is the part nobody else ships. Saying
+    /// beforehand that a fortnight can come back with no difference does two things
+    /// that cannot be done afterwards: it makes a result that holds up feel earned,
+    /// and it stops a null reading as the app having failed to work. A reader who
+    /// meets "It did not hold up" for the first time on day fifteen has every reason
+    /// to think something broke.
+    ///
+    /// **Three rules it obeys.** The verdicts are named by `verdictTitle`, so they
+    /// are the exact words the result will use and cannot drift from it. None of the
+    /// three is softened, hedged or called unlikely — the closing line says the null
+    /// is what makes the test worth running, which is the strongest true thing
+    /// available and the opposite of an apology. And they are in the order the result
+    /// screen puts them, so the one that held up is not the one at the bottom.
+    ///
+    /// The glosses name no direction and no figure. `heldUp` is "settled apart"
+    /// rather than "read higher" because a residual window's better side is resolved
+    /// per person, and a sheet that promised "higher" would be wrong for half of
+    /// them.
+    static var whatYouGetLines: [String] {
+        [
+            "One of these three, and which one is the whole point of running it.",
+            "\(verdictTitle(.heldUp)). The days with the change in them settled apart "
+                + "from the rest, far enough to read.",
+            "\(verdictTitle(.didNotHoldUp)). The two sets of days settled too close "
+                + "together to tell apart.",
+            "\(verdictTitle(.cannotTell)). Too few days carried the change, or too few "
+                + "went without it, to read one against the other.",
+            "All three are results, and you will be shown whichever one it is. A test "
+                + "that could only ever come back the first way would not be worth running.",
+        ]
+    }
+
+    // MARK: The terms
+
+    /// How long the ordinary offer runs, in the words the caveat uses for the same
+    /// length.
+    static func howLong(windowDays: Int = Experiment.defaultWindowDays) -> String {
+        let length = span(windowDays)
+        return "\(length.prefix(1).uppercased())\(length.dropFirst()), from the day you start."
+    }
+
+    /// What the window reads, and on which days.
+    ///
+    /// **Nil for a residual, and that is the no-second-wording rule biting.** The
+    /// change for a residual window already ends "This one is read from your heart
+    /// rate, so it needs no ratings" — it is said there because it is the one offer
+    /// in the app that asks *less* of somebody than the others, which belongs beside
+    /// the ask. A second sentence here saying the same thing in different words is
+    /// exactly how a claim and its card drift apart, and a second sentence saying it
+    /// in the same words is a paragraph repeated on one screen. So the section is
+    /// absent and the change carries it.
+    ///
+    /// The two rated outcomes name the days as well as the measurement, because
+    /// "how each session felt" on its own does not say that the days *without* the
+    /// change are measured too — and a reader who thinks only the changed days count
+    /// has misunderstood what they are agreeing to.
+    static func whatIsMeasured(_ outcome: Outcome) -> String? {
+        switch outcome {
+        case .feeling:
+            return "How each of your sessions felt, on the days the change happened and "
+                + "on the days it did not."
+        case .performance:
+            return "How each of your sessions went, on the days the change happened and "
+                + "on the days it did not."
+        case .heartRateResidual:
+            return nil
+        }
+    }
+
+    // MARK: After agreeing
+
+    /// What was just started, when it closes, and the drawn days if there are any.
+    ///
+    /// **A confirmation rather than a dismissal, because something irreversible
+    /// just happened.** Accepting fixes the hypothesis, the arms and the window, and
+    /// only one can run at a time. A sheet that closed silently would leave somebody
+    /// on Today wondering whether the tap registered, and the one place a drawn
+    /// window's day list can be read for the first time is the moment it is drawn.
+    ///
+    /// - Parameter calendar: passed through, so the closing date and the day list are
+    ///   formatted in the same calendar the draw was made in.
+    static func started(_ experiment: Experiment, calendar: Calendar = .current) -> String {
+        // "EEE d MMM" where `assignedDays` uses "EEE d". The drawn days are all
+        // inside the window and read as a short list, where a bare "1" is
+        // unambiguous in context; a closing date is up to four weeks out and can
+        // easily fall in the next month, where it is not.
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = calendar.locale ?? .current
+        formatter.dateFormat = "EEE d MMM"
+        let closes = formatter.string(from: experiment.endsAt(calendar: calendar))
+        return "This runs for \(span(experiment.windowDays)) and closes on \(closes)."
+    }
 
     // MARK: - Result
 

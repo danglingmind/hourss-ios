@@ -177,8 +177,73 @@ struct TodayView: View {
             .pageGutter()
             .padding(.vertical, Space.gutter)
             HRule()
+            runningTestStrip
         }
         .background(Color.canvas)
+    }
+
+    /// Whether today carries the change, for colour only.
+    ///
+    /// The sentence itself comes from `ExperimentCopy`; this asks the same question
+    /// of the same assignment rather than trying to read the answer back out of the
+    /// string, which would be two sources for one fact and would break the moment
+    /// the wording changed.
+    private func isTodayPicked(_ experiment: Experiment) -> Bool {
+        guard let assignment = experiment.assignment,
+              let offset = assignment.dayOffset(of: today, startedAt: experiment.startedAt,
+                                                windowDays: experiment.windowDays)
+        else { return false }
+        return assignment.isAssigned(dayOffset: offset)
+    }
+
+    /// A test in progress, pinned where it cannot be missed.
+    ///
+    /// **The one thing somebody agreed to do should not be a thing they have to go
+    /// and find.** It was a card below the fold on a screen that scrolls, so on a
+    /// day with a few sessions logged it was off screen — and a test you forget
+    /// about is a test that settles as "not enough to tell" a fortnight later. The
+    /// header is the only part of this screen that is always visible.
+    ///
+    /// For a drawn window it says whether today is one of the picked days, which is
+    /// the piece that makes one followable at all: a standing instruction fits in
+    /// somebody's head for two weeks, and fourteen dates do not.
+    ///
+    /// **Nothing when nothing is running.** A header with an empty state in it is a
+    /// header that has stopped being a header, and this screen already has somewhere
+    /// to say that no test is on — the slot below, which offers one.
+    ///
+    /// Deliberately not a second copy of the active card. It carries the change and
+    /// today's state and stops; the card below still owns the counts, the day list
+    /// and the control to stop. Two renderings of one thing is how they drift.
+    @ViewBuilder
+    private var runningTestStrip: some View {
+        if let experiment = store.activeExperiment {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(experiment.change)
+                    .textStyle(.label)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if let line = ExperimentCopy.today(for: experiment, on: today) {
+                    // Orange only when there is something to do today.
+                    //
+                    // Orange is this app's one signal colour — the now-line on the
+                    // hour strip, the arrow on a link. Painting "today is *not* one
+                    // of your days" with it spends the loudest thing on the screen
+                    // drawing attention to a day somebody is meant to leave alone,
+                    // which is both wrong and tiring on the half of a drawn window
+                    // that asks for nothing.
+                    Text(line)
+                        .textStyle(.label)
+                        .foregroundStyle(isTodayPicked(experiment) ? Color.orange : Color.muted)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .pageGutter()
+            .padding(.vertical, Space.xs)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("running-test-strip")
+            HRule()
+        }
     }
 
     /// The day, as an indicator rather than a headline.

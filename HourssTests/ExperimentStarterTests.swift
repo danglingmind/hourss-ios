@@ -579,7 +579,10 @@ struct StarterStoreTests {
         #expect(copy.eyebrow != ExperimentCopy.eyebrow(for: .lead))
         #expect(copy.lines.first?.text == lead.change)
         #expect(copy.lines.first?.emphasis == .lead)
-        #expect(copy.action == ExperimentCopy.startTitle)
+        // The card's control opens the sheet; it no longer starts anything. Agreeing
+        // moved to `TestProposalSheet` so that it is a decision rather than a tap on
+        // a text link weighing the same as "Add how it felt".
+        #expect(copy.action == ExperimentCopy.openTitle)
         #expect(!copy.accessibilityLabel.isEmpty)
     }
 

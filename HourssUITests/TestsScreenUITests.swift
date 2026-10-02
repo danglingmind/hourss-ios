@@ -1,6 +1,11 @@
 import XCTest
 
-/// The record of what has been tested, reached the way somebody would reach it.
+/// The Tests screen, reached the way somebody would reach it.
+///
+/// **It used to be `ExperimentHistoryUITests`, and the record is still most of what
+/// it checks.** The record became one section of three when the feature got a home,
+/// so the assertions about rows, verdicts and counting are unchanged and the ones
+/// about the screen holding all three states are new.
 ///
 /// The accessibility assertions are the important ones here, as they are in
 /// `HealthAndMarksTests`. This screen draws three verdicts with one function and
@@ -8,7 +13,7 @@ import XCTest
 /// label on a row is the whole of what a VoiceOver reader and a greyscale reader
 /// both get, and if it stops naming the verdict the distinction is gone for them.
 @MainActor
-final class ExperimentHistoryUITests: XCTestCase {
+final class TestsScreenUITests: XCTestCase {
 
     private var app: XCUIApplication!
 
@@ -44,12 +49,44 @@ final class ExperimentHistoryUITests: XCTestCase {
                       "The app did not land on the tabs")
     }
 
-    private func openTheRecord() {
+    private func openTheTests() {
         app.descendants(matching: .any)["tab-you"].firstMatch.tapWhenReady()
         app.descendants(matching: .any)["row-tests"].firstMatch.tapWhenReady()
     }
 
-    /// The whole point of the surface: a result outlives the card that showed it.
+    /// The whole reason the feature needed one home: all three states on one screen,
+    /// in one order, whichever of them this person happens to be in.
+    func testAllThreeSectionsAreOnTheScreenAtOnce() {
+        launchToToday()
+        openTheTests()
+
+        for section in ["tests-on-offer", "tests-running", "tests-finished"] {
+            let element = app.descendants(matching: .any)[section].firstMatch
+            XCTAssertTrue(element.waitForExistence(timeout: UITest.timeout),
+                          "The \(section) section is not on the screen")
+        }
+    }
+
+    /// Two of the three are empty on most days, which is the common case and not a
+    /// failure. The fixture seeds no running test, so this is the exact state a
+    /// reader is in for most of a fortnight — and it has to read as a section with
+    /// nothing in it rather than as a section that is missing.
+    func testAnEmptySectionSaysSoInWords() {
+        launchToToday()
+        openTheTests()
+
+        let empty = app.descendants(matching: .any)["tests-running-empty"].firstMatch
+        XCTAssertTrue(empty.waitForExistence(timeout: UITest.timeout),
+                      "With nothing running, the running section said nothing at all")
+        // No "yet" and no "soon": for somebody who never accepts a proposal, that is
+        // a promise the app cannot keep.
+        for promise in ["YET", "SOON", "COMING"] {
+            XCTAssertFalse(empty.label.uppercased().contains(promise),
+                           "An empty section made a promise: \(empty.label)")
+        }
+    }
+
+    /// The whole point of the record: a result outlives the card that showed it.
     func testASettledResultIsStillThereAfterTheCardIsGone() {
         launchToToday()
 
@@ -62,7 +99,7 @@ final class ExperimentHistoryUITests: XCTestCase {
         XCTAssertTrue(acknowledge.waitUntilGone(),
                       "Acknowledging did not release the slot")
 
-        openTheRecord()
+        openTheTests()
 
         let list = app.descendants(matching: .any)["experiment-history"].firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: UITest.timeout),
@@ -77,7 +114,7 @@ final class ExperimentHistoryUITests: XCTestCase {
     /// Colour is never the only carrier, and neither is position.
     func testEveryRowNamesItsVerdictInWords() {
         launchToToday()
-        openTheRecord()
+        openTheTests()
 
         let rows = app.descendants(matching: .any).matching(identifier: "history-row")
         XCTAssertTrue(rows.waitForFirstMatch(), "The record is empty on the fixture")
@@ -96,17 +133,44 @@ final class ExperimentHistoryUITests: XCTestCase {
         }
     }
 
-    /// Nothing totals the verdicts — not a rate, not a streak, not "two of three".
-    func testTheRecordCountsNothing() {
+    /// An offer on this screen is one line and no controls. The decision belongs to
+    /// the card and the sheet it raises, where the premise and the caveat have room
+    /// to be read before somebody commits to a fortnight.
+    func testAnOfferIsIndexedHereAndDecidedOnToday() {
         launchToToday()
-        openTheRecord()
+        openTheTests()
 
-        XCTAssertTrue(app.descendants(matching: .any)["experiment-history"].firstMatch
+        XCTAssertTrue(app.descendants(matching: .any)["tests-on-offer"].firstMatch
             .waitForExistence(timeout: UITest.timeout))
 
-        for tally in ["SUCCESS RATE", "HELD UP: ", "2 OF 3", "STREAK"] {
+        let offers = app.descendants(matching: .any).matching(identifier: "offer-row")
+        guard offers.count > 0 else { return }
+
+        for control in ["open-proposal", "abandon-experiment", "acknowledge-experiment"] {
+            XCTAssertFalse(app.descendants(matching: .any)[control].firstMatch.exists,
+                           "The Tests screen is offering the card's control: \(control)")
+        }
+        for index in 0..<offers.count {
+            let label = offers.element(boundBy: index).label
+            XCTAssertFalse(label.isEmpty, "An offer row has no label")
+            XCTAssertFalse(label.first?.isNumber ?? true,
+                           "An offer's label opened with a figure: \(label)")
+        }
+    }
+
+    /// Nothing totals anything — not a rate, not a streak, not "two of three", and
+    /// not a count of what is waiting either.
+    func testTheScreenCountsNothing() {
+        launchToToday()
+        openTheTests()
+
+        XCTAssertTrue(app.descendants(matching: .any)["tests-finished"].firstMatch
+            .waitForExistence(timeout: UITest.timeout))
+
+        for tally in ["SUCCESS RATE", "HELD UP: ", "2 OF 3", "STREAK",
+                      "3 TESTS", "2 OFFERS"] {
             XCTAssertFalse(app.staticTexts[tally].exists,
-                           "The record is keeping score: \(tally)")
+                           "The screen is keeping score: \(tally)")
         }
     }
 }

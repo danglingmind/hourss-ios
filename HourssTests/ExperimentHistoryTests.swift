@@ -281,7 +281,11 @@ struct ExperimentHistoryTests {
 
     @Test("The empty state promises nothing")
     func emptyStatePromisesNothing() {
-        let text = (ExperimentHistory.emptyEyebrow + " " + ExperimentHistory.emptyLead
+        // `emptyEyebrow` used to lead this and is gone: it was the heading of a
+        // screen whose entire content was this absence, and the absence is one
+        // section of three now with a heading of its own. `TestsScreenTests` sweeps
+        // the three headings.
+        let text = (ExperimentHistory.emptyLead
                     + " " + ExperimentHistory.emptySupport).lowercased()
         // "Yet" is a promise in one syllable, and for somebody who never accepts a
         // proposal it is one the app cannot keep. `stillLookingCopy` is the house

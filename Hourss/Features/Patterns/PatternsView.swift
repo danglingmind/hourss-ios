@@ -40,6 +40,11 @@ struct PatternsView: View {
     /// more often than the engine should.
     @State private var proposals: [ExperimentDesign.Proposal] = []
 
+    /// The proposal whose sheet is up, if one is. Agreeing happens on a screen of
+    /// its own, here exactly as on Today — the same sheet, so the four answers
+    /// somebody reads before saying yes do not depend on which tab they were on.
+    @State private var sheetProposal: ExperimentDesign.Proposal?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
@@ -61,6 +66,9 @@ struct PatternsView: View {
             ScreenHeader(title: "Patterns")
         }
         .navigationDestination(for: Insight.self) { InsightDetailView(insight: $0) }
+        .sheet(item: $sheetProposal) { proposal in
+            TestProposalSheet(proposal: proposal)
+        }
     }
 
     /// P1 — warming up.
@@ -360,17 +368,18 @@ struct PatternsView: View {
 
             // The one thing to try for this priority, where somebody is already
             // looking at how it is going. Today shows the same offer; this is the
-            // same proposal and the same control, so accepting here or there is one
-            // act and cannot produce two experiments.
+            // same proposal and now the same sheet, so agreeing here or there is one
+            // act, reads the same four answers first, and cannot produce two
+            // experiments.
             if let proposal {
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Text(proposal.change)
                         .textStyle(.body)
                         .fixedSize(horizontal: false, vertical: true)
-                    DirectionalLink(title: ExperimentCopy.startTitle, arrow: "→") {
-                        _ = store.acceptExperiment(proposal)
+                    DirectionalLink(title: ExperimentCopy.openTitle, arrow: "→") {
+                        sheetProposal = proposal
                     }
-                    .accessibilityIdentifier("accept-experiment")
+                    .accessibilityIdentifier("open-proposal")
                 }
                 .padding(.vertical, Space.sm)
                 HRule()

@@ -140,6 +140,31 @@ enum ObservationSlot {
     /// The active card has the strongest claim to carrying the ask rather than
     /// displacing it: the rating being asked for is what the running fortnight is
     /// measured with, so the two are about the same thing.
+    /// Whether a content is drawn as a filled block rather than as a ruled section.
+    ///
+    /// **A value rather than a computed property on the view, for the reason the
+    /// rest of this file is split that way.** "Which states are emphatic" is a
+    /// design rule, and a design rule asserted against a `body` can only be asserted
+    /// by looking at it. Here a test can state the whole rule in one line — exactly
+    /// two of the seven states are filled, and the one `content` the slot resolves
+    /// to means it can never draw both.
+    static func isCarded(_ content: SlotContent) -> Bool {
+        switch content {
+        // The two ends of a test. One is the only card somebody waited a fortnight
+        // for; the other is the decision without which the first never happens.
+        case .settledExperiment, .experimentProposal:
+            return true
+        // A running window is deliberately not filled, and it is the interesting
+        // exclusion. It is on screen every day for two to four weeks, which is the
+        // definition of routine, and `roomAbove`'s own argument applies in reverse:
+        // a card that is emphatic for twenty-eight days running has taught the eye
+        // to stop seeing the fill, and would take the two rare cards down with it.
+        case .activeExperiment, .recommendation, .unfinishedReflection, .upgradePrompt,
+             .leadObservation, .evidenceProgress, .stillLooking, .none:
+            return false
+        }
+    }
+
     static func displacedReflection(for state: SlotState) -> UUID? {
         switch content(for: state) {
         case .recommendation, .settledExperiment, .activeExperiment, .experimentProposal:
@@ -387,11 +412,15 @@ extension ObservationSlot {
             lines.append(SlotLine(text: context, emphasis: .support, origin: .carried))
         }
 
+        // The card's one control opens the sheet; it no longer starts anything. A
+        // link reading "Start this" that opened a reading screen would be a control
+        // whose words promise a commitment and whose behaviour withholds it, so the
+        // title changed with the behaviour — see `ExperimentCopy.openTitle`.
         let copy = SlotCopy(
             eyebrow: eyebrow,
             lines: lines,
             caveat: proposal.caveat,
-            action: ExperimentCopy.startTitle
+            action: ExperimentCopy.openTitle
         )
         // Spoken in reading order, so a screen reader meets the denial before the
         // reading for the same reason the eye does.
@@ -454,12 +483,12 @@ extension ObservationSlot {
         }
 
         let copy = SlotCopy(
-            eyebrow: "You are testing this",
+            eyebrow: ExperimentCopy.activeStanding,
             lines: lines,
             action: ExperimentCopy.stopTitle
         )
         return carrying(copy,
-                        spoken: "You are testing this. \(experiment.change) "
+                        spoken: "\(ExperimentCopy.activeStanding). \(experiment.change) "
                             + (ExperimentCopy.today(for: experiment, on: now).map { "\($0) " } ?? "")
                             + "\(logged) \(remaining)",
                         displacedActivityName: displacedActivityName,
@@ -716,6 +745,13 @@ struct ObservationSlotView: View {
     /// The day being drawn. Passed from the screen that already read the clock.
     var now: Date = Date()
 
+    /// The proposal whose sheet is up, if one is.
+    ///
+    /// State rather than a parameter, so raising the sheet costs this view's
+    /// initialiser nothing — three screens offer a proposal and each one owns its
+    /// own presentation.
+    @State private var sheetProposal: ExperimentDesign.Proposal?
+
     private var content: SlotContent { ObservationSlot.content(for: state) }
 
     private var copy: SlotCopy {
@@ -795,6 +831,11 @@ struct ObservationSlotView: View {
             // content rather than to any one id so a hand-off between two experiment
             // states reads as one movement; Reduce Motion lands on the finished state.
             .animation(Motion.content(reduced: reduceMotion), value: content)
+            // Agreeing is a decision, so it happens on a screen of its own. Nothing
+            // is started by anything on this band.
+            .sheet(item: $sheetProposal) { proposal in
+                TestProposalSheet(proposal: proposal)
+            }
         }
     }
 
@@ -803,40 +844,65 @@ struct ObservationSlotView: View {
     /// **The same lever and the same two tokens `HealthFactRow` uses**, for the same
     /// reason: `DESIGN.md` records a second rule weight and a full-bleed canvas both
     /// reverted whole, and closes the first with the conclusion that the lever is
-    /// space rather than more lines. A finished test is the rarest thing this app
-    /// can show and appears once per experiment; everything else here is routine by
+    /// space rather than more lines. A test's two ends — the offer and the result —
+    /// are the rarest things this app shows; everything else here is routine by
     /// comparison.
     ///
+    /// **Driven off `isCarded` rather than off the content, deliberately.** The room
+    /// and the fill answer the same question and were two switches on the same fact
+    /// until a proposal took the surface, at which point they could have disagreed:
+    /// a filled block with `Space.md` above it reads as crowding the timeline rather
+    /// than following it. One expression, so the two cannot drift.
+    ///
     /// Nothing else varies — no colour, badge, border or type size — and the
-    /// ordinary case keeps the padding it always had, so this adds space to one card
-    /// rather than taking it from the others.
-    private var roomAbove: CGFloat {
-        if case .settledExperiment = content { Space.lg } else { Space.md }
-    }
+    /// ordinary case keeps the padding it always had, so this adds space to the two
+    /// cards rather than taking it from the others.
+    private var roomAbove: CGFloat { isCarded ? Space.lg : Space.md }
 
     /// Whether this band is drawn as a filled card rather than as a ruled section.
     ///
-    /// **One state, and that is the whole design.** The owner asked for cards to
-    /// differ by how important they are, and the system already answers that: the
-    /// lead insight on Patterns is a forest block while everything beside it is a
-    /// ruled row. This extends that one precedent rather than introducing a scale of
-    /// colours — a palette where four things are emphasised differently is a palette
-    /// where nothing is emphasised.
+    /// **Two states, and they are the two ends of one thing.** The owner asked for
+    /// cards to differ by how important they are, and the system already answers
+    /// that: the lead insight on Patterns is a forest block while everything beside
+    /// it is a ruled row. This extends that one precedent rather than introducing a
+    /// scale of colours — a palette where four things are emphasised differently is
+    /// a palette where nothing is emphasised. Two of the slot's seven states are
+    /// filled; the other five are ruled sections, unchanged.
     ///
-    /// So the settled result gets it and nothing else does. It is the rarest thing
-    /// the app can show, it appears once per experiment, and it is the only card
-    /// here a person waited a fortnight for. A proposal is a close second and
-    /// deliberately misses: it arrives whenever the engine has something, which over
-    /// a year is often, and a card that is emphatic every other week is just the
-    /// house style.
+    /// **This reverses the judgement the paragraph below records, and the paragraph
+    /// stays because the reversal is the useful part.** It read:
     ///
-    /// **Colour is never the only carrier.** The eyebrow already says "It held up",
-    /// "It did not hold up" or "Not enough to tell" in words, so the surface is
-    /// reinforcing a distinction that survives being read aloud or seen in
-    /// greyscale.
-    private var isCarded: Bool {
-        if case .settledExperiment = content { true } else { false }
-    }
+    /// > So the settled result gets it and nothing else does. It is the rarest thing
+    /// > the app can show, it appears once per experiment, and it is the only card
+    /// > here a person waited a fortnight for. A proposal is a close second and
+    /// > deliberately misses: it arrives whenever the engine has something, which
+    /// > over a year is often, and a card that is emphatic every other week is just
+    /// > the house style.
+    ///
+    /// That is right about frequency and wrong about importance, and frequency is
+    /// the smaller consideration. Agreeing to a test is the most consequential thing
+    /// this app asks anybody to do — it is the whole feature, and the result the
+    /// settled card celebrates does not exist unless somebody said yes to this one
+    /// first. Drawing the end of the lifecycle loudly and its beginning quietly was
+    /// emphasising the part nobody has to decide anything about.
+    ///
+    /// The frequency objection is also smaller in practice than it reads. A proposal
+    /// is suppressed for the whole of a running window, a declined hypothesis is
+    /// never offered again, and a tested one is excluded — so the card is absent for
+    /// a fortnight at a time and the "every other week" case is close to its upper
+    /// bound rather than its average.
+    ///
+    /// **Colour is never the only carrier.** The eyebrow says "It held up", "It did
+    /// not hold up", "Not enough to tell", "Worth testing", "Test what held up" or
+    /// "A place to start" in words, so the surface reinforces a distinction that
+    /// survives being read aloud or seen in greyscale.
+    ///
+    /// **Two filled cards cannot come from here.** `content` is one value, so the
+    /// band draws one state and never two — see `ObservationSlot.isCarded(_:)`,
+    /// which is where that is asserted. The one place on Today where a second forest
+    /// block *can* appear beside this one is `ActiveSessionPanel`, which is not this
+    /// file's to decide and was already true of the settled card.
+    private var isCarded: Bool { ObservationSlot.isCarded(content) }
 
     /// The surface this band is drawn on, which decides its secondary copy colour.
     ///
@@ -862,10 +928,17 @@ struct ObservationSlotView: View {
 
     /// The controls an experiment card carries.
     ///
-    /// **A proposal offers both answers.** Accepting and refusing sit side by side,
-    /// because an offer with only a yes is not an offer — and `declineExperiment` is
-    /// permanent, which is the behaviour that makes a visible no safe to give. An
-    /// app that only let somebody ignore a proposal would re-offer it on every run.
+    /// **A proposal has one control now, and it decides nothing.** Three used to sit
+    /// here: accept, accept-with-drawn-days, and refuse — the first of them a text
+    /// link weighing exactly as much as "Add how it felt", and one tap on it fixed a
+    /// hypothesis, both arms and a fortnight. All three moved into
+    /// `TestProposalSheet`, where the four questions somebody has before agreeing
+    /// are answered first and the ask for a drawn window has room to be read rather
+    /// than 11pt of mono under a link. What is left here is the way in.
+    ///
+    /// That also un-crowds the card: the band showed a change, a premise, sometimes
+    /// a Health reading, a caveat, two accepts, a paragraph and a refusal, and the
+    /// thing it was least able to do was make any one of them look important.
     ///
     /// **Stopping is plain and quiet.** It is the last control on an active card and
     /// says what it does. Abandoning is free and uncounted, so nothing here warns,
@@ -876,48 +949,10 @@ struct ObservationSlotView: View {
         switch content {
         case .experimentProposal:
             if let proposal = state.proposalId.flatMap({ id in proposals.first { $0.id == id } }) {
-                VStack(alignment: .leading, spacing: Space.xs) {
-                    DirectionalLink(title: ExperimentCopy.startTitle, arrow: "→") {
-                        // Discarded rather than inspected: the slot recomputes from
-                        // the store either way, and a refused accept can only happen
-                        // when one is already running — which this card is not shown
-                        // for.
-                        _ = store.acceptExperiment(proposal)
-                    }
-                    .accessibilityIdentifier("accept-experiment")
-
-                    // The harder offer, and the one that makes the result mean more.
-                    //
-                    // **It explains itself where it is tapped.** Everything above
-                    // belongs to the ordinary offer; this asks somebody to accept
-                    // days chosen for them, including days they would rather not, and
-                    // that is not a thing to agree to from a control title. The ask
-                    // sits under the link rather than in the card's lines because a
-                    // reader who is not going to take it should not have to read it
-                    // to reach "Not this one".
-                    //
-                    // Absent entirely for the types that cannot be drawn — the app
-                    // can pick a day but cannot make it a day of longer sleep, so
-                    // offering it there would be the form of a randomised test with
-                    // none of its content.
-                    if let ask = proposal.randomisedAsk {
-                        DirectionalLink(title: ExperimentCopy.randomiseTitle, arrow: "→") {
-                            _ = store.acceptRandomisedExperiment(proposal)
-                        }
-                        .accessibilityIdentifier("randomise-experiment")
-
-                        Text(ask)
-                            .textStyle(.label)
-                            .foregroundStyle(surface.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityLabel("\(ExperimentCopy.randomiseTitle). \(ask)")
-                    }
-
-                    DirectionalLink(title: ExperimentCopy.declineTitle, arrow: "→") {
-                        store.declineExperiment(proposal)
-                    }
-                    .accessibilityIdentifier("decline-experiment")
+                DirectionalLink(title: ExperimentCopy.openTitle, arrow: "→") {
+                    sheetProposal = proposal
                 }
+                .accessibilityIdentifier("open-proposal")
             }
 
         case let .activeExperiment(id):
