@@ -240,6 +240,10 @@ extension ObservationSlot {
         experiment: Experiment? = nil,
         reading: ExperimentOutcome.Reading? = nil,
         daysRemaining: Int = 0,
+        /// Passed in, never read twice. The active card asks whether *today* carries
+        /// the change, and a second clock read inside the copy layer is the shape of
+        /// a bug this codebase has already shipped once.
+        now: Date = Date(),
         displacedActivityName: String? = nil,
         displacedSessionId: UUID? = nil
     ) -> SlotCopy {
@@ -251,6 +255,7 @@ extension ObservationSlot {
 
         case .activeExperiment:
             return activeCopy(experiment, reading: reading, daysRemaining: daysRemaining,
+                              now: now,
                               displacedActivityName: displacedActivityName,
                               displacedSessionId: displacedSessionId)
 
@@ -411,6 +416,7 @@ extension ObservationSlot {
     /// a count into something to defend.
     private static func activeCopy(
         _ experiment: Experiment?, reading: ExperimentOutcome.Reading?, daysRemaining: Int,
+        now: Date,
         displacedActivityName: String?, displacedSessionId: UUID?
     ) -> SlotCopy {
         guard let experiment else { return SlotCopy() }
@@ -419,23 +425,43 @@ extension ObservationSlot {
         let logged = days == 1
             ? "One day of it so far."
             : "\(spelled(days).capitalizedFirst) days of it so far."
+        // "This test", not "this fortnight". A drawn window is twenty-eight days, so
+        // naming a fortnight was simply false for half of what the app can now
+        // offer — and deriving the word from `windowDays` would mean the card
+        // teaching two vocabularies for one thing. The length is not what the line
+        // is for; the count is.
         let remaining = daysRemaining == 0
-            ? "The fortnight closes today."
+            ? "This test closes today."
             : daysRemaining == 1
-                ? "One more day of this fortnight."
-                : "\(spelled(daysRemaining).capitalizedFirst) more days of this fortnight."
+                ? "One more day of this test."
+                : "\(spelled(daysRemaining).capitalizedFirst) more days of this test."
+
+        // Whether today carries the change, then the list it came from. A standing
+        // instruction fits in somebody's head for a fortnight; fourteen drawn dates
+        // do not, so an app that picks the days and then leaves somebody to keep
+        // the list has made the harder offer and withheld the thing that makes it
+        // followable. Both are nil for a chosen window, which has no such list.
+        var lines = [
+            SlotLine(text: experiment.change, emphasis: .lead, origin: .carried),
+        ]
+        if let todayLine = ExperimentCopy.today(for: experiment, on: now) {
+            lines.append(SlotLine(text: todayLine, emphasis: .body, origin: .carried))
+        }
+        lines.append(SlotLine(text: logged, emphasis: .body, origin: .authored))
+        lines.append(SlotLine(text: remaining, emphasis: .support, origin: .authored))
+        if let days = ExperimentCopy.assignedDays(for: experiment) {
+            lines.append(SlotLine(text: days, emphasis: .support, origin: .carried))
+        }
 
         let copy = SlotCopy(
             eyebrow: "You are testing this",
-            lines: [
-                SlotLine(text: experiment.change, emphasis: .lead, origin: .carried),
-                SlotLine(text: logged, emphasis: .body, origin: .authored),
-                SlotLine(text: remaining, emphasis: .support, origin: .authored),
-            ],
+            lines: lines,
             action: ExperimentCopy.stopTitle
         )
         return carrying(copy,
-                        spoken: "You are testing this. \(experiment.change) \(logged) \(remaining)",
+                        spoken: "You are testing this. \(experiment.change) "
+                            + (ExperimentCopy.today(for: experiment, on: now).map { "\($0) " } ?? "")
+                            + "\(logged) \(remaining)",
                         displacedActivityName: displacedActivityName,
                         displacedSessionId: displacedSessionId)
     }
@@ -686,6 +712,8 @@ struct ObservationSlotView: View {
     /// Whole days left of a running window. Computed by the caller, which is also
     /// the only place entitled to read the clock.
     var daysRemaining: Int = 0
+    /// The day being drawn. Passed from the screen that already read the clock.
+    var now: Date = Date()
 
     private var content: SlotContent { ObservationSlot.content(for: state) }
 
@@ -702,6 +730,7 @@ struct ObservationSlotView: View {
             experiment: experiment(for: content),
             reading: activeReading,
             daysRemaining: daysRemaining,
+            now: now,
             displacedActivityName: displacedId.flatMap(activityName),
             displacedSessionId: displacedId
         )
@@ -855,6 +884,33 @@ struct ObservationSlotView: View {
                         _ = store.acceptExperiment(proposal)
                     }
                     .accessibilityIdentifier("accept-experiment")
+
+                    // The harder offer, and the one that makes the result mean more.
+                    //
+                    // **It explains itself where it is tapped.** Everything above
+                    // belongs to the ordinary offer; this asks somebody to accept
+                    // days chosen for them, including days they would rather not, and
+                    // that is not a thing to agree to from a control title. The ask
+                    // sits under the link rather than in the card's lines because a
+                    // reader who is not going to take it should not have to read it
+                    // to reach "Not this one".
+                    //
+                    // Absent entirely for the types that cannot be drawn — the app
+                    // can pick a day but cannot make it a day of longer sleep, so
+                    // offering it there would be the form of a randomised test with
+                    // none of its content.
+                    if let ask = proposal.randomisedAsk {
+                        DirectionalLink(title: ExperimentCopy.randomiseTitle, arrow: "→") {
+                            _ = store.acceptRandomisedExperiment(proposal)
+                        }
+                        .accessibilityIdentifier("randomise-experiment")
+
+                        Text(ask)
+                            .textStyle(.label)
+                            .foregroundStyle(surface.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityLabel("\(ExperimentCopy.randomiseTitle). \(ask)")
+                    }
 
                     DirectionalLink(title: ExperimentCopy.declineTitle, arrow: "→") {
                         store.declineExperiment(proposal)

@@ -192,8 +192,20 @@ struct ExperimentSlotTests {
         }
         #expect(copy(adherence: 1, remaining: 5).allStrings.contains("One day of it so far."))
         #expect(copy(adherence: 4, remaining: 5).allStrings.contains("Four days of it so far."))
-        #expect(copy(adherence: 4, remaining: 1).allStrings.contains("One more day of this fortnight."))
-        #expect(copy(adherence: 4, remaining: 0).allStrings.contains("The fortnight closes today."))
+        #expect(copy(adherence: 4, remaining: 1).allStrings.contains("One more day of this test."))
+        #expect(copy(adherence: 4, remaining: 0).allStrings.contains("This test closes today."))
+
+        // And it never names a length. These lines said "fortnight" until a drawn
+        // window made that false for half of what the app can offer — the count is
+        // what the line is for, and a card that names the length has to be rewritten
+        // every time a new one exists.
+        for (a, r) in [(0, 27), (4, 13), (4, 1), (4, 0)] {
+            let text = copy(adherence: a, remaining: r).allStrings.joined(separator: " ").lowercased()
+            for length in ["fortnight", "two weeks", "four weeks", "28 days", "14 days"] {
+                #expect(!text.contains(length),
+                        Comment(rawValue: "the active card named a length: '\(length)' in \(text)"))
+            }
+        }
         // No deadline language anywhere, in any of those shapes.
         for (a, r) in [(0, 13), (1, 1), (4, 0)] {
             let text = copy(adherence: a, remaining: r).allStrings.joined(separator: " ").lowercased()

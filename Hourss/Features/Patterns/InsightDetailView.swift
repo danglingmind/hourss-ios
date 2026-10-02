@@ -62,6 +62,21 @@ struct InsightDetailView: View {
                     _ = store.acceptExperiment(proposal)
                 }
                 .accessibilityIdentifier("accept-experiment")
+
+                // The same second offer Today carries, for the same reason and with
+                // the same ask attached. A claim somebody opened the detail screen
+                // to read is if anything the likelier place to take the harder test.
+                if let ask = proposal.randomisedAsk {
+                    DirectionalLink(title: ExperimentCopy.randomiseTitle, arrow: "→") {
+                        _ = store.acceptRandomisedExperiment(proposal)
+                    }
+                    .accessibilityIdentifier("randomise-experiment")
+
+                    Text(ask)
+                        .textStyle(.label)
+                        .foregroundStyle(Color.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

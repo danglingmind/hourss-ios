@@ -90,7 +90,10 @@ struct TodayView: View {
                         recommendations: recommendations,
                         proposals: proposals,
                         activeReading: activeReading,
-                        daysRemaining: store.activeExperiment?.daysRemaining(at: today) ?? 0
+                        daysRemaining: store.activeExperiment?.daysRemaining(at: today) ?? 0,
+                        // The day this screen is drawing, read once at the top of the
+                        // body rather than again inside the copy layer.
+                        now: today
                     )
                 }
             }
