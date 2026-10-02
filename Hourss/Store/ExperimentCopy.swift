@@ -419,6 +419,19 @@ enum ExperimentCopy {
         }
     }
 
+    /// What a stopped experiment says for itself.
+    ///
+    /// Here rather than in the screen that draws it, because this file is where
+    /// every experiment sentence lives so that one sweep sees all of them — a string
+    /// authored in a feature file is one no sweep can find. Distinct from
+    /// `stopTitle`, which is the control that does the stopping: one is a button,
+    /// the other is a row in a record, and they are not the same words.
+    ///
+    /// It is deliberately not a fourth verdict. Nothing was tested, so there is
+    /// nothing to report about the change, and the row carries no figures at all.
+    static let stoppedStanding = "Stopped"
+    static let stoppedReport = "This one was stopped early, so it has no result."
+
     // MARK: - Controls
 
     /// Titles for the four controls, here rather than in the view for the reason the

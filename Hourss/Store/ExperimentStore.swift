@@ -30,6 +30,29 @@ extension HourssStore {
             .min { $0.settlement?.settledAt ?? $0.startedAt < $1.settlement?.settledAt ?? $1.startedAt }
     }
 
+    /// Everything that has stopped being open, newest first.
+    ///
+    /// Settled, acknowledged and abandoned alike — the record screen lists all three
+    /// and only excludes what is still running, which Today owns.
+    ///
+    /// Ordered by when the window stopped being open rather than by `settledAt`,
+    /// because settling runs on the next launch or foreground and can be days late:
+    /// sorting by it would order the list by when the app happened to notice rather
+    /// than by when anything happened.
+    ///
+    /// Reads only stored values and runs no engine, so it is cheap enough for a view
+    /// to call directly.
+    var concludedExperiments: [Experiment] {
+        experiments
+            .filter { $0.phase != .active }
+            .sorted { concluded($0) > concluded($1) }
+    }
+
+    /// The day an experiment stopped being open, whichever way it stopped.
+    func concluded(_ experiment: Experiment, calendar: Calendar = .current) -> Date {
+        experiment.abandonedAt ?? experiment.endsAt(calendar: calendar)
+    }
+
     /// Hypothesis keys that must not be offered again.
     ///
     /// Declines and everything already tested, together. Both are "this has been

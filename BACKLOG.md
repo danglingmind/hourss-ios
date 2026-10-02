@@ -915,31 +915,6 @@ by chance" and one declared hypothesis is not a search.
   token below `Space.xs`, so holding 44 square everywhere means a hardcoded gap or
   breaking the gutter.
 
-### Phase 4 is built and unreachable from Today
-
-The engine, the draw, the measurement and every string exist and are tested. The
-card cannot offer it, and that is structural rather than an oversight:
-`SlotCopy.action` is a single `String?`, so a second control is impossible without
-changing `ObservationSlotView`. Four things, in order:
-
-- **A second control on the proposal card.** Gate on `proposal.canRandomise`,
-  render `proposal.randomisedAsk`, add a control titled
-  `ExperimentCopy.randomiseTitle` beside "Start this", and call
-  `store.acceptRandomisedExperiment(proposal)`. `InsightDetailView` has the same
-  single-control shape and the same problem.
-- **`activeCopy` hardcodes "fortnight"** — "The fortnight closes today.", "One more
-  day of this fortnight." A drawn window is 28 days, so those are simply wrong for
-  it, and `ExperimentSlotTests.activeCardCounts` pins the strings. The wording has
-  to come from `experiment.windowDays`.
-- **The active card has to show the day list and whether today is one of them**,
-  from `ExperimentCopy.assignedDays(for:)` and `today(for:on:)`. A standing
-  instruction fits in somebody's head for a fortnight; fourteen dates do not, so
-  without this a drawn window is unfollowable.
-- Settled card needs nothing — verdict, result and caveat all flow through strings
-  the Store layer owns.
-
-Reachable in the simulator meanwhile via `-hourss-fixture-randomised`.
-
 ### The weakest thing in phase 4, in its own words
 
 **The contrast gate catches absence of contrast, not dilution of it.** A month with
@@ -957,7 +932,7 @@ the same hypothesis in the same second draw the same days; and the 28-day window
 doubles a commitment length the product has never measured adherence to — the
 PRD's open question about 14 days was answered with arithmetic rather than data.
 
-### Owed to the record screen
+### Owed to the record screen — all landed
 
 `You → Tests` is built. Four things it asked for sit in files it did not own, and
 should land next time those files are open:
@@ -978,8 +953,15 @@ should land next time those files are open:
   one abandoned, on distinct dates so the ordering shows, and one already
   acknowledged — since "acknowledging dismisses the card, not the result" is the
   screen's whole premise.
-- Minor: `ObservationSlotView` authors "You were testing:" inside a view body. One
-  string no sweep can see.
+- Minor, still open: `ObservationSlotView` authors "You were testing:" inside a
+  view body. One string no sweep can see.
+
+Everything else on that list is in: `Verdict` is `CaseIterable`, the two stopped
+strings live in `ExperimentCopy` with the forwarding names kept so the screen and
+its tests did not have to move, `HourssStore.concludedExperiments` owns "newest
+first, excluding active", and the fixture seeds a real history — a held-up, a
+did-not, a stopped and a cannot-tell, on four start dates, all but one already
+acknowledged.
 
 ### Known defects
 

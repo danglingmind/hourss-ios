@@ -81,11 +81,14 @@ enum ExperimentHistory {
     ///
     /// **Authored here and not in `ExperimentCopy`, which is where it belongs.**
     /// Every sentence an experiment puts on screen is supposed to live in one file
-    /// so that one sweep can see all of them, and nothing there says that a test was
+    /// so that one sweep can see all of them, and nothing there said that a test was
     /// stopped — `stopTitle` is the control that stops one, which is a different
-    /// string with a different job. These are swept by this feature's own suite in
-    /// the meantime; they should move the next time that file is open.
-    static let stoppedStanding = "Stopped"
+    /// string with a different job.
+    ///
+    /// **They live there now**, and these two forward to them so this file keeps the
+    /// names its own tests and rows already use without owning a second copy of the
+    /// words.
+    static let stoppedStanding = ExperimentCopy.stoppedStanding
 
     /// Plain, and carefully not a verdict. Nothing was read, so there is nothing to
     /// report about the change — a sentence implying it failed would be a conclusion
@@ -96,7 +99,7 @@ enum ExperimentHistory {
     /// authors is therefore silent about the number of days, and the row's own date
     /// range says which window it was. Hard-coding "fortnight" into shared copy is
     /// how a true sentence becomes a false one when a second shape arrives.
-    static let stoppedReport = "This one was stopped early, so it has no result."
+    static let stoppedReport = ExperimentCopy.stoppedReport
 
     static let emptyEyebrow = "Nothing tested"
 
@@ -160,6 +163,11 @@ enum ExperimentHistory {
     /// **A running experiment is out.** Today owns the active card and shows it every
     /// day of the fortnight; a row with no outcome sitting at the top of a list of
     /// outcomes would be the one entry here making a promise.
+    /// - Parameter experiments: already filtered and ordered by
+    ///   `HourssStore.concludedExperiments`, which is where that rule lives now —
+    ///   "newest first, excluding what is still running" is a statement about the
+    ///   record rather than about this screen. Passing an unordered list still works
+    ///   and still sorts, so a test can hand it any order and assert the result.
     static func entries(from experiments: [Experiment], calendar: Calendar = .current) -> [Entry] {
         experiments
             .filter { $0.phase != .active }

@@ -419,6 +419,71 @@ enum DebugFixture {
                                      observations: store.engineObservations,
                                      now: today, resamples: 200)
         ]
+        // Three more, so that the record screen is a record rather than one row.
+        //
+        // `You → Tests` exists to show what somebody has tested over time, and a
+        // fixture with a single entry cannot show the thing it is for: that the
+        // three verdicts are presented alike, that a stopped test is kept, and that
+        // acknowledging a result dismisses the card and not the record. Each is
+        // pinned to a different start date so the ordering is visible, and the
+        // oldest is already acknowledged.
+        //
+        // Hand-built rather than settled, unlike the one above. A fixture cannot
+        // make the planted signal produce a chosen verdict on demand, and three more
+        // bootstraps inside `init` would be launch time spent on figures nobody
+        // publishes. These exist to be *looked at*, so their numbers are written
+        // down rather than computed.
+        // `focusLabel` per entry, not the morning hypothesis's for all of them.
+        // `ExperimentCopy.result` opens with that label, so borrowing it gave a row
+        // whose change is about session length a report reading "Morning settled
+        // at…" — visible on the first screenshot of the finished screen, and exactly
+        // the kind of thing a fixture is for catching.
+        func past(_ daysAgo: Int, verdict: Experiment.Verdict?,
+                  focusLabel: String, change: String, focus: Double, baseline: Double,
+                  adherence: Int, acknowledged: Bool = false) -> Experiment? {
+            guard let started = calendar.date(byAdding: .day, value: -daysAgo, to: today)
+            else { return nil }
+            var one = Experiment(
+                hypothesisId: morning.id, outcome: morning.outcome, startedAt: started,
+                focusLabel: focusLabel, baselineLabel: morning.baselineLabel,
+                premise: "Your morning sessions have felt more energizing.",
+                change: change, caveat: morning.caveat
+            )
+            guard let verdict else {
+                // Stopped: no settlement at all, which is what makes it plainly not
+                // a fourth verdict rather than a quieter one.
+                one.abandonedAt = calendar.date(byAdding: .day, value: 3, to: started)
+                return one
+            }
+            one.settlement = Experiment.Settlement(
+                verdict: verdict, adherenceDays: adherence, baselineDays: 12,
+                focusFigure: focus, baselineFigure: baseline,
+                delta: focus - baseline, intervalLow: -0.1, intervalHigh: 0.6,
+                settledAt: calendar.date(byAdding: .day, value: 14, to: started) ?? started
+            )
+            if acknowledged {
+                one.acknowledgedAt = calendar.date(byAdding: .day, value: 15, to: started)
+            }
+            return one
+        }
+
+        seeded += [
+            // Acknowledged, like everything else in the past. Exactly one result may
+            // be unacknowledged at a time — `unacknowledgedExperiment` is what claims
+            // the slot on Today, so a second one simply takes the slot when the first
+            // is dismissed, and a test that acknowledges the card then waits for it
+            // to go waits forever. A history is by definition things already seen.
+            past(34, verdict: .didNotHoldUp, focusLabel: "90–179 min",
+                 change: "End one block at the 90–179 min mark on most days this fortnight.",
+                 focus: 3.5, baseline: 3.4, adherence: 9, acknowledged: true),
+            past(62, verdict: nil, focusLabel: "Deep work",
+                 change: "Give Deep work a block of its own on most days this fortnight.",
+                 focus: 0, baseline: 0, adherence: 0),
+            past(90, verdict: .cannotTell, focusLabel: "Non-workdays",
+                 change: "Put one block on each of your days off this fortnight.",
+                 focus: 0, baseline: 0, adherence: 3, acknowledged: true),
+        ].compactMap { $0 }
+
         if seedsRandomised {
             seeded += randomised(morning: morning, store: store, today: today, calendar: calendar)
         }

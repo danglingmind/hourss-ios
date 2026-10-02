@@ -348,7 +348,11 @@ extension Experiment {
     /// result about their own life and is presented with the same weight as
     /// `heldUp`; `cannotTell` is a statement about the evidence and never about the
     /// person.
-    enum Verdict: String, Hashable, Codable {
+    /// `CaseIterable` so a suite can assert a property over every verdict rather
+    /// than over the three that exist today. Without it the record screen's tests
+    /// had to hand-list them and tie the list to an exhaustive switch, which works
+    /// and is a workaround for a missing conformance word.
+    enum Verdict: String, Hashable, Codable, CaseIterable {
         /// The interval on the difference excludes zero, in the favourable
         /// direction.
         case heldUp
