@@ -173,12 +173,30 @@ worth more than the unlocking.
       recommendations or experiments. A test pins each.
 - [x] **4.** The shortfall is computed from days, never sessions.
 
+### Phase 2 — the card — **done**
+
+**Leads are not a third state.** §7 left this open and the answer collapsed it: a
+lead is a question that cleared its gate, was measured, and did not separate — which
+is what an *open* card says when the answer is nothing. Giving it a section of its
+own said a measured non-answer belongs somewhere other than with the answers, which
+is the opposite of what this app believes. So there are two states, open and
+waiting, and the standalone leads section is gone.
+
+Close and far stayed one state told apart by its sentence, as planned.
+
+**One thing the copy got wrong first.** A single noun template produced "Nothing
+logged in your 180 min or more yet" — a duration is a property of a session, not a
+place in the day, and an activity is neither. The phrasing is now keyed off the
+registry's own family. A second pass found "No a session in your evening yet",
+whose test had hedged with an `||` instead of failing; both are fixed and the test
+asserts the grammar now.
+
 ### Phase 2 — the card
-- [ ] **5.** Three states, derived, never stored.
-- [ ] **6.** Copy per state, in days. "Far" names the thing that has never happened.
-- [ ] **7.** Open cards show the finding or that nothing stood out.
-- [ ] **8.** Grouped by priority, as now. No ordering by closeness.
-- [ ] **9.** Decide leads versus locks and write it into `DESIGN.md`.
+- [x] **5.** Three states, derived, never stored.
+- [x] **6.** Copy per state, in days. "Far" names the thing that has never happened.
+- [x] **7.** Open cards show the finding or that nothing stood out.
+- [x] **8.** Grouped by priority, as now. No ordering by closeness.
+- [x] **9.** Decide leads versus locks and write it into `DESIGN.md`.
 
 ### Phase 3 — the announcement
 - [ ] **10.** `Record.announcedHypotheses: [String]?`, optional, schema bump, and the

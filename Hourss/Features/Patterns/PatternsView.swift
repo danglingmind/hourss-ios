@@ -51,6 +51,14 @@ struct PatternsView: View {
     /// more often than the engine should.
     @State private var proposals: [ExperimentDesign.Proposal] = []
 
+    /// Questions the engine cannot ask yet, with what each is short of.
+    ///
+    /// Cached beside the leads, though for the opposite reason: this one runs no
+    /// bootstrap at all — nothing in it has been compared — so it is cheap. It is
+    /// held here only so it refreshes on the same key as everything else and cannot
+    /// disagree with the findings drawn beside it.
+    @State private var waiting: [Engine.Pending] = []
+
     /// The proposal whose sheet is up, if one is. Agreeing happens on a screen of
     /// its own, here exactly as on Today — the same sheet, so the four answers
     /// somebody reads before saying yes do not depend on which tab they were on.
@@ -81,6 +89,8 @@ struct PatternsView: View {
         .task(id: leadInputs) {
             leads = Self.leads(in: store)
             proposals = store.experimentProposals()
+            waiting = Engine.pending(for: EngineInput(observations: store.engineObservations,
+                                                      priorities: store.profile.priorities))
         }
         .background(Color.canvas)
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -232,79 +242,10 @@ struct PatternsView: View {
             InteractionSection(findings: store.interactions,
                                observations: store.engineObservations)
 
-            leadSection
 
             Text("Observations, not rules. Hourss only speaks up when the same thing repeats.")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
-        }
-    }
-
-    /// Rung 2 — what is being watched, said plainly as being watched.
-    ///
-    /// **Why this is a section and not a claim.** Everything above it cleared the
-    /// interval gate and the correction. Nothing here has. Until now a lead was
-    /// visible only in the moment it became the proposal on Today, which meant the
-    /// app was quietly tracking several things about somebody and showing them one,
-    /// with no way to see the rest — and no way to tell that the one they *were*
-    /// shown came from a pool rather than being the only thing there was.
-    ///
-    /// The day count is on every row and is doing the work the eyebrow cannot: it
-    /// is the difference between "your mornings are better" and "four days so far
-    /// have read that way". `ExperimentCopy.premise` writes the sentence, rather
-    /// than this file writing a second phrasing of the same thing.
-    ///
-    /// No navigation. A lead has no detail screen because there is no evidence page
-    /// to show — an interval that spans zero and a correction it did not survive is
-    /// not a case somebody should be invited to read as though it were one.
-    @ViewBuilder
-    private var leadSection: some View {
-        if !leads.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                // Everything in this section is a lead by construction, so the
-                // standing is named once here rather than per row — but through the
-                // same function the cards use, so a rename cannot leave the list
-                // and the card calling the same thing two names.
-                Eyebrow(ExperimentCopy.eyebrow(for: .lead))
-                    .padding(.bottom, Space.xs)
-                HRule()
-                ForEach(leads, id: \.hypothesis.id) { lead in
-                    // Ink, not muted.
-                    //
-                    // These were grey, and grey is the wrong signal: on every other
-                    // screen it means a thing is off, spent or unavailable, so a
-                    // column of grey rows under a live heading read as disabled.
-                    // They are not. They are ordinary observations that have not
-                    // repeated enough to be claimed.
-                    //
-                    // Two things already say that — the heading above them and the
-                    // day count inside every row — so the colour was a third signal
-                    // doing a job two were already doing, and doing it wrongly.
-                    Text(ExperimentCopy.premise(for: lead, standing: .lead,
-                                                days: lead.comparison.focusDays))
-                        .textStyle(.body)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, Space.sm)
-                    HRule()
-                }
-
-                // Says outright that these are not findings. No "yet" and no
-                // "soon": for somebody whose days genuinely are flat none of these
-                // will ever firm up, and a word that promises otherwise is a
-                // promise the engine cannot keep.
-                Text("These have not repeated enough to stand on their own. They are what Hourss is watching.")
-                    .textStyle(.label)
-                    .foregroundStyle(Color.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, Space.sm)
-            }
-            // `children: .contain` so the identifier actually resolves to a
-            // container. Without it the rows stay independent elements, the
-            // identifier lands on nothing a query can find, and a UI test looking
-            // for this section reports it absent while it is plainly on screen.
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("lead-section")
         }
     }
 
@@ -436,6 +377,52 @@ struct PatternsView: View {
         return out
     }
 
+    /// One question, said in two steps: what it is about, then where it stands.
+    ///
+    /// The same shape whether it was measured and came out alike or has not been
+    /// measured at all, because the difference between those is what the second line
+    /// says and not how loudly it is drawn. A waiting question dimmed or badged
+    /// would read as unavailable, which is the mistake the leads section already
+    /// made once by printing its rows in grey.
+    private func questionRow(title: String, detail: String, identifier: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .textStyle(.body)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(detail)
+                .textStyle(.label)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Space.sm)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title). \(detail)")
+        .accessibilityIdentifier(identifier)
+        .overlay(alignment: .bottom) { HRule() }
+    }
+
+    /// Questions this priority covers that cannot be asked yet.
+    ///
+    /// **Not sorted by how close they are.** Ordering by closeness turns the screen
+    /// into a list of things to go and log next, which is how a record becomes a
+    /// chore — `PRD-LOCKS.md` §6. They come out in the registry's own order, which is
+    /// stable between runs and means nothing.
+    private func waiting(for priority: Priority?) -> [Engine.Pending] {
+        guard let priority else { return [] }
+        return waiting.filter { priority.insightTypes.contains($0.hypothesis.type) }
+    }
+
+    /// Leads this priority covers — questions that were asked and came out alike.
+    ///
+    /// They used to have a section of their own at the foot of the screen. That said
+    /// a measured non-answer belongs somewhere other than with the answers, which is
+    /// the opposite of what this app believes: `QuestionCopy` has the argument.
+    private func leads(for priority: Priority?) -> [Finding] {
+        guard let priority else { return [] }
+        return leads.filter { priority.insightTypes.contains($0.publishedType) }
+    }
+
     /// What one priority has to say: what held up, and the one thing to try.
     @ViewBuilder
     private func prioritySection(_ priority: Priority?, _ items: [Insight]) -> some View {
@@ -455,7 +442,16 @@ struct PatternsView: View {
                 HRule()
             }
 
-            if items.isEmpty && proposal == nil {
+            // Measured, and came out alike. Beside the answers rather than in a
+            // section of its own, because a measured non-answer is an answer.
+            ForEach(leads(for: priority), id: \.hypothesis.id) { lead in
+                questionRow(title: lead.hypothesis.focusLabel,
+                            detail: QuestionCopy.noSeparation,
+                            identifier: "lead-row")
+            }
+
+            if items.isEmpty && leads(for: priority).isEmpty && proposal == nil
+                && waiting(for: priority).isEmpty {
                 Text("Nothing here has repeated enough to show.")
                     .textStyle(.body)
                     .foregroundStyle(Color.muted)
@@ -481,6 +477,27 @@ struct PatternsView: View {
                 }
                 .padding(.vertical, Space.sm)
                 HRule()
+            }
+
+            // What this priority is still waiting on. Last, because it is the only
+            // part of the section that has not been measured — everything above it
+            // is something the app has actually looked at.
+            //
+            // Under its own small heading rather than running straight on, so that a
+            // reader can tell at a glance where the answers stop. Without it the
+            // first waiting row reads as a finding whose sentence happens to be about
+            // days.
+            let unasked = waiting(for: priority)
+            if !unasked.isEmpty {
+                Eyebrow(QuestionCopy.waitingHeading)
+                    .padding(.top, Space.sm)
+                    .padding(.bottom, Space.xs)
+                HRule()
+                ForEach(unasked, id: \.hypothesis.id) { question in
+                    questionRow(title: question.hypothesis.focusLabel,
+                                detail: QuestionCopy.waiting(question),
+                                identifier: "waiting-row")
+                }
             }
         }
     }
