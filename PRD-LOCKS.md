@@ -147,15 +147,31 @@ being a wall.
 
 ## 10. Checklist
 
-### Phase 1 — the engine
-- [ ] **1.** A `Shortfall` value: which side is short, by how many days, and what the
+### Phase 1 — the engine — **done**
+
+Built as `Engine.pending(for:)` and `Engine.Pending`, with `findings` untouched.
+
+**A separate function rather than a flag or a wider return type**, which was the
+decision §10 left open. A flag on `Finding` would put an untested question into the
+type that the correction, the feed, recommendations and experiments all consume;
+each would need a guard, every guard would need a test, and one missed guard puts a
+claim on screen that six days of evidence never supported. With two types there is
+nothing to leak, and a test pins that the two lists are disjoint.
+
+**One thing found by writing the test.** An empty record already has nine pending
+questions — four time buckets, four durations, workdays — because none of those
+depends on what somebody logged in order to *exist*. So the map is readable on day
+one, before anything has been logged at all, which is the half of this feature
+worth more than the unlocking.
+
+- [x] **1.** A `Shortfall` value: which side is short, by how many days, and what the
       gate is.
-- [ ] **2.** `Engine.findings` returns these rather than dropping them. The existing
+- [x] **2.** `Engine.findings` returns these rather than dropping them. The existing
       return type must not change meaning — callers that want only testable findings
       keep getting exactly those.
-- [ ] **3.** Nothing under-powered may reach the correction, the feed,
+- [x] **3.** Nothing under-powered may reach the correction, the feed,
       recommendations or experiments. A test pins each.
-- [ ] **4.** The shortfall is computed from days, never sessions.
+- [x] **4.** The shortfall is computed from days, never sessions.
 
 ### Phase 2 — the card
 - [ ] **5.** Three states, derived, never stored.

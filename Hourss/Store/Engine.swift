@@ -79,6 +79,65 @@ enum Engine {
         }
     }
 
+    /// A question the engine cannot ask yet, and exactly what it is short of.
+    ///
+    /// **A separate type and a separate function, deliberately.** The alternative
+    /// was a flag on `Finding` or a wider return from `findings`, and both put an
+    /// untested question into the type four other paths already consume — the
+    /// correction, the feed, recommendations and experiments. Each would then need a
+    /// guard, every guard would need a test, and one missed guard puts a claim on
+    /// screen that six days of evidence never supported. Here that cannot happen:
+    /// the type carrying a comparison and the type carrying a shortfall are
+    /// different types, so there is nothing to leak.
+    ///
+    /// The cost is that the sides are computed twice on a run that wants both. That
+    /// is a filter over the rows and no bootstrap at all — `findings` skips the
+    /// resampling for exactly these questions, which is why the day check sits above
+    /// it — so the second pass is the cheap half of the work.
+    struct Pending {
+        let hypothesis: Hypothesis
+        /// Distinct days carrying a rated session on each side.
+        let focusDays: Int
+        let baselineDays: Int
+
+        /// Days needed on each side before this can be tested.
+        var gate: Int { hypothesis.minimumDays }
+
+        /// Days still missing from the thinner side. Always at least one, because a
+        /// question that needs nothing is not pending.
+        var shortfall: Int { max(gate - min(focusDays, baselineDays), 0) }
+
+        /// Whether one side has never happened at all.
+        ///
+        /// A different kind of gap from being short, and the copy has to tell them
+        /// apart: "two more afternoon days" is a task somebody finishes this week,
+        /// and "you have not logged an evening yet" is not the same sentence at all.
+        var isUntouched: Bool { focusDays == 0 || baselineDays == 0 }
+    }
+
+    /// Every question that exists but cannot be asked yet.
+    ///
+    /// The mirror of `findings`: that returns what cleared `minimumDays`, this
+    /// returns what did not, with the measurement of how far off it is. Until now
+    /// that measurement was computed and thrown away on the guard inside `findings`,
+    /// which is why nothing could say what a screen was waiting for.
+    ///
+    /// No bootstrap runs here. Nothing in this list has been compared, and that is
+    /// the whole point of it.
+    static func pending(for input: EngineInput) -> [Pending] {
+        let observations = input.observations
+        return HypothesisRegistry.hypotheses(for: observations).compactMap { hypothesis in
+            let focus = side(hypothesis.focus, of: hypothesis, in: observations)
+            let baseline = side(hypothesis.baseline, of: hypothesis, in: observations)
+            guard focus.days.count < hypothesis.minimumDays
+                    || baseline.days.count < hypothesis.minimumDays
+            else { return nil }
+            return Pending(hypothesis: hypothesis,
+                           focusDays: focus.days.count,
+                           baselineDays: baseline.days.count)
+        }
+    }
+
     private struct Side {
         var rated: [Statistics.Observation] = []
         /// Days of matching sessions that carried no rating. Kept so the
