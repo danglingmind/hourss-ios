@@ -615,8 +615,10 @@ struct ExperimentAssignmentCopyTests {
         #expect(ask.contains("28"))
         // The cost, said out loud rather than discovered on day three.
         #expect(ask.contains("would rather not"))
-        // The return, at exactly the strength the design supports.
-        #expect(ask.contains("did not choose"))
+        // The return, at exactly the strength the design supports. "Did not pick"
+        // since the ask was shortened on the owner's reading — same clause, same
+        // claim, one verb, and it is now the verb the first sentence uses too.
+        #expect(ask.contains("did not pick"))
         #expect(!ask.lowercased().contains("fortnight"))
         for overclaim in ["will", "proves", "shows that", "guarantee", "works"] {
             #expect(!ask.lowercased().contains(overclaim),

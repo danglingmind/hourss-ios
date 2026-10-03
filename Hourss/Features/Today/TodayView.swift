@@ -47,7 +47,8 @@ struct TodayView: View {
             // moving any of the gaps below. A single VStack spaces every child
             // identically, and the day's heading is the one child that is metadata
             // rather than a section — it belongs to the screen, not beside the
-            // fact. Space.xs here against Space.lg everywhere else.
+            // section that happens to follow it. Space.xs here against Space.lg
+            // everywhere else.
             VStack(alignment: .leading, spacing: 0) {
                 dateHeading
                     .padding(.bottom, Space.xs)
@@ -56,14 +57,6 @@ struct TodayView: View {
                     if let running = store.runningSession {
                         ActiveSessionPanel(session: running)          // T2
                     }
-
-                    // Above both branches rather than inside the logged one. The whole
-                    // point of the daily fact is that it costs nothing: it is already
-                    // true about this person and needs no session, no rating and no
-                    // streak. Putting it under the timeline would make the one thing
-                    // here that asks nothing of them available only to people who had
-                    // already given something.
-                    dailyFactRow
 
                     if todaysSessions.isEmpty {
                         emptyState                                     // T1
@@ -75,9 +68,9 @@ struct TodayView: View {
                         )
                     }
 
-                    // Outside both branches, for the reason the daily fact above is
-                    // outside them — and it took an experiment settling overnight to
-                    // notice. The slot used to sit inside the logged branch, so a
+                    // Outside both branches, for the reason the daily fact below it
+                    // is outside them — and it took an experiment settling overnight
+                    // to notice. The slot used to sit inside the logged branch, so a
                     // finished test was invisible on any day nothing had been logged
                     // yet, which is both the likeliest morning to open the app and
                     // the one where a fortnight's result is the only thing it has to
@@ -95,6 +88,29 @@ struct TodayView: View {
                         // body rather than again inside the copy layer.
                         now: today
                     )
+
+                    // Last, and still outside both branches.
+                    //
+                    // **It is not gated, and that has not changed.** The whole point
+                    // of the daily fact is that it costs nothing: it is already true
+                    // about this person and needs no session, no rating and no
+                    // streak. Putting it *inside* the logged branch would make the
+                    // one thing here that asks nothing of them available only to
+                    // people who had already given something, so it stays a sibling
+                    // of both branches and shows on a day with an empty record
+                    // exactly as it did before.
+                    //
+                    // **What changed is the order, and the order was never the
+                    // gate.** This used to sit directly under the date, above both
+                    // the day's own record and the test — so the first thing on the
+                    // screen was the quietest thing the app has to say, and the test
+                    // somebody had agreed to was below it. The order now is the
+                    // date, then the day they are actually having, then the test,
+                    // then this. The test is what the app is for and the one thing
+                    // here anybody committed to; the fact is the thing you find once
+                    // you have read the rest, which is the right weight for
+                    // something that asks nothing and promises nothing.
+                    dailyFactRow
                 }
             }
             .pageGutter()
@@ -138,11 +154,16 @@ struct TodayView: View {
     @ViewBuilder
     private var dailyFactRow: some View {
         if let fact = dailyFact {
-            // No rule above the fact. It used to separate the fact from the day's
-            // heading, which was two lines at 34pt and needed separating from. The
-            // heading is now a single line of 11pt mono directly under the header's
-            // own rule, so a second line sixteen points below it was ruling off a
-            // strip of metadata from the thing it belongs to.
+            // No rule above the fact, and the move down did not create a need for
+            // one. It used to separate the fact from the day's heading, which was
+            // two lines at 34pt and needed separating from; the heading became a
+            // single line of 11pt mono, so the rule was ruling off a strip of
+            // metadata from the thing it belongs to and went. What now sits above
+            // the fact is the observation slot, which closes itself — a forest block
+            // when it is carded, a ruled band when it is not — and `HealthFactRow`
+            // draws its own rule along its bottom edge. A rule added here would be a
+            // second line against one of those, which is the same mistake in a new
+            // place.
             VStack(alignment: .leading, spacing: 0) {
                 HealthFactRow(fact: fact, identifier: "today-fact")
 

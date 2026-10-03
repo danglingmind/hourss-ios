@@ -22,6 +22,11 @@ whole region changes ground (`ActiveSessionPanel`, the Patterns lead insight). T
 "no rounded corners" half of this rule has been retired — see *Blocks round now*
 below — and nothing else about it moved.
 
+*One screen is now running without it.* `TestProposalSheet` has no rules at all, on
+the owner's instruction, and carries its ranking on space and a coloured heading
+instead. See *Space and colour instead of rules, on one screen* below: it is a
+trial, and if it holds the same treatment goes to the rest of the app.
+
 **Filled buttons are banned.** `DirectionalLink` — bold 14pt text plus an
 oversized orange arrow — is the only action idiom. The press shift is the entire
 affordance. *This remains in force.* A proposal to exempt one primary action per
@@ -122,13 +127,132 @@ It now marks **the thing you are looking at**, and only that:
 - the current time on `DayHours` — line and label
 - the selected tab's underline in `EditorialTabBar`
 
-Everything else it does is still navigational (arrows, the back chevron). Do not
-spend it on a third job.
+Everything else it does is still navigational (arrows, the back chevron).
 
 The tab underline is that same one job at the largest scale the app has for it —
 the screen you are on is the thing you are looking at — which is why it is an
 application of this rule and not an exception to it. A different accent for
 navigation chrome would have been the exception.
+
+**It has a second job on one screen, and that was a decision.** See the section
+immediately below. The rule stated here still governs everywhere else, and the
+sentence this paragraph replaced — *do not spend it on a third job* — is now about
+a third job rather than a second.
+
+### Orange has a second job on one screen
+
+On `TestProposalSheet`, and nowhere else yet, orange marks **a section heading**:
+the seven `Eyebrow`s that name the questions the sheet answers. The owner asked for
+it in those words — *"in general we have too much of text in our app we should
+atleast use different colors for minimal things to easily differentiate things"* —
+after reading the sheet on device, and this is a trial. If it survives, the same
+treatment goes to section headings across the app and this becomes the rule; if it
+does not, it comes out of one file.
+
+**What orange means here, precisely.** A question this screen answers. Not a state,
+not a selection, not emphasis, and not a verdict. The three verdict names in section
+4 are set **bold ink**, not orange, and that is the load-bearing part of the
+decision: the sheet's whole purpose is that "It held up", "It did not hold up" and
+"Not enough to tell" arrive at identical weight, and spending a colour on them would
+either rank them or ask the colour to mean two things on one screen. Likewise the
+sheet's own title stays in the quiet register — it is what the sheet is about, not
+one of the questions, and `SheetHeader` is shared with two other sheets that are not
+part of this trial.
+
+**It reads correctly with the colour ignored.** Every heading is still 11pt mono,
+uppercase, tracked — the `Eyebrow` idiom, which was already distinct from everything
+around it. Orange made the headings findable from a thumb's distance; it carries no
+information that is lost in greyscale, because *which* heading is coloured is not a
+distinction the screen draws. That is what keeps *Colour never carries meaning alone*
+intact here rather than suspended.
+
+**Why it was worth reversing anything.** The rule above was written when the app had
+an accent and nothing for it to mean, and it is the right rule for a mark. A heading
+is not a mark — it is the thing a reader uses to find their place in a screen they
+are deliberately reading slowly. The sheet is the longest reading surface in the app
+and the one with the most at stake, and on device it was fifteen lines of one colour
+at three sizes with a hairline above each break.
+
+### Space and colour instead of rules, on one screen
+
+The same reading removed every `HRule` from `TestProposalSheet` — seven of them,
+one above each section plus two fencing the controls. The owner's instruction was
+*"remove the separator lines from this sheet"*, and it reverses the standing rule at
+the top of this file on that one screen.
+
+**What carries the ranking now.** Three gaps, each plainly larger than the next:
+`Space.lg` (40) between sections, `Space.sm` (16) between two parts of one answer,
+`Space.xs` (8) between a heading and the thing it heads. Plus the coloured heading,
+which is the part that makes a 40pt gap read as a break rather than as a long
+paragraph.
+
+This is the lever *One rule weight, and why a second was tried* nominated and never
+spent: that section's conclusion was that the flatness is a real cost, that a
+heavier rule was the wrong way to pay it, and that *the lever is probably space*.
+This is the first screen where space was actually tried as the whole answer rather
+than as an addition to the rules, and the reason it could be is that this screen
+also got a colour. Space on its own, with everything still ink, is what Today's
+`roomAbove` already does — it works, and it works for a card, not for a
+seven-section sequence.
+
+**What was not invented.** No badge, no border, no second rule weight, no new type
+size, no filled panel. The two marks the sheet gained are a `DataBar` at full
+fraction and a square.
+
+---
+
+## Two marks for a commitment
+
+`SpanBar` and `StageList`, in `SpanBar.swift`. Both exist because the owner asked
+for `TestProposalSheet`'s prose to be drawn where it could be: *"we should use
+visual representation of what is written on the sheet eg. for How long, we can show
+'2 weeks' then a progress bar which start from current date and ends at the two
+week's date"*.
+
+**`SpanBar` is an extent, not progress.** A whole `DataBar` in `ruleColor` with its
+two ends labelled, under the length in words. Nothing has elapsed when it is read,
+so a part-filled bar would be claiming otherwise and an empty track is already the
+app's mark for *unknown* — `DataBar` renders a nil fraction as bare track precisely
+so an unrated session never looks like a zero. Not `lime`, because lime is the
+colour of a value somebody's record produced and no value exists yet. It replaced
+", from the day you start", and it says the thing that sentence withheld: the date
+this finishes.
+
+*Rejected:* fourteen `CoverageMark` cells. It would have counted the days and
+previewed the mark the active-test card fills in as the window runs, which was
+tempting — and it was dropped because that card's mark means *days with a rating*, a
+different and much harder quantity than calendar length, and two marks of one shape
+meaning two things on consecutive screens teaches the wrong one. *Also rejected:* a
+1pt dimension line with end caps, which is the more honest drawing of a span and
+reads, on this screen of all screens, as one of the seven separators that had just
+been removed.
+
+**`StageList` draws a procedure, and had to be honest with nothing in it.** Two
+gates — compared against your own record, then still standing after every other
+pattern was checked — each a solid square when cleared and a 1pt outline when not. A
+confirmed claim has both, a lead has the first, a **starter has neither**, and that
+last case is what chose the shape: a starter has compared nothing, so the mark draws
+two empty outlines and no fill anywhere, with one sentence beneath saying so. A mark
+that could only describe a reading which had got somewhere would have had to be
+absent for the one standing most in need of an honest answer.
+
+*Rejected for "how it decided":* `ComparisonMark` and `ComparisonArc`, which are the
+obvious shape for "what was compared against what" and are the wrong shape twice
+over. They need two *values* on a shared scale, and the only values available are
+the premise's own two figures, which the section above already prints — the "no
+figure in the well" rule under *Comparisons are arcs* is about exactly that. And a
+starter has no figures at all, so the mark would have been absent for the standing
+that needed it most. *Also rejected:* three glyphs for section 4's three verdicts —
+a dot pair far apart, touching, and one dot missing. It draws separation rather than
+direction, which is honest, and it is still a diagram that cannot be read without
+the name beside it. A diagram that needs its caption has failed.
+
+**Fill, not colour, and a word for VoiceOver.** Solid-versus-outline is a shape
+distinction and survives greyscale; the label's colour moves with it as
+reinforcement only. Neither reaches a screen reader, so each gate's state is also a
+string — `ProposalSheet.Stage.doneWord` and `pendingWord` — and the block speaks as
+one element with its heading first. Both marks are `accessibilityHidden`; the block
+that owns them says everything they draw.
 
 **One collision to know about.** `Color.orange` is `#E65837` and
 `Color.drainingFill` is `#E66645` — near enough the same hue that a draining

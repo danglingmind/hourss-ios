@@ -750,6 +750,56 @@ final class HourssStore {
         return TimeBucket.allCases.map { logged.contains($0) }
     }
 
+    /// How close the best comparison is to having enough on **both** sides.
+    ///
+    /// **This is the gate nothing on screen was naming.** Every other mark on the
+    /// warming-up screen counts one thing: rated days, times of day touched, the
+    /// share of sessions carrying a feeling. None of them is what actually stops a
+    /// pattern appearing, which is that a comparison needs `Hypothesis.minimumDays`
+    /// distinct days on each side — six here and six there, not twelve in total.
+    ///
+    /// Somebody who logs only mornings can rate every day for a month and still have
+    /// nothing to compare: one side has thirty days and the other has none. Before
+    /// this, the screen told them their rated-day bar was full and left them to
+    /// guess why that bought nothing.
+    ///
+    /// Measured over the time buckets because they are the split every record has —
+    /// activities and durations vary by person, and the point is to name the gate
+    /// rather than to find the best hypothesis, which the engine does anyway.
+    var bestBalancedDays: Int {
+        let rated = sessions.filter {
+            $0.isEligibleForPatterns && feeling(for: $0.id) != nil
+        }
+        guard !rated.isEmpty else { return 0 }
+
+        let calendar = Calendar.current
+        var daysByBucket: [TimeBucket: Set<Date>] = [:]
+        for session in rated {
+            daysByBucket[session.timeBucket, default: []]
+                .insert(calendar.startOfDay(for: session.startAt))
+        }
+
+        // **A day can count on both sides, and that is not double counting.** The
+        // other side is the days carrying a session *outside* this bucket, not the
+        // days absent from it — somebody who logs a morning and an afternoon every
+        // day has six days of mornings and six of afternoons on the same six dates,
+        // and the engine compares them exactly that way. Subtracting the sets
+        // instead said that person had nothing to compare, which is the opposite of
+        // the truth: theirs is the cleanest comparison there is, because everything
+        // that travels with a day is held constant inside it.
+        //
+        // The weaker side is what limits a comparison, so each bucket is worth the
+        // smaller of the two counts.
+        return TimeBucket.allCases.reduce(0) { best, bucket in
+            let mine = daysByBucket[bucket] ?? []
+            let others = daysByBucket
+                .filter { $0.key != bucket }
+                .values
+                .reduce(into: Set<Date>()) { $0.formUnion($1) }
+            return max(best, min(mine.count, others.count))
+        }
+    }
+
     /// Share of finished sessions that carry a feeling. Unrated sessions are
     /// dropped from every comparison, so this is the number that gates insights.
     var ratedShare: Double {

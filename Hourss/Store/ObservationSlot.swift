@@ -103,4 +103,12 @@ enum SlotContent: Equatable {
 /// avoiding.
 enum EvidenceFloor {
     static let days = 12
+
+    /// Distinct days a comparison needs on **each** side.
+    ///
+    /// The number `days` above is derived from: twelve is the smallest history in
+    /// which both sides of a split could reach six. It is this one that actually
+    /// gates, and until now it only existed inside `Hypothesis.minimumDays`, where
+    /// no screen could reach it to say so.
+    static let perSide = 6
 }

@@ -20,16 +20,29 @@ import SwiftUI
 ///
 /// **Not a single string is written here.** Every sentence comes from
 /// `ExperimentCopy.sheet(for:)`, assembled as a value before anything renders, so
-/// one copy sweep sees all of them — including the three "how it decided" lines
-/// and the three verdicts, which are the two places this screen could most easily
-/// start lying. `ExperimentCopy` documents that rule at length; this file is the
-/// largest thing that has ever had to obey it.
+/// one copy sweep sees all of them — including the two gate labels and the three
+/// verdicts, which are the two places this screen could most easily start lying.
+/// `ExperimentCopy` documents that rule at length; this file is the largest thing
+/// that has ever had to obey it. The two marks obey it too: `SpanBar` and
+/// `StageList` are handed their labels and format nothing.
 ///
-/// **Nothing new was invented to draw it.** `HRule`, `Eyebrow`, the existing type
-/// ramp, `Space`, `Radius.block` through `blockSurface` inside `PrimaryAction`,
-/// and `SheetHeader` — the same sheet frame the reflection and the session sheet
-/// use. No colour, badge, border, second rule weight or type size: two visual
-/// changes have been reverted whole in this project and `DESIGN.md` records both.
+/// **Two standing rules are suspended here, and `DESIGN.md` records both as
+/// decisions.** The owner looked at this screen on device and asked for the section
+/// headings in orange and the rules gone, which reverses *Orange is a signal, not
+/// decoration* and *Hierarchy comes from lines, not surfaces* — on this screen, on
+/// trial, pending the same treatment elsewhere. What replaced the seven `HRule`s is
+/// `Space.lg` between sections against `Space.xs` under a heading, plus a heading
+/// the eye can land on from a thumb's distance. Nothing else was invented: no badge,
+/// no border, no second rule weight, no new type size, and the two marks are
+/// `DataBar` and a square.
+///
+/// **One line is still drawn, inside `SheetHeader`.** It closes the fixed title band
+/// against the scrolling region below it, which is the sheet's frame rather than its
+/// hierarchy — the thing the instruction was about was the seven rules ranking the
+/// content. It is also shared with the session sheet and the reflection sheet, which
+/// are not part of this trial, so removing it here would mean either changing all
+/// three or giving a shared component a parameter for one screen. Worth raising with
+/// the owner; not worth deciding alone.
 struct TestProposalSheet: View {
     @Environment(HourssStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -45,7 +58,19 @@ struct TestProposalSheet: View {
     /// return value of the accept that owns this screen or it is nothing.
     @State private var started: Experiment?
 
-    private var copy: ExperimentCopy.ProposalSheet { ExperimentCopy.sheet(for: proposal) }
+    /// When the window would start, read once.
+    ///
+    /// The "how long" span needs a far end, which is this plus the window, and
+    /// `copy` is a computed property evaluated on every pass of `body`. Reading the
+    /// clock there would read it dozens of times for one decision and let the drawn
+    /// span shift under a redraw — one read per decision is a rule this codebase has
+    /// already paid for breaking. `@State` is initialised when the sheet's storage
+    /// is created, which is once per presentation.
+    @State private var now = Date()
+
+    private var copy: ExperimentCopy.ProposalSheet {
+        ExperimentCopy.sheet(for: proposal, now: now)
+    }
 
     /// The ground this sheet paints, named once rather than read from the
     /// environment.
@@ -66,6 +91,12 @@ struct TestProposalSheet: View {
             // be a claim, and the honest label is the only thing between the two —
             // so it belongs in the one place on this screen that cannot be scrolled
             // away from.
+            //
+            // It stays in the quiet register while the seven section headings below
+            // it went orange. That is the distinction the colour is being asked to
+            // draw here: orange marks a question this sheet answers, and the title
+            // is not one of them — it is what the sheet is about. `SheetHeader` is
+            // also shared with two other sheets, and this trial is for one screen.
             SheetHeader(title: started == nil ? copy.standing : ExperimentCopy.activeStanding,
                         onClose: { dismiss() })
 
@@ -94,27 +125,32 @@ struct TestProposalSheet: View {
 
     /// Four questions, three terms, then the controls.
     ///
-    /// `Space.lg` between sections and `Space.xs` inside one: the gap that separates
-    /// two answers has to be plainly larger than the gap between a heading and the
-    /// thing it heads, or the screen reads as one list of eleven lines. Space is the
-    /// lever `DESIGN.md` nominates for exactly this and it is the only one used
-    /// here — every rule on the screen is `HRule` at 1pt.
+    /// **Three gaps and no lines, which is the half of this screen that changed.**
+    /// Every section used to open with an `HRule`; the owner asked for them gone, so
+    /// the ranking is carried by space and by the heading's colour instead. The three
+    /// steps are `Space.lg` between sections, `Space.sm` between two parts of one
+    /// answer, and `Space.xs` between a heading and the thing it heads — each
+    /// plainly larger than the next, or the screen reads as one list of fifteen
+    /// lines. Space is the lever `DESIGN.md` nominates for exactly this and it is now
+    /// the only one on this screen.
     private var offer: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
-            section(copy.whatYouWouldDo, lead: true)
-
-            ForEach(Array(copy.orderedSections.dropFirst().enumerated()), id: \.offset) { _, part in
-                section(part, lead: false)
+            // The first section is the change, and it is the only one set large. The
+            // index rather than a flag on the section itself: the order *is* the
+            // design, `orderedSections` owns it, and a second place saying which one
+            // leads is a second place for the two to disagree.
+            ForEach(Array(copy.orderedSections.enumerated()), id: \.offset) { index, part in
+                section(part, lead: index == 0)
             }
 
             controls
         }
         .pageGutter()
-        .padding(.top, Space.md)
+        .padding(.top, Space.lg)
         .padding(.bottom, Space.xl)
     }
 
-    /// One block: its heading, then its lines.
+    /// One block: its heading, then its parts.
     ///
     /// - Parameter lead: the change, which is the only part there is anything to do
     ///   about and the one sentence set large. `.sectionLead` at 23pt rather than
@@ -127,26 +163,71 @@ struct TestProposalSheet: View {
     @ViewBuilder
     private func section(_ part: ExperimentCopy.ProposalSheet.Section, lead: Bool) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            HRule()
-            Eyebrow(part.heading)
-            ForEach(Array(part.lines.enumerated()), id: \.offset) { index, line in
-                Text(line)
-                    .textStyle(lead ? .sectionLead : .body)
-                    // The first line of a block is the answer and the rest qualify
-                    // it, which is the order the band on Today reads in too. On the
-                    // one block with five lines — the three verdicts between their
-                    // preamble and their closing line — every line is primary,
-                    // because a verdict set quieter than its neighbours is the thing
-                    // this section exists to prevent.
-                    .foregroundStyle(index == 0 || part.lines.count > 2
-                                     ? ground.foreground : ground.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            Eyebrow(part.heading, color: .orange)
+
+            VStack(alignment: .leading, spacing: Space.sm) {
+                ForEach(Array(part.parts.enumerated()), id: \.offset) { _, piece in
+                    view(for: piece, lead: lead)
+                }
             }
         }
         // Spoken as one block with its heading first, so the subject arrives before
-        // anything else and no label opens with a figure.
+        // anything else and no label opens with a figure. The marks are hidden from
+        // VoiceOver individually and speak through this: `Section.spoken` carries the
+        // span's two ends and each gate's state in words, so a reader who cannot see
+        // either drawing loses nothing.
         .accessibilityElement(children: .combine)
         .accessibilityLabel(part.spoken)
+    }
+
+    /// One part of an answer, in the register its own case names.
+    ///
+    /// **Nothing here counts.** The previous version decided a line's weight from
+    /// its index and from how many lines the section had — first line primary, the
+    /// rest quiet, unless there were more than two and then all of them primary,
+    /// which was the only way the three verdicts came out equal. Every one of those
+    /// branches was a guess about content from a view that cannot see it, and the
+    /// first new line in any section would have broken one of them. The case says
+    /// what the thing is; this draws it.
+    @ViewBuilder
+    private func view(for part: ExperimentCopy.ProposalSheet.Part, lead: Bool) -> some View {
+        switch part {
+        case .line(let text):
+            Text(text)
+                .textStyle(lead ? .sectionLead : .body)
+                .foregroundStyle(ground.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+
+        case .quiet(let text):
+            Text(text)
+                .textStyle(.body)
+                .foregroundStyle(ground.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+        // A verdict and its gloss. `.action` is the app's one bold idiom and it is
+        // bold at 14pt against body at 16pt — the name reads as a sub-heading
+        // without a new type size being invented for it, which is the thing two
+        // reverted visual changes were both about. All three get it identically:
+        // "It did not hold up" set a shade quieter than "It held up" is the first
+        // step to not reporting a null, and there is a test pinning that elsewhere.
+        case .titled(let title, let detail):
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .textStyle(.action)
+                    .foregroundStyle(ground.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(detail)
+                    .textStyle(.body)
+                    .foregroundStyle(ground.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+        case .span(let from, let to):
+            SpanBar(start: from, end: to)
+
+        case .stages(let stages):
+            StageList(stages: stages.map { .init(label: $0.label, cleared: $0.cleared) })
+        }
     }
 
     // MARK: - Deciding
@@ -169,17 +250,18 @@ struct TestProposalSheet: View {
     /// somebody who will not commit to particular days should still be able to run
     /// the test they were offered.
     ///
-    /// **The ask finally has room to be read.** On the card it was 11pt mono under
-    /// a link on a crowded band — the register `HealthFactRow` names for metadata
-    /// and not for prose — and it is the paragraph that has to earn four weeks of
-    /// somebody's life, including days they would rather not. Here it is body text.
+    /// **The decline carries its own meaning now, and that is why it has no
+    /// paragraph.** It read "Not this one" over two sentences explaining that one
+    /// question was being refused and the feature was not; the owner could not tell
+    /// what it did without reading them. "Don't offer this test again" says the scope
+    /// and the permanence in the label, which is where a permanent act belongs — see
+    /// `ExperimentCopy.declineTitle`. The two rules that used to fence this group off
+    /// from the sections above are gone with everything else; `Space.md` between the
+    /// three controls and `Space.lg` above them does the separating.
     private var controls: some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            HRule()
-
+        VStack(alignment: .leading, spacing: Space.md) {
             PrimaryAction(title: copy.startTitle) { accept() }
                 .accessibilityIdentifier("accept-experiment")
-                .padding(.top, Space.xs)
 
             if let randomised = copy.randomised {
                 VStack(alignment: .leading, spacing: Space.xs) {
@@ -196,21 +278,10 @@ struct TestProposalSheet: View {
             }
 
             // One quiet line, and still permanent. An offer with only a yes is not
-            // an offer, and a visible no is only safe to give because `declineNote`
-            // says what it refuses: one question, not the feature.
-            VStack(alignment: .leading, spacing: Space.xs) {
-                HRule()
-                DirectionalLink(title: copy.declineTitle, arrow: "→") { decline() }
-                    .accessibilityIdentifier("decline-experiment")
-
-                Text(copy.declineNote)
-                    .textStyle(.body)
-                    .foregroundStyle(ground.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.top, Space.xs)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(copy.declineTitle). \(copy.declineNote)")
+            // an offer, and a visible no is safe to give here because the label says
+            // what it refuses: one test, not the feature.
+            DirectionalLink(title: copy.declineTitle, arrow: "→") { decline() }
+                .accessibilityIdentifier("decline-experiment")
         }
     }
 
@@ -222,6 +293,13 @@ struct TestProposalSheet: View {
     /// to hold in your head for a fortnight, and this is the last screen on which
     /// it is the only thing present. A drawn window's day list is read here for the
     /// first time, in the moment it was drawn.
+    ///
+    /// **No span mark here, and the closing sentence is why.** `ExperimentCopy
+    /// .started` already names the length and the date this window closes on, from
+    /// the window's real start rather than from the sheet's guess — drawing the span
+    /// again beside it would be those two facts twice, which is the mistake
+    /// *Comparisons are arcs* records about putting a figure in the well. The rule
+    /// that used to sit above "Got it" is gone, like the rest of them.
     private func confirmation(_ experiment: Experiment) -> some View {
         VStack(alignment: .leading, spacing: Space.lg) {
             VStack(alignment: .leading, spacing: Space.xs) {
@@ -242,8 +320,6 @@ struct TestProposalSheet: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(spokenConfirmation(experiment))
 
-            HRule()
-
             // "Got it", which is the word a finished result already closes with.
             // Nothing is being agreed to here — the agreement happened on the tap
             // that produced this screen — so the control only has to end it.
@@ -251,7 +327,7 @@ struct TestProposalSheet: View {
                 .accessibilityIdentifier("acknowledge-proposal")
         }
         .pageGutter()
-        .padding(.top, Space.md)
+        .padding(.top, Space.lg)
         .padding(.bottom, Space.xl)
     }
 

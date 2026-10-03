@@ -102,7 +102,10 @@ struct TestsScreenTests {
         let one = TestsScreen.offerDirection(count: 1)
         let several = TestsScreen.offerDirection(count: 3)
         // Today is where the card and its sheet are. Naming the place is the link:
-        // this screen is pushed from You and has no route into Today's stack.
+        // this screen is pushed onto Patterns' stack and has no route into Today's.
+        // Patterns raises the sheet too, but only for an offer that matches a
+        // priority group, so Today is still the one place every offer can be taken
+        // on.
         #expect(one.contains("Today"))
         #expect(several.contains("Today"))
         // The plural says the one-at-a-time rule in passing, which is where somebody

@@ -52,9 +52,15 @@ enum TestsScreen {
     /// raises, where the premise, the caveat and the randomised option have room to
     /// be read; a second "Start this" here would be the same commitment offered
     /// twice, in less context, by a screen that cannot show the reasoning. Naming the
-    /// tab is the link — this screen is pushed from You and has no route into
-    /// Today's stack, and inventing one so a record could change tabs under somebody
-    /// is a worse answer than a sentence.
+    /// tab is the link — this screen is pushed onto another tab's stack and has no
+    /// route into Today's, and inventing one so a record could change tabs under
+    /// somebody is a worse answer than a sentence.
+    ///
+    /// **It still names Today now that the push comes from Patterns.** Patterns also
+    /// raises the sheet, but only for the one offer that matches a priority group and
+    /// only once there are groups at all, so it is not the place every offer can be
+    /// taken on. Today is, for all of them and on every day — which is what makes it
+    /// the one place worth naming to somebody looking at a list of three.
     ///
     /// Two forms because only one test runs at a time, which the plural says in
     /// passing: a list of three offers with "you can start one of these" is the

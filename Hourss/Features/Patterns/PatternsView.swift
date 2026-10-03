@@ -21,6 +21,17 @@ enum EvidenceReadout {
     }
 }
 
+/// Where Patterns can push to.
+///
+/// One case, and an enum rather than a bare `TestsView()` destination, because a
+/// value route is what lets the entry be a `NavigationLink` instead of a sheet or a
+/// tab: `Insight` already takes the other route off this screen, and a second
+/// `navigationDestination` keyed on a type nobody else uses keeps the two from ever
+/// resolving to each other.
+enum PatternsRoute: Hashable {
+    case tests
+}
+
 /// P1 and P2. The warm-up state is not a placeholder chart — the spec forbids
 /// fake charts and premature observations, so before there is evidence the screen
 /// says so plainly.
@@ -53,6 +64,16 @@ struct PatternsView: View {
                 } else {
                     ranked
                 }
+
+                // Outside both branches, which is the whole reason it is here and
+                // not inside `ranked`. A warming-up record has no groups and no
+                // claims, but `ExperimentDesign` still offers a starter — the one
+                // thing the app can propose early — so a tests entry that lived in
+                // the ranked branch would be missing on exactly the weeks when the
+                // only thing somebody can do about their record is agree to a test.
+                // Today's observation slot sits outside its two branches for the
+                // same reason and the comment there names the bug it caught.
+                testsEntry
             }
             .pageGutter()
             .padding(.bottom, Space.xl)
@@ -66,6 +87,7 @@ struct PatternsView: View {
             ScreenHeader(title: "Patterns")
         }
         .navigationDestination(for: Insight.self) { InsightDetailView(insight: $0) }
+        .navigationDestination(for: PatternsRoute.self) { _ in TestsView() }
         .sheet(item: $sheetProposal) { proposal in
             TestProposalSheet(proposal: proposal)
         }
@@ -120,6 +142,20 @@ struct PatternsView: View {
                     detail: "\(store.timeBucketsCovered.filter { $0 }.count) of 4"
                 ) {
                     CoverageMark(segments: store.timeBucketsCovered, height: DataBar.strip)
+                }
+
+                // The gate itself, named. Every other row here counts one thing;
+                // this one counts the thing that actually decides whether a
+                // comparison exists — six distinct days on each side, not twelve in
+                // total. Somebody logging only mornings can fill every other bar on
+                // this screen and still have nothing to compare, and before this the
+                // screen left them to work that out themselves.
+                coverageRow(
+                    "Days on both sides",
+                    detail: "\(min(store.bestBalancedDays, EvidenceFloor.perSide)) of \(EvidenceFloor.perSide)"
+                ) {
+                    DataBar(fraction: min(Double(store.bestBalancedDays) / Double(EvidenceFloor.perSide), 1),
+                            height: DataBar.strip)
                 }
 
                 coverageRow(
@@ -269,6 +305,68 @@ struct PatternsView: View {
             // for this section reports it absent while it is plainly on screen.
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("lead-section")
+        }
+    }
+
+    /// The way into the tests feature.
+    ///
+    /// **Why it is here and not on You.** A test has two halves and they do not
+    /// belong in the same place. The record half — a fortnight somebody agreed to
+    /// and lived through — is a statement of what this person has done, which is
+    /// what You is for, and that is the argument `ExperimentHistory` was written
+    /// with. The offer half is not: "try mornings for a fortnight" is a thing to do
+    /// about a claim, and claims live here. A settings list is the wrong shelf for
+    /// something nobody has done yet, and the record was dragging the offer onto it.
+    ///
+    /// **Why it reads as a continuation and not as a link.** Every priority group
+    /// above ends with the one thing to try for that priority, and `prioritySection`
+    /// raises the same sheet Today raises. So the relationship already exists on this
+    /// screen, several times over, in the one form that cannot be mistaken for
+    /// navigation. This entry is the question those rows leave behind — what came of
+    /// the ones I said yes to — so it is in the groups' own idiom: an eyebrow, a
+    /// rule, a sentence at `.body`, and a directional link. Nothing about it is a
+    /// `SettingsRow`.
+    ///
+    /// **Why the foot of the screen and not the head.** A row above the lead
+    /// observation would put navigation in the position this screen reserves for the
+    /// strongest thing the app has noticed, and a strip of rows under a header is
+    /// precisely the settings shape to avoid — it was the shape it had on You. At the
+    /// foot it follows the claims, the conjunctions and the leads, which is the order
+    /// of the reading: here is what held up, here is what we are watching, here is
+    /// what you tried. The sign-off above it — "Observations, not rules" — closes the
+    /// evidence half and now doubles as the boundary between what the app noticed and
+    /// what this person did about it.
+    ///
+    /// **The sentence names the destination's three sections and states nothing
+    /// else.** No tally and no newest verdict: a count here would be the one number
+    /// this feature refuses to compute, and naming the latest result or that an offer
+    /// is waiting would put a verdict in a second place and let the two drift.
+    /// `TestsView` carries the longer form of both arguments.
+    private var testsEntry: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Eyebrow("Testing")
+                .padding(.bottom, Space.xs)
+            HRule()
+            NavigationLink(value: PatternsRoute.tests) {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text("What is on offer, what is running, and everything that finished.")
+                        .textStyle(.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // "→", the arrow this app uses for a push, as the lead card and
+                    // the insight rows above already do. "↘" is the other screen's
+                    // mark for opening a longer list in place.
+                    HStack(spacing: 6) {
+                        Text("Your tests").textStyle(.action)
+                        Text("→").font(.custom("DMSans-Bold", fixedSize: 18)).foregroundStyle(Color.orange)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, Space.sm)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("row-tests")
+            HRule()
         }
     }
 

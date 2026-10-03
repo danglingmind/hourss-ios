@@ -11,20 +11,27 @@ import Foundation
 /// screen that first showed it. Only the screen was missing, and until it exists
 /// nobody can reasonably run a third experiment, because the first two are gone.
 ///
-/// **Why it is reached from You and not from Patterns.** Patterns is mined evidence:
-/// the engine tested sixty hypotheses, the correction decided which of them
-/// survived, and every row there is recomputed from the sessions underneath it. An
-/// experiment is the opposite on both counts — one prediction fixed in writing
-/// before the window opened, and a figure deliberately frozen because re-deriving
-/// it next month against a rolling baseline would hand back a different number for
-/// a fortnight that has not changed. `BACKLOG.md` already refuses to let a settled
-/// experiment feed rung 4, on the grounds that mixing pre-registered and mined
-/// evidence inside one correction is exactly the confusion the correction exists to
-/// prevent; putting the two in one feed is that same confusion moved to the
-/// surface, where the person reading would be the one expected to keep them apart.
-/// You is where the app states what this person has *done* — its header already
-/// counts their sessions and their days — and a fortnight somebody agreed to and
-/// lived through belongs there.
+/// **Why this is not a row in the Patterns feed.** Patterns is mined evidence: the
+/// engine tested sixty hypotheses, the correction decided which of them survived,
+/// and every row there is recomputed from the sessions underneath it. An experiment
+/// is the opposite on both counts — one prediction fixed in writing before the
+/// window opened, and a figure deliberately frozen because re-deriving it next month
+/// against a rolling baseline would hand back a different number for a fortnight
+/// that has not changed. `BACKLOG.md` already refuses to let a settled experiment
+/// feed rung 4, on the grounds that mixing pre-registered and mined evidence inside
+/// one correction is exactly the confusion the correction exists to prevent; putting
+/// the two in one feed is that same confusion moved to the surface, where the person
+/// reading would be the one expected to keep them apart.
+///
+/// **That is an argument about the feed, not about the door.** It used to be written
+/// here as "why it is reached from You and not from Patterns", and the second half
+/// did not follow from the first: a screen *pushed* from Patterns is not a row in
+/// the feed, keeps its own frozen figures, and goes nowhere near the correction. The
+/// part that was really doing the work was that You is where the app states what
+/// this person has done, and a fortnight they agreed to and lived through is such a
+/// statement. True of the record; not true of the offer section that now sits above
+/// it on the same screen. `TestsView` and `PatternsView.testsEntry` carry where the
+/// door ended up and why.
 ///
 /// **It is now one section of three rather than a screen of its own.** `TestsView`
 /// holds what is on offer, what is running and everything finished, because the

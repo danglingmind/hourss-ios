@@ -353,11 +353,19 @@ enum ExperimentCopy {
     /// knows it will. `NarrationGuard`'s causal list is not the constraint that keeps
     /// it that way — `instruction` is the only list lifted in this file — but the
     /// shape of the claim is, and a test sweeps it alongside everything else.
+    /// **Shortened on the owner's reading, and the argument survived the cut.** The
+    /// first version was forty-eight words in two clauses, the second of which ran
+    /// "the only ones that can tell a change that held up from a stretch that was
+    /// going well anyway" — true, and the longest way to say it. The owner could not
+    /// follow it on device. What had to stay is the mechanism (the app picks, not
+    /// you) and the reason (days you did not pick are what separate the two), and
+    /// both are still here in two short sentences. "Held up" is now the verdict's
+    /// own word, which it was not before, so the ask and the result name the same
+    /// outcome.
     static func randomisedAsk(windowDays: Int, assignedDays: Int) -> String {
-        "\(assignedDays) days out of the next \(windowDays), picked by the app before you "
-            + "start — including days you would rather not. Days you did not choose are the "
-            + "only ones that can tell a change that held up from a stretch that was going "
-            + "well anyway."
+        "The app picks \(assignedDays) of the next \(windowDays) days, including days you "
+            + "would rather not. Days you did not pick are the ones that can tell a change "
+            + "that held up from a good stretch."
     }
 
     /// The limit on a drawn window's result, appended to the hypothesis's own caveat.
@@ -484,10 +492,25 @@ enum ExperimentCopy {
     /// rest of this file exists: every word an experiment shows is swept in one place,
     /// and a string authored inside a view body is a string no sweep can see.
     static let startTitle = "Start this"
-    /// Says no to the question, not to the app. "Not this one" leaves the door open
-    /// for the next proposal, which is accurate — a decline is permanent for one
-    /// hypothesis and for nothing else.
-    static let declineTitle = "Not this one"
+    /// Says no to the question, not to the app, and says which in the control's own
+    /// words.
+    ///
+    /// **It read "Not this one", and the sentence under it was carrying the label.**
+    /// The owner looked at the sheet on device and could not work out what the
+    /// control refused until they had read `declineNote` beneath it. That is a label
+    /// which has failed: the one control on this screen that cannot be undone is the
+    /// last one anybody should have to read a paragraph to understand. "This test"
+    /// is the scope and "again" is the permanence, and both are now in the four
+    /// words on the control itself.
+    ///
+    /// **Which is why the note was deleted rather than shortened.** `declineNote`
+    /// existed to say two things: that this question will not come back, and that
+    /// other proposals still will. The first is now in the title. The second follows
+    /// from the title naming *this test* rather than testing — a reader told they
+    /// are declining one test does not conclude they have switched the feature off,
+    /// and a second sentence saying so was a paragraph spent undoing a reading the
+    /// label no longer invites.
+    static let declineTitle = "Don't offer this test again"
 
     /// What a card's own control does now, which is open the sheet rather than start
     /// anything.
@@ -503,17 +526,6 @@ enum ExperimentCopy {
     /// has before agreeing to a fortnight.
     static let openTitle = "See what this involves"
 
-    /// What saying no costs, in one line.
-    ///
-    /// Under the decline control rather than beside it, because it is the one thing
-    /// about this offer that cannot be undone and a permanent act with no stated
-    /// consequence is a trap. Two sentences: what stops, and what does not. The
-    /// second half is the half that makes the first safe to tap — `declineTitle`
-    /// says "Not this one" precisely because the refusal is for one question, and a
-    /// reader who thought they were switching the feature off would simply never
-    /// use it.
-    static let declineNote = "This one will not be offered again. Anything else that "
-        + "comes up still will."
     /// Plain, and deliberately not "Give up". Stopping is free and uncounted.
     static let stopTitle = "Stop this test"
     static let acknowledgeTitle = "Got it"
@@ -560,25 +572,105 @@ enum ExperimentCopy {
     /// would mean the thing somebody agreed to was not the thing they were shown.
     /// Everything else is written here, and `authoredStrings` is what the copy sweep
     /// walks.
+    ///
+    /// **Two marks are described here too, and that is deliberate.** `Part.span` and
+    /// `Part.stages` carry the labels printed beside a drawing, not the drawing. The
+    /// view owns the geometry and owns none of the words, which is the only way the
+    /// sweep can still see every word a reader meets on the one screen that matters
+    /// most — a date label authored in a `View` is a label no test can find.
     struct ProposalSheet: Equatable {
 
-        /// One block: a heading and the lines under it, in reading order.
-        struct Section: Equatable {
-            let heading: String
-            let lines: [String]
+        /// One thing a section says, in the order it is read.
+        ///
+        /// **This replaced a flat `[String]`, and the flat list is what forced the
+        /// change.** Every entry used to be a sentence and the view decided how to
+        /// set each one by counting: index zero was the answer, the rest were
+        /// qualifiers, and a section holding more than two lines had *every* line set
+        /// primary, because that was the only way the three verdicts came out equal.
+        /// A rule inferred from a count breaks the moment a section gains a line, and
+        /// the owner asked for exactly that — sub-headed verdicts, and two marks. So
+        /// the register each thing is set in is named here instead of guessed at the
+        /// call site.
+        ///
+        /// It is also the shape the rest of the app takes if this sheet survives its
+        /// trial: a section is a heading and a list of parts, and a part knows what
+        /// kind of thing it is.
+        enum Part: Equatable {
+            /// The answer to the section's question.
+            case line(String)
+            /// A sentence qualifying the answer, set in the quiet register.
+            case quiet(String)
+            /// A named outcome and the one line under it. The name is set bold so
+            /// that the three verdicts can be found without reading their glosses,
+            /// which is the whole of what the owner asked for about section 4 — and
+            /// the reason this is one case rather than two `line`s, which the view
+            /// would have had to tell apart by counting again.
+            case titled(String, String)
+            /// A length of time, drawn as the stretch it runs over.
+            case span(start: String, end: String)
+            /// How far a reading got, drawn as the gates it has and has not cleared.
+            case stages([Stage])
 
-            /// What VoiceOver reads for the block.
-            ///
-            /// Heading first, so the subject arrives before anything else — the rule
-            /// `DESIGN.md` records as *Readouts name their subject first*, and the
-            /// reason no label here opens with a figure.
-            var spoken: String { ([heading] + lines).joined(separator: ". ") }
+            /// Everything this part puts on screen or into a readout.
+            var strings: [String] {
+                switch self {
+                case .line(let text), .quiet(let text):
+                    return [text]
+                case .titled(let title, let detail):
+                    return [title, detail]
+                // The joining word is here and not in the view, for the reason the
+                // whole file exists. Spoken as one phrase because "Today. Sat 17
+                // Oct." is two labels read out as two facts, and the fact is the
+                // stretch between them.
+                case .span(let start, let end):
+                    return ["\(start) to \(end)."]
+                case .stages(let stages):
+                    return stages.map(\.spoken)
+                }
+            }
+        }
+
+        /// One gate a reading either cleared or has not.
+        ///
+        /// **Why the state is a word as well as a mark.** The drawing tells the two
+        /// apart by fill — solid when cleared, an outline when not — which is a shape
+        /// distinction and survives greyscale, and the label's own colour reinforces
+        /// it. Neither reaches VoiceOver. So the state is a string too, and it is
+        /// authored here with every other word on the screen rather than in the view
+        /// that speaks it.
+        struct Stage: Equatable {
+            let label: String
+            let cleared: Bool
+
+            var spoken: String { "\(label): \(cleared ? Self.doneWord : Self.pendingWord)." }
+
+            static let doneWord = "done"
+            static let pendingWord = "not yet"
         }
 
         /// The second way to accept, with the paragraph that has to earn it.
         struct Randomised: Equatable {
             let title: String
             let ask: String
+        }
+
+        /// One block: a heading and the parts under it, in reading order.
+        struct Section: Equatable {
+            let heading: String
+            let parts: [Part]
+
+            /// Every string in the block, in reading order. For the sweep, and for
+            /// the readout below.
+            var lines: [String] { parts.flatMap(\.strings) }
+
+            /// What VoiceOver reads for the block.
+            ///
+            /// Heading first, so the subject arrives before anything else — the rule
+            /// `DESIGN.md` records as *Readouts name their subject first*, and the
+            /// reason no label here opens with a figure. The marks speak through this
+            /// too: a reader who cannot see a drawing still gets its labels and, for
+            /// a stage, whether it was cleared.
+            var spoken: String { ([heading] + lines).joined(separator: ". ") }
         }
 
         /// What this rests on, in the card's own words. Stated at the top because a
@@ -590,7 +682,8 @@ enum ExperimentCopy {
         let whatYouWouldDo: Section
         /// Section 2. What the app saw, with its numbers and its day count.
         let whyThisOne: Section
-        /// Section 3. What was compared, and that it was compared with itself.
+        /// Section 3. Which gates the reading cleared, and what the uncleared one
+        /// means for this standing.
         let howItDecided: Section
         /// Section 4. All three verdicts, in the words the result will use.
         let whatYouGet: Section
@@ -606,52 +699,46 @@ enum ExperimentCopy {
         /// Nil where the days cannot be drawn.
         let randomised: Randomised?
         let declineTitle: String
-        let declineNote: String
 
-        /// Strings this file is answerable for. The proposal's four carried
-        /// sentences are swept where they are built.
+        /// The proposal's own sentences, reproduced untouched.
         ///
-        /// Assembled with `append` rather than as one chain of `+`. The chained
-        /// version did compile and then stopped: eleven heterogeneous operands with
-        /// two optional unwraps among them is the shape that makes Swift's type
-        /// checker give up, and it gave up with a message about compile time rather
-        /// than about the expression.
-        var authoredStrings: [String] {
-            var out: [String] = [standing]
-            out.append(whatYouWouldDo.heading)
-            out.append(whyThisOne.heading)
-            out.append(howItDecided.heading)
-            out.append(contentsOf: howItDecided.lines)
-            out.append(whatYouGet.heading)
-            out.append(contentsOf: whatYouGet.lines)
-            out.append(howLong.heading)
-            out.append(contentsOf: howLong.lines)
-            if let measured = whatIsMeasured {
-                out.append(measured.heading)
-                out.append(contentsOf: measured.lines)
-            }
-            out.append(limit.heading)
-            out.append(startTitle)
-            out.append(declineTitle)
-            out.append(declineNote)
-            if let randomised {
-                out.append(randomised.title)
-                out.append(randomised.ask)
-            }
-            return out
+        /// Named so that `authoredStrings` can subtract them. They are swept where
+        /// they are built — by `ExperimentDesignTests` and `ExperimentStarterTests` —
+        /// and sweeping them again here would make this file answerable for wording
+        /// it only carries.
+        let carried: [String]
+
+        /// The sections, in the order they are read. A sheet that answered them in
+        /// any other order would be asking somebody to agree before saying what they
+        /// get.
+        var orderedSections: [Section] {
+            [whatYouWouldDo, whyThisOne, howItDecided, whatYouGet, howLong]
+                + [whatIsMeasured].compactMap { $0 } + [limit]
+        }
+
+        /// The words on the three controls.
+        var controlStrings: [String] {
+            [startTitle, declineTitle] + (randomised.map { [$0.title, $0.ask] } ?? [])
         }
 
         /// Everything that reaches the screen, carried sentences included.
         var allStrings: [String] {
-            authoredStrings + whatYouWouldDo.lines + whyThisOne.lines + limit.lines
+            [standing] + orderedSections.flatMap(\.lines) + controlStrings
         }
 
-        /// The four sections, in the order they are read. A sheet that answered them
-        /// in any other order would be asking somebody to agree before saying what
-        /// they get.
-        var orderedSections: [Section] {
-            [whatYouWouldDo, whyThisOne, howItDecided, whatYouGet, howLong]
-                + [whatIsMeasured].compactMap { $0 } + [limit]
+        /// Strings this file is answerable for.
+        ///
+        /// **Subtraction rather than a list, and the old list is why.** Every field
+        /// used to be appended by hand, one `append` per field, with a comment
+        /// recording that the chained `+` version had made Swift's type checker give
+        /// up. It also had to be edited every time a section gained a line — and a
+        /// sweep somebody has to remember to extend is a sweep with a hole in it,
+        /// which is precisely what this file exists to prevent. Carried sentences are
+        /// the only ones this file does not own, so naming those and taking them out
+        /// is the whole rule.
+        var authoredStrings: [String] {
+            let borrowed = Set(carried)
+            return allStrings.filter { !borrowed.contains($0) }
         }
     }
 
@@ -660,32 +747,45 @@ enum ExperimentCopy {
     /// - Parameter windowDays: how long the ordinary offer runs, which is the one
     ///   the start control takes. The drawn option states its own length inside
     ///   `randomisedAsk`, so nothing here has to hedge between two numbers.
+    /// - Parameter now: the day the window would start, which is the left end of the
+    ///   span the sheet draws. Passed in and never read here, because one read of the
+    ///   clock per decision is a rule this codebase has already paid for breaking:
+    ///   the sheet holds it so the drawn span cannot shift under a redraw.
     static func sheet(for proposal: ExperimentDesign.Proposal,
-                      windowDays: Int = Experiment.defaultWindowDays) -> ProposalSheet {
-        ProposalSheet(
+                      windowDays: Int = Experiment.defaultWindowDays,
+                      now: Date = .now,
+                      calendar: Calendar = .current) -> ProposalSheet {
+        // The premise, then — quietly, and only for a starter — the Health reading it
+        // was built from. Same order as the card, for the same reason: a Health
+        // sentence directly under the change reads as the reason for it, and the
+        // sentence denying exactly that has to come between them.
+        var why: [ProposalSheet.Part] = [.line(proposal.premise)]
+        if let context = proposal.context { why.append(.quiet(context)) }
+
+        return ProposalSheet(
             standing: eyebrow(for: proposal.standing),
-            whatYouWouldDo: .init(heading: whatYouWouldDoHeading, lines: [proposal.change]),
-            // The premise, then — quietly, and only for a starter — the Health
-            // reading it was built from. Same order as the card, for the same
-            // reason: a Health sentence directly under the change reads as the
-            // reason for it, and the sentence that denies exactly that has to come
-            // between them.
-            whyThisOne: .init(heading: whyThisOneHeading,
-                              lines: [proposal.premise] + [proposal.context].compactMap { $0 }),
+            whatYouWouldDo: .init(heading: whatYouWouldDoHeading,
+                                  parts: [.line(proposal.change)]),
+            whyThisOne: .init(heading: whyThisOneHeading, parts: why),
             howItDecided: .init(heading: howItDecidedHeading,
-                                lines: [howItDecided(proposal.standing)]),
-            whatYouGet: .init(heading: whatYouGetHeading, lines: whatYouGetLines),
-            howLong: .init(heading: howLongHeading, lines: [howLong(windowDays: windowDays)]),
+                                parts: howItDecidedParts(proposal.standing)),
+            whatYouGet: .init(heading: whatYouGetHeading, parts: whatYouGetParts),
+            howLong: .init(heading: howLongHeading,
+                           parts: [.line(howLong(windowDays: windowDays)),
+                                   .span(start: spanStart,
+                                         end: spanEnd(windowDays: windowDays,
+                                                      from: now, calendar: calendar))]),
             whatIsMeasured: whatIsMeasured(proposal.outcome).map {
-                .init(heading: whatIsMeasuredHeading, lines: [$0])
+                .init(heading: whatIsMeasuredHeading, parts: [.line($0)])
             },
-            limit: .init(heading: limitHeading, lines: [proposal.caveat]),
+            limit: .init(heading: limitHeading, parts: [.line(proposal.caveat)]),
             startTitle: startTitle,
             randomised: proposal.randomisedAsk.map {
                 .init(title: randomiseTitle, ask: $0)
             },
             declineTitle: declineTitle,
-            declineNote: declineNote
+            carried: [proposal.change, proposal.premise, proposal.caveat]
+                + [proposal.context].compactMap { $0 }
         )
     }
 
@@ -701,6 +801,12 @@ enum ExperimentCopy {
     /// three verdicts are the part a reader has to have met *before* tapping, since
     /// the whole purpose of naming them up front is that a null result arriving in a
     /// fortnight is not a surprise.
+    ///
+    /// **These are the strings that went orange.** They are the only headings on the
+    /// sheet, there are seven of them, and from the owner's reading on device they
+    /// are now the one thing the eye can use to find its place — see *Orange has a
+    /// second job on one screen* in `DESIGN.md`. Nothing about the words changed:
+    /// the colour replaced the rule that used to sit above each of them.
     static let whatYouWouldDoHeading = "What you would do"
     static let whyThisOneHeading = "Why this one"
     static let howItDecidedHeading = "How it decided"
@@ -715,42 +821,78 @@ enum ExperimentCopy {
 
     // MARK: How it decided
 
-    /// What was compared, and that it was compared with this person and nobody else.
+    /// What was compared, as the two gates a reading either cleared or has not.
     ///
-    /// **One line per standing, because the three are not the same claim and a
-    /// shared line would have to be true of the weakest.** A starter has measured
-    /// nothing at all; a line saying "it compared your sessions" would be false of
-    /// it, and a line vague enough to cover it would undersell the confirmed case
-    /// that cleared the correction. So three lines, and the eyebrow above already
-    /// says which one a reader is looking at.
+    /// **This was three paragraphs and is now two labels and a mark.** Each standing
+    /// used to get its own forty-word sentence, all three opening with the same
+    /// clause about comparing this group against the rest of your own record. The
+    /// owner asked for the section to be drawn rather than written, and the honest
+    /// content turned out to be a procedure: a reading is compared against this
+    /// person's own record, and then — only for a confirmed one — it is checked
+    /// against every other pattern in that record and has to still be standing.
+    /// Two gates, in order, each either cleared or not.
+    ///
+    /// **Why this is the shape and not a two-sided comparison.** The obvious drawing
+    /// for "what was compared against what" is two labelled sides, and `ComparisonMark`
+    /// already draws one. It is the wrong mark here twice over: it needs two *values*
+    /// on a shared scale, and the only values available are the premise's own two
+    /// figures, which the section above already prints — the "no figure in the well"
+    /// rule in `DESIGN.md` is about exactly that. And a starter has no figures at all,
+    /// so the mark would have had to be absent for the one standing that most needs
+    /// the section to say something.
+    ///
+    /// **It is honest for a starter, which was the hard case.** A starter has cleared
+    /// neither gate, so the mark draws two empty outlines and nothing else — it draws
+    /// nothing, and the note under it says so in words. Two unfilled boxes beside the
+    /// labels of the two things that have not happened is the most a starter can
+    /// truthfully be shown.
+    static func howItDecidedParts(_ standing: ExperimentDesign.Standing)
+        -> [ProposalSheet.Part] {
+        let stages = [
+            // Cleared by anything measured. A lead has six rated days a side of a
+            // real split; only a starter has had nothing compared at all.
+            ProposalSheet.Stage(label: comparedStage, cleared: standing != .starter),
+            // The correction, and only a confirmed claim has been through it.
+            ProposalSheet.Stage(label: correctedStage, cleared: standing == .confirmed),
+        ]
+        guard let note = howItDecidedNote(standing) else { return [.stages(stages)] }
+        return [.stages(stages), .quiet(note)]
+    }
+
+    /// The first gate, carrying the one clause that could not be dropped.
+    ///
+    /// "And nobody else's" is the standing rule *A person is only ever measured
+    /// against their own history*, said on the screen where somebody is deciding
+    /// whether to trust the reading. It was in all three of the sentences this
+    /// replaced and it is in the label now.
+    static let comparedStage = "Compared with your own record, and nobody else's"
+
+    /// The second gate, said as what it does rather than as what it is.
     ///
     /// **No maths, and that is a constraint rather than a simplification.** The
-    /// honest thing to say about a bootstrap interval over day-clustered resamples
-    /// is not a smaller version of the arithmetic — it is what the arithmetic was
-    /// for. "Still standing after every other pattern was checked the same way" is
-    /// the correction, in the only register that tells somebody anything.
-    static func howItDecided(_ standing: ExperimentDesign.Standing) -> String {
+    /// honest thing to say about a bootstrap interval over day-clustered resamples is
+    /// not a smaller version of the arithmetic — it is what the arithmetic was for.
+    static let correctedStage = "Still standing after every other pattern was checked"
+
+    /// What the uncleared gate means, for the standings that have one.
+    ///
+    /// Nil for a confirmed claim, which has cleared both: two filled marks beside
+    /// their own labels is the complete statement, and a sentence restating it would
+    /// be the section saying the same thing twice in two registers.
+    static func howItDecidedNote(_ standing: ExperimentDesign.Standing) -> String? {
         switch standing {
         case .confirmed:
-            // The correction, said as what it does rather than as what it is. A
-            // confirmed claim is the only one that has been through it.
-            return "It compared the sessions in this group against the rest of your own "
-                + "record, and nobody else's. This one was still standing after every other "
-                + "pattern in your record had been checked the same way."
+            return nil
         case .lead:
-            // The same comparison and the thing that has not happened to it. "Leans"
-            // rather than "shows", for the reason the lead premise says "has read
-            // higher" and never "is better".
-            return "It compared the sessions in this group against the rest of your own "
-                + "record, and nobody else's. This one leans one way, and has not been "
-                + "watched long enough to be more than a lean."
+            // "Leans" rather than "shows", for the reason the lead premise says "has
+            // read higher" and never "is better".
+            return "It leans one way, and has not been watched long enough to be more "
+                + "than a lean."
         case .starter:
-            // Says outright that nothing was measured. A starter is built from a
-            // Health reading about something else, and the sentence that makes that
-            // honest is the one admitting the comparison has not happened.
-            return "It has compared nothing. Nothing you have logged has been measured "
-                + "against anything yet, so this is a place to start rather than something "
-                + "your own record has shown."
+            // Says outright that nothing was measured. Deliberately not "so this is a
+            // place to start", which the sheet's own title already says eight
+            // sections higher and which would be the same claim twice on one screen.
+            return "Nothing you have logged has been measured against anything yet."
         }
     }
 
@@ -773,31 +915,102 @@ enum ExperimentCopy {
     /// available and the opposite of an apology. And they are in the order the result
     /// screen puts them, so the one that held up is not the one at the bottom.
     ///
+    /// **Shortened and formatted, and what that cost.** It was five sentences of flat
+    /// body text, ninety-five words, every line set at the same weight because the
+    /// view could only tell "a section with more than two lines" to set all of them
+    /// primary. The owner could not read it. It is now a preamble, three named rows
+    /// and a closing line — sixty words, with each verdict's name set bold above its
+    /// own gloss, so the three can be counted without being read. Two clauses went:
+    /// "and which one is the whole point of running it" from the preamble, which the
+    /// closing line says better, and "and you will be shown whichever one it is",
+    /// which "all three are results" already carries. Nothing that makes a null
+    /// sound unlikely was added, and nothing that makes one sound ordinary was taken
+    /// away.
+    ///
     /// The glosses name no direction and no figure. `heldUp` is "settled apart"
     /// rather than "read higher" because a residual window's better side is resolved
     /// per person, and a sheet that promised "higher" would be wrong for half of
     /// them.
-    static var whatYouGetLines: [String] {
+    static var whatYouGetParts: [ProposalSheet.Part] {
         [
-            "One of these three, and which one is the whole point of running it.",
-            "\(verdictTitle(.heldUp)). The days with the change in them settled apart "
-                + "from the rest, far enough to read.",
-            "\(verdictTitle(.didNotHoldUp)). The two sets of days settled too close "
-                + "together to tell apart.",
-            "\(verdictTitle(.cannotTell)). Too few days carried the change, or too few "
-                + "went without it, to read one against the other.",
-            "All three are results, and you will be shown whichever one it is. A test "
-                + "that could only ever come back the first way would not be worth running.",
+            .line(verdictPreamble),
+            .titled(verdictTitle(.heldUp), heldUpGloss),
+            .titled(verdictTitle(.didNotHoldUp), didNotHoldUpGloss),
+            .titled(verdictTitle(.cannotTell), cannotTellGloss),
+            .quiet(verdictClosing),
         ]
     }
 
+    static let verdictPreamble = "One of these three."
+    static let heldUpGloss = "The days with the change settled far enough apart from "
+        + "the rest to read."
+    static let didNotHoldUpGloss = "The two sets of days settled too close together "
+        + "to tell apart."
+    static let cannotTellGloss = "Too few days carried the change, or too few went "
+        + "without it."
+    /// The line that stops a null reading as a fault. Not shortened past the clause
+    /// that does the work: "a test that could only come back the first way would not
+    /// be worth running" is the argument, and without it "all three are results" is
+    /// a disclaimer rather than a reason.
+    static let verdictClosing = "All three are results. A test that could only come back "
+        + "the first way would not be worth running."
+
+    /// Every string section 4 shows, for the tests that sweep it.
+    static var whatYouGetLines: [String] { whatYouGetParts.flatMap(\.strings) }
+
     // MARK: The terms
 
-    /// How long the ordinary offer runs, in the words the caveat uses for the same
-    /// length.
+    /// How long the ordinary offer runs, as the length and nothing else.
+    ///
+    /// **It used to end ", from the day you start", and the span mark says that
+    /// now.** The two ends of the drawn span are labelled `spanStart` and the date
+    /// the window would close, which is the same clause as a picture and also the
+    /// fact the sentence was withholding: a reader who wanted to know when this
+    /// finishes had to do the arithmetic themselves.
+    ///
+    /// No full stop. It is a quantity set on its own line above its own mark, not a
+    /// sentence, and `Section.spoken` joins it to its neighbours with one anyway.
     static func howLong(windowDays: Int = Experiment.defaultWindowDays) -> String {
         let length = span(windowDays)
-        return "\(length.prefix(1).uppercased())\(length.dropFirst()), from the day you start."
+        return "\(length.prefix(1).uppercased())\(length.dropFirst())"
+    }
+
+    /// The near end of the window.
+    ///
+    /// "Today" rather than a date, because the far end is the one somebody cannot
+    /// work out and the near one is the day they are holding the phone on. It is
+    /// accurate the instant it is read and is a day out if the sheet is left open
+    /// overnight and then accepted — which is why `started(_:)` restates the closing
+    /// date from the window's real start, and why that string and this one are
+    /// formatted by one function.
+    static let spanStart = "Today"
+
+    /// The far end: the day a window started now would close.
+    static func spanEnd(windowDays: Int = Experiment.defaultWindowDays,
+                        from now: Date = .now,
+                        calendar: Calendar = .current) -> String {
+        let end = calendar.date(byAdding: .day, value: windowDays, to: now) ?? now
+        return closingDate(end, calendar: calendar)
+    }
+
+    /// One spelling of a closing date, so the sheet's prediction and the
+    /// confirmation's statement cannot come out as two strings for one day.
+    ///
+    /// "EEE d MMM" where `assignedDays` uses "EEE d". The drawn days are all inside
+    /// the window and read as a short list, where a bare "1" is unambiguous in
+    /// context; a closing date is up to four weeks out and can easily fall in the
+    /// next month, where it is not.
+    ///
+    /// Formatted through the calendar's own locale rather than a fixed English
+    /// pattern, because a weekday name is the one string in this feature the app does
+    /// not write.
+    static func closingDate(_ date: Date, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = calendar.locale ?? .current
+        formatter.dateFormat = "EEE d MMM"
+        return formatter.string(from: date)
     }
 
     /// What the window reads, and on which days.
@@ -841,16 +1054,11 @@ enum ExperimentCopy {
     /// - Parameter calendar: passed through, so the closing date and the day list are
     ///   formatted in the same calendar the draw was made in.
     static func started(_ experiment: Experiment, calendar: Calendar = .current) -> String {
-        // "EEE d MMM" where `assignedDays` uses "EEE d". The drawn days are all
-        // inside the window and read as a short list, where a bare "1" is
-        // unambiguous in context; a closing date is up to four weeks out and can
-        // easily fall in the next month, where it is not.
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.locale = calendar.locale ?? .current
-        formatter.dateFormat = "EEE d MMM"
-        let closes = formatter.string(from: experiment.endsAt(calendar: calendar))
+        // Through `closingDate` rather than a formatter of its own, so this date and
+        // the far end of the span the sheet drew a moment ago are one string for one
+        // day. They were two formatters with the same pattern, which is two places
+        // for a pattern to change.
+        let closes = closingDate(experiment.endsAt(calendar: calendar), calendar: calendar)
         return "This runs for \(span(experiment.windowDays)) and closes on \(closes)."
     }
 

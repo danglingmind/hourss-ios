@@ -9,23 +9,33 @@ import SwiftUI
 /// what had come of it as one subject. This screen is that place, in that order —
 /// what could be started, what is running, what finished.
 ///
-/// **Why it is reached from You, and why it is not a tab.** The app has five
-/// destinations and a sixth would be the wrong one. Two of these three sections are
-/// empty on most days, by construction rather than by accident:
-/// `experimentProposals` returns nothing while a test is active, and the active test
-/// is nothing for the fortnight before somebody accepts one. A tab is paid for every
-/// day it is on screen, and a tab that says "nothing is on offer, nothing is
-/// running" on most of them teaches people to stop opening it — which is the
-/// opposite of what the PRD wants from making a test feel like something.
+/// **Why it is not a tab.** The app has five destinations and a sixth would be the
+/// wrong one. Two of these three sections are empty on most days, by construction
+/// rather than by accident: `experimentProposals` returns nothing while a test is
+/// active, and the active test is nothing for the fortnight before somebody accepts
+/// one. A tab is paid for every day it is on screen, and a tab that says "nothing is
+/// on offer, nothing is running" on most of them teaches people to stop opening it —
+/// which is the opposite of what the PRD wants from making a test feel like
+/// something.
 ///
 /// The feature's daily presence belongs on Today and now has it: the proposal card,
 /// the active card, and the strip under the header. That is where somebody is
-/// *doing* a test. This screen is where they can see the whole of it, and the only
-/// one of its three sections that is reliably not empty is the record — which is a
-/// statement of what this person has done, which is what You is for. So the entry
-/// point stays the row it already was, re-pointed from the record to the feature;
-/// `ExperimentHistory` keeps the longer form of that argument, because it is the
-/// same argument.
+/// *doing* a test. This screen is where they can see the whole of it.
+///
+/// **Why it is reached from Patterns and not from You.** It was pushed from You, on
+/// the grounds that You is where the app states what this person has done and a
+/// fortnight they agreed to and lived through is such a statement. That is true of
+/// the record and only of the record. The section above it is an *offer* — a thing
+/// to do about a claim, which nobody has done yet — and a settings list is the wrong
+/// shelf for that; the record was dragging the rest of the feature onto it. Patterns
+/// is where the claims are, and since it started grouping by what somebody said
+/// mattered, every group there ends with the one thing to try for that priority and
+/// raises the same sheet Today raises. The relationship was already being stated on
+/// that screen several times over while the way in was on another one.
+/// `PatternsView.testsEntry` carries the argument for the position it took there,
+/// and `ExperimentHistory` keeps the half of the old argument that survives — which
+/// is about why a settled result is not a row in the Patterns *feed*, and is not
+/// about where the feature is reached from.
 ///
 /// **Not a column of cards, and that did not stop being true.** Today's settled
 /// result is a forest block because it is the rarest thing the app can show and
@@ -120,7 +130,10 @@ struct TestsView: View {
             .padding(.bottom, Space.xl)
         }
         .background(Color.canvas)
-        .safeAreaInset(edge: .top, spacing: 0) { BackHeader(title: "You") }
+        // Names the screen this was pushed from, which is now Patterns. A back
+        // button that said "You" after a push from Patterns is the one thing on a
+        // pushed screen a reader cannot talk themselves out of believing.
+        .safeAreaInset(edge: .top, spacing: 0) { BackHeader(title: "Patterns") }
         .navigationBarBackButtonHidden()
         .task(id: offerInputs) {
             now = Date()

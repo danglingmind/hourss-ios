@@ -44,14 +44,35 @@ final class TestsScreenUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: UITest.timeout),
                       "The app did not reach the foreground")
-        XCTAssertTrue(app.descendants(matching: .any)["tab-you"].firstMatch
+        XCTAssertTrue(app.descendants(matching: .any)["tab-patterns"].firstMatch
             .waitForExistence(timeout: UITest.timeout),
                       "The app did not land on the tabs")
     }
 
+    /// Patterns, then the entry at the foot of it.
+    ///
+    /// **It used to go through You.** The feature moved: a test is what you do about
+    /// a claim, and the claims are on Patterns, where every priority group already
+    /// ends with the one thing to try. The row kept its identifier, so the only thing
+    /// that changed here is which tab it is under — and the scroll, because the entry
+    /// is deliberately at the foot of that screen rather than in a strip under its
+    /// header, which is the settings shape it was moved out of.
     private func openTheTests() {
-        app.descendants(matching: .any)["tab-you"].firstMatch.tapWhenReady()
-        app.descendants(matching: .any)["row-tests"].firstMatch.tapWhenReady()
+        app.descendants(matching: .any)["tab-patterns"].firstMatch.tapWhenReady()
+        let row = app.descendants(matching: .any)["row-tests"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: UITest.timeout),
+                      "Patterns has no way into the tests")
+        // Scrolled to rather than assumed on screen. The entry is at the foot of
+        // Patterns on purpose, and how far down that is depends on how many
+        // priorities the fixture's profile ranked — so this walks until the row can
+        // actually be tapped instead of guessing a number of swipes.
+        var swipes = 0
+        while !row.isHittable && swipes < 8 {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(row.isHittable, "The tests entry never came into reach on Patterns")
+        row.tapWhenReady()
     }
 
     /// The whole reason the feature needed one home: all three states on one screen,

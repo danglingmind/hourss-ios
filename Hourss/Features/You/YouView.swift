@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum YouRoute: Hashable {
-    case profile, preferences, privacy, health, account, tests
+    case profile, preferences, privacy, health, account
 }
 
 /// Y1 — a settings list, not a dashboard.
@@ -13,6 +13,16 @@ enum YouRoute: Hashable {
 /// Membership (Y5) is the remaining half-answer. It has no purchase behind it
 /// yet, but the tier is real state that Today's observation slot varies on, so the
 /// row states it rather than standing in for it.
+///
+/// **The Tests row has gone to Patterns.** It was the one entry here that was
+/// content rather than a setting, and it was carried by half of what it opened:
+/// the record is a statement of what this person has done, which is what this
+/// screen is for, but an offer is a thing to do about a claim and claims are on
+/// Patterns. Every priority group there already ends with the one thing to try, so
+/// the relationship was being stated on that screen and the way in was on this
+/// one. `PatternsView.testsEntry` carries the argument; `ExperimentHistory` keeps
+/// the part of the old one that is still true, which is about the record and not
+/// about the feature.
 struct YouView: View {
     @Environment(HourssStore.self) private var store
     @Environment(HealthService.self) private var health
@@ -51,8 +61,6 @@ struct YouView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
                 summary
-
-                testsSection
 
                 VStack(spacing: 0) {
                     HRule()
@@ -107,48 +115,7 @@ struct YouView: View {
             case .privacy: PrivacyView()
             case .health: HealthConnectionView()
             case .account: AccountView()
-            case .tests: TestsView()
             }
-        }
-    }
-
-    /// The way into the tests feature.
-    ///
-    /// **Its own group, above the settings list rather than inside it.** The five
-    /// rows below are settings — things that change what the app does next. This one
-    /// is content, and the only row here that is: it opens what this person has been
-    /// offered, is running, and has already finished. Dropping it into the same strip
-    /// would make the strip something other than what this screen's own note says it
-    /// is, and the group idiom for "a block that is not the settings list" already
-    /// exists one section down, in `membershipSection`.
-    ///
-    /// **It used to be headed "Your record" and point at the record alone.** It now
-    /// points at `TestsView`, which holds all three states of a test, so the heading
-    /// had to stop naming only the last of them: somebody tapping a row headed "your
-    /// record" and landing on a screen that opens with what is on offer has been
-    /// shown something other than what was on the sign. `TestsView` carries the
-    /// argument for why the whole feature is reached from here rather than from a
-    /// sixth tab.
-    ///
-    /// **The detail describes the destination and states nothing.** Profile, Health
-    /// and Account name live state because theirs is a single value worth seeing
-    /// before the tap. A tally here would be the one number this feature refuses to
-    /// compute — "two tests" is a step from "two tests, one held up" — and naming the
-    /// newest verdict, or that something is on offer, would put a result or an offer
-    /// in a second place and let the two drift. So it names the three sections in
-    /// their order and nothing about their contents, which is the house form for a
-    /// row whose contents are a screen rather than a setting.
-    private var testsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Eyebrow("Testing")
-                .padding(.bottom, Space.xs)
-            HRule()
-            NavigationLink(value: YouRoute.tests) {
-                SettingsRow(title: "Tests", detail: "On offer, running, and finished")
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("row-tests")
-            HRule()
         }
     }
 
