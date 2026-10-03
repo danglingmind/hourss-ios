@@ -110,6 +110,24 @@ struct RootView: View {
             StartSessionView()
                 .presentationCornerRadius(Radius.block)
         }
+        // A question the engine could not ask, now asked — said once, on the launch
+        // after it opened, and never again.
+        //
+        // **Raised here rather than on Today**, although `QuestionAnnouncementSheet`
+        // lives beside the other sheets in that folder, because the announcement is
+        // not about the tab somebody happens to be on: it arrives at launch, and
+        // `main` is the first thing behind the onboarding, account and Health gates.
+        // Raising it inside `TodayView` would mean an announcement was silently
+        // skipped for anybody whose app reopened on Journal.
+        //
+        // The store sets this once per launch at most and spends the key before it
+        // does, so nothing here has to guard against it coming back; see
+        // `HourssStore.announceOpenedQuestion()`. A third `sheet` on this view is
+        // safe for the same reason — the announcement is raised while the app is
+        // opening, when neither of the other two can be up.
+        .sheet(item: $store.openedQuestion) { announcement in
+            QuestionAnnouncementSheet(announcement: announcement)
+        }
         // A session ending anywhere in the app raises the same reflection sheet.
         .sheet(item: Binding(
             get: { store.pendingReflectionSessionId.map(IdentifiedUUID.init) },

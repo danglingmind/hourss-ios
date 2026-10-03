@@ -612,3 +612,135 @@ streak, no "two of three held up". `abandonExperiment` keeps no tally because a
 number whose only use is a reproach does not get computed, and a list that totals
 its own verdicts is that number assembled by the reader instead. The test suite
 asserts that every string this screen authors quotes no figure at all.
+
+---
+
+## A lead is not a third state
+
+Patterns used to carry a "Worth testing" section at the foot: findings that cleared
+the day gates but not the correction, printed under their own heading and, for a
+while, in grey. `PRD-LOCKS.md` §7 left open whether that section survived the
+arrival of locked questions, on the grounds that three states is one too many
+unless the difference between them is obvious. It did not survive, and the reason
+is not economy.
+
+**A lead is a question that cleared its gate, was measured, and did not separate.**
+That is not a third kind of card. It is what an *open* card says when the answer is
+nothing — which §2 insists is the common case and the one the design has to be good
+at. Giving it a section of its own said a measured non-answer belongs somewhere
+other than with the answers, which is the opposite of what this app believes. It is
+the same mistake the grey printing made in miniature: a result drawn as
+unavailable, when what it actually is is a result.
+
+So there are two states and they are not symmetrical in the way the old three were.
+**Open** means measured, and carries either the finding or the sentence that the
+two sides came out alike. **Waiting** means not measured, and carries what it is
+short of. Close and far are both waiting, told apart by their sentence rather than
+by their state, because "two more afternoon days" is a task somebody finishes this
+week and "you have not logged an evening" is not the same sentence at all.
+
+One consequence worth stating, because it is the thing that would quietly undo
+this: **the two never share a word.** No "not yet" on both, no "almost", nothing
+that would let a reader collapse "we looked and found nothing" into "we have not
+looked". `QuestionCopy` holds the argument in full and the suite sweeps every
+string it authors. The same ban is why the open sentence is "Measured, and the two
+sides came out alike" rather than "nothing yet" — for somebody whose days genuinely
+are flat it will never be anything else, and "yet" is a promise in one syllable.
+`ObservationSlotView.stillLookingCopy` settles the identical point in the identical
+words.
+
+---
+
+## The map folds where there is nothing to count
+
+Sixty questions under six priority headings is a wall, and a wall is not a map.
+What folds is not the long half, though — it is the half with nothing in it.
+
+**A question short by two days and a question with a side that has never happened
+are not the same length of reading.** The first carries a number: "3 more days with
+a session of Creative" is one line and the whole thing is actionable. The second
+carries an absence, and sixty absences in a column teach somebody to stop reading
+the column, which costs the close ones their reader too. So the printed half is
+every question with a countable shortfall, and behind one line sit the ones where
+one side is empty.
+
+**The fold is a `DirectionalLink`, not a `DisclosureGroup`.** The system control
+arrives with a chevron, an indent and a spinning triangle — three borrowed idioms
+on a screen whose only action idiom is bold text and an oversized arrow, which is
+the same ground *filled buttons are banned* already covers. It is also the settings
+shape: label, gap, glyph at the trailing edge. That shape is what the tests entry
+was moved off You to escape, and re-importing it one section higher would have
+undone that argument on the same screen.
+
+**It opens in place rather than pushing.** A screen of its own was the real
+alternative, and `↘` already means "the longer version of this list" on Today. It
+loses to the section above: putting the never-happened questions behind a
+navigation boundary says they belong somewhere other than with the questions they
+are listed among, which is precisely the claim the leads section was removed for
+making. A push is also an event, and tapping this is not meant to be one.
+
+**The label does not change when it opens, and that is load-bearing.** While the
+rows show, that line is the only thing standing over them saying what they are;
+swap it for "Hide these" and the revealed rows run straight on from the
+short-by-two-days rows with nothing between them — the same confusion the `Waiting
+on` eyebrow was added to fix. So the name stays and the arrow turns, `↘` to `↗`:
+one control changing state rather than two controls swapped, which is the argument
+`SelectionDot` makes about its own two glyphs.
+
+**The label is "Questions with an empty side", and every word of it is a
+constraint.** It names the kind of thing inside, because a fold that does not is a
+box somebody has to open to learn anything. It locates the gap in the question
+rather than in the person — "things you have not logged" was the first draft and it
+is one short step from a list of errands, which is the shape §6 refuses by name. It
+quotes no figure: "4 more questions" is a fact about the screen and would have been
+legal, but it sits one word from "4 of 12 open", and a number beside a fold is the
+first thing a reader starts comparing between sections. The cheapest way to honour
+"nothing counts how many are open" is to compute nothing, which is also what
+`abandonExperiment` and `ExperimentHistoryView` do with their own tallies.
+
+**It is twenty-eight characters because two lines is the budget.** `.action` scales
+from `.subheadline`, so at `AccessibilityL` the label is around 30pt bold in a 357pt
+column — roughly twenty characters to the line. A fold whose own label wraps to four
+lines has not shortened the section it covers, and the suite pins the character
+count rather than a rendering, because what breaks this is somebody making the
+sentence more explanatory.
+
+**One folded question is printed instead.** A fold costs a line and a tap; a lid
+over a single row spends the line it saves. The threshold is two, and it is the only
+number in the feature — a fact about how tall a list is, not about how much of
+anything is done.
+
+**The motion is `Motion.content`, which is the token written for exactly this.** A
+set of rows arriving at once under a control somebody just used, landing rather than
+decelerating to a stop. Nothing scales, nothing fades in from nowhere, and nothing
+staggers: a flourish would make the tap feel like it paid out, and §2 is that it pays
+out nothing. Nil under Reduce Motion, so the rows are simply already there.
+
+**What this does not fix, stated so nobody mistakes it for fixed.** The wall it was
+built against is not currently on the screen. The seeded fixture mints thirty-four
+hypotheses and twenty-seven of them have already cleared their gates, so the whole
+waiting list is seven questions across three priorities, and no priority holds more
+than one whose side has never happened. The fold is correct, tested and dormant.
+The reason is structural rather than a quirk of the fixture: the activity and health
+families are minted from what somebody actually logged, so a record rich enough to
+be past warm-up has had most of its questions *asked*. What is left waiting is
+mostly short by a countable amount, which is the half that stays printed.
+
+Where the fold does bite is a thin or lopsided record — an empty one has eight
+untouched questions under Focus alone — and that is also where `isWarmingUp` hides
+the map entirely, because "no visible insights" and "nothing has cleared a gate yet"
+are the same condition. So the collapsing works and the state it works in cannot be
+reached. That is a product question about whether the map belongs beside the warm-up
+readout, not a layout one, and it is left open here deliberately.
+
+If the printed half ever becomes the wall instead, the lever is **not** a second fold
+keyed to length. A fold that hides things because there are a lot of them is a fold
+the reader cannot predict, and ordering or trimming by closeness is forbidden
+outright. It would be a question about whether every hypothesis in the registry
+deserves a row, which is an engine decision.
+
+**Nothing new was invented to carry it.** No chevron, no badge, no count, no second
+rule weight, no colour, no type size — the same inventory the settled-test card and
+the tests list both came in under. The one rule below the fold line is the house 1pt
+`HRule`, drawn open or closed so the section still finishes on a rule like every
+other section on the screen.

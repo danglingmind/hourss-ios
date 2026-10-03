@@ -71,7 +71,11 @@ struct ExperimentRecordTests {
 
         #expect(loaded.experiments == [experiment])
         #expect(loaded.declinedExperiments == ["duration.long.vs.rest.feeling"])
-        #expect(loaded.schemaVersion == 4)
+        // The current version, not a number written here. The deliberate tripwire on
+        // the version lives in `PersistenceTests` with the paragraph explaining why
+        // it is pinned there; a second hardcoded copy made every later bump fail in
+        // a test about experiments, which says nothing about experiments.
+        #expect(loaded.schemaVersion == Record.currentSchemaVersion)
         // A chosen window has no assignment, and that is how its kind is carried.
         #expect(loaded.experiments?.first?.assignment == nil)
         #expect(loaded.experiments?.first?.isRandomised == false)

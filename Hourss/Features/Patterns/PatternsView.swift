@@ -64,6 +64,19 @@ struct PatternsView: View {
     /// somebody reads before saying yes do not depend on which tab they were on.
     @State private var sheetProposal: ExperimentDesign.Proposal?
 
+    /// Priorities whose folded questions are showing.
+    ///
+    /// Per priority rather than one flag for the screen, because the fold belongs to
+    /// a section: somebody reading how Focus is going has no reason to have unfolded
+    /// Movement's list as well, and one flag would open six lists on a tap meant for
+    /// one. View state and not stored — reopening the tab starts folded, which is the
+    /// shorter screen, and nothing about which lists somebody opened is worth keeping
+    /// a record of.
+    @State private var unfolded: Set<Priority> = []
+
+    /// For the fold. Reduce Motion lands on the finished state, as everywhere else.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
@@ -489,17 +502,128 @@ struct PatternsView: View {
             // days.
             let unasked = waiting(for: priority)
             if !unasked.isEmpty {
+                let split = Self.partition(unasked)
                 Eyebrow(QuestionCopy.waitingHeading)
                     .padding(.top, Space.sm)
                     .padding(.bottom, Space.xs)
                 HRule()
-                ForEach(unasked, id: \.hypothesis.id) { question in
+                ForEach(split.shown, id: \.hypothesis.id) { question in
+                    questionRow(title: question.hypothesis.focusLabel,
+                                detail: QuestionCopy.waiting(question),
+                                identifier: "waiting-row")
+                }
+                if let priority, !split.folded.isEmpty {
+                    fold(priority, split.folded)
+                }
+            }
+        }
+    }
+
+    /// Which of a priority's waiting questions are printed and which go behind the
+    /// fold.
+    ///
+    /// **Split by the kind of gap, never by how big it is.** A question short by two
+    /// days carries a number somebody can act on; a question with a side that has
+    /// never happened carries a sentence about something absent, and sixty of those
+    /// under six headings is the wall `PRD-LOCKS.md` §8 names. Sorting either list by
+    /// closeness is still forbidden — §6 — and nothing here sorts: both halves come
+    /// out in the registry's own order, which is stable between runs and means
+    /// nothing.
+    ///
+    /// **One folded question is printed instead.** A fold costs a line and a tap;
+    /// hiding a single row behind it saves the line it spends, so the reader pays the
+    /// tap for nothing and the section grows a lid over one thing. The threshold is
+    /// two, and it is the only number in this feature — it is a fact about how tall a
+    /// list is, not about how much of anything is done.
+    ///
+    /// `nonisolated` because it touches nothing isolated: it is a filter over a value
+    /// type. The warning on `leads` above applies to `leads` — that one reads a
+    /// `@MainActor` store, and marking *it* `nonisolated` compiles and then traps,
+    /// which this project has twice seen as a shrinking test count. This one has
+    /// nothing to trap on, which is why its suite needs no actor.
+    nonisolated static func partition(
+        _ questions: [Engine.Pending]
+    ) -> (shown: [Engine.Pending], folded: [Engine.Pending]) {
+        let far = questions.filter(\.isUntouched)
+        guard far.count > 1 else { return (questions, []) }
+        return (questions.filter { !$0.isUntouched }, far)
+    }
+
+    /// The questions whose one side has never happened, behind a line that says so.
+    ///
+    /// **A `DirectionalLink` and not a `DisclosureGroup`.** The system control brings
+    /// a chevron, its own indent and a spinning triangle, which is three borrowed
+    /// idioms on a screen whose only action idiom is bold text and an oversized
+    /// arrow — `DESIGN.md`'s "filled buttons are banned" rule covers the same ground.
+    /// It is also the settings shape: a label, a gap, a glyph at the trailing edge,
+    /// which is precisely what `testsEntry` above argues this screen must not look
+    /// like.
+    ///
+    /// **It opens in place and does not push.** A screen of its own was the other
+    /// candidate and `↘` already means "the longer version of this list" on Today. It
+    /// loses for the reason the leads section lost: putting the never-happened
+    /// questions behind a navigation boundary says they belong somewhere other than
+    /// with the questions they are listed among, and the whole value of this screen
+    /// is the map being one map. A push is also an event, and tapping this is not
+    /// meant to be one.
+    ///
+    /// **The label does not change when it opens, and that is load-bearing.** While
+    /// the rows are showing, this line is the only thing standing over them saying
+    /// what they are; swap it for "Hide these" and the revealed rows run straight on
+    /// from the short-by-two-days rows above with nothing between, which is the same
+    /// bug the `Waiting on` eyebrow was added to fix. So the name stays and the arrow
+    /// turns — one control changing state rather than two controls swapped, which is
+    /// the argument `SelectionDot` makes about its own two glyphs.
+    ///
+    /// **The same line appears once per priority and that is not the repetition
+    /// `InteractionSection` was moved out of the loop to avoid.** That one repeated a
+    /// *claim* — the same sentence about the person, three times. This repeats a
+    /// structural label, as `Waiting on` and every `Eyebrow` on the screen already
+    /// do. A section's fold has to be labelled inside that section or it is labelling
+    /// the wrong list.
+    @ViewBuilder
+    private func fold(_ priority: Priority, _ folded: [Engine.Pending]) -> some View {
+        let isOpen = unfolded.contains(priority)
+
+        VStack(alignment: .leading, spacing: 0) {
+            // `↘` for a longer list in place, as Today's "View all" uses it, and `↗`
+            // for putting it back — the same diagonal reversed, so the pair reads as
+            // one axis rather than as two unrelated marks. No count beside it: "4
+            // more questions" is a fact about the screen and would be allowed, but it
+            // sits one word away from "4 of 12 open", and a figure next to a fold is
+            // the first thing a reader starts comparing between sections. §6 wants no
+            // tally anywhere and the cheapest way to honour that is to compute none.
+            DirectionalLink(title: QuestionCopy.foldedHeading, arrow: isOpen ? "↗" : "↘") {
+                if isOpen { unfolded.remove(priority) } else { unfolded.insert(priority) }
+            }
+            .accessibilityIdentifier("folded-questions")
+            .accessibilityHint(isOpen ? QuestionCopy.foldCloseHint : QuestionCopy.foldOpenHint)
+
+            // Drawn whether or not it is open: closed, it finishes the section on a
+            // rule like every other section here; open, it separates this line from
+            // the rows it now heads.
+            HRule()
+
+            if isOpen {
+                ForEach(folded, id: \.hypothesis.id) { question in
+                    // The same identifier and the same row as the questions above.
+                    // Close and far are one state told apart by their sentence —
+                    // `QuestionCopy` has the argument — and a row drawn or named
+                    // differently here would make them two again, on the far side of
+                    // a tap, which is the worst place to split them.
                     questionRow(title: question.hypothesis.focusLabel,
                                 detail: QuestionCopy.waiting(question),
                                 identifier: "waiting-row")
                 }
             }
         }
+        // `content` and not `animation`: this is a set of rows arriving at once under
+        // a control somebody just used, which is the case that token was written for,
+        // and it lands rather than decelerating. Nothing scales and nothing fades in
+        // from nowhere — a flourish here would make the tap feel like it paid out,
+        // and §2 is that it pays out nothing. Nil under Reduce Motion, so the rows
+        // are simply already there.
+        .animation(Motion.content(reduced: reduceMotion), value: isOpen)
     }
 }
 

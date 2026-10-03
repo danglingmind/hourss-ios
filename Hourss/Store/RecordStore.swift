@@ -37,7 +37,10 @@ struct Record: Codable {
     /// decision. The field is optional for the reason every field below is, so a
     /// record written at 3 still decodes — the bump is the record of what changed, not
     /// the mechanism that makes it safe.
-    static let currentSchemaVersion = 4
+    ///
+    /// 5 added `announcedHypotheses` — the questions this person has already been
+    /// told about, so none of them is announced twice.
+    static let currentSchemaVersion = 5
 
     var activities: [Activity] = []
     var sessions: [Session] = []
@@ -99,6 +102,35 @@ struct Record: Codable {
     /// Permanent on purpose. An app that re-asks a question somebody has already
     /// said no to is nagging, and the fact that it forgot is not a defence.
     var declinedExperiments: [String]?
+
+    /// Hypothesis keys this person has already been told opened.
+    ///
+    /// **Keys, and nothing else.** Whether a question can be asked is derived from
+    /// the sessions on every run, like every claim in this app and for the reason
+    /// this type's own documentation gives — storing a derived claim beside the data
+    /// it came from is how the two drift apart. What cannot be re-derived is whether
+    /// somebody has already seen a sheet about it, so that is the one thing here.
+    ///
+    /// Written sorted, for the reason `physiology` and `experiments` are: the file
+    /// is encoded with `.sortedKeys` so the same state produces the same bytes, and
+    /// a set's iteration order would defeat that on every save.
+    ///
+    /// **Optional, and an empty array is not the same as a missing key.** Every
+    /// other array here collapses empty to nil because for them the two mean one
+    /// thing. They do not here. Missing means no baseline has ever been taken —
+    /// either a genuinely new record or the first launch of the build that added
+    /// this — and that run has to absorb everything already answerable silently,
+    /// because on it every question opens at once and an announcement would mean
+    /// nothing. `[]` means the baseline was taken and happened to be empty, which is
+    /// where a new person starts, and the first question to open after it is the one
+    /// the feature exists for. Collapsing the two would eat exactly that
+    /// announcement. `HourssStore.announceOpenedQuestion` is the whole argument.
+    ///
+    /// Optional also for the reason `removedImports`, `physiology` and
+    /// `declinedExperiments` each give: a synthesized `Codable` fails on a missing
+    /// key for a non-optional property however sensible its default looks, and every
+    /// record written before schema 5 is missing this one.
+    var announcedHypotheses: [String]?
 }
 
 /// Where the record lives.

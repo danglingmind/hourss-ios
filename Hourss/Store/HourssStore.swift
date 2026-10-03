@@ -23,6 +23,34 @@ final class HourssStore {
     /// Hypothesis keys this person said no to. Never re-proposed.
     var declinedExperiments: Set<String> = []
 
+    /// The question whose announcement is up, if one is.
+    ///
+    /// Carried on the store rather than passed down for the reason
+    /// `pendingReflectionSessionId` and `pendingLogSlot` are: the sheet is raised by
+    /// `RootView`, which is behind the onboarding, account and Health gates, while
+    /// the thing that decides there is something to announce runs at launch. Set
+    /// once per launch at most, by `announceOpenedQuestion()`.
+    var openedQuestion: QuestionAnnouncement?
+
+    /// Questions the engine could test on the last rebuild, by hypothesis id.
+    ///
+    /// **Derived on every rebuild, never stored.** Whether a question can be asked
+    /// is a fact about the sessions, so it is recomputed from them like every other
+    /// claim in this app — `Record`'s own documentation says why storing a derived
+    /// claim beside its data is how the two drift apart. What is stored is only which
+    /// of these somebody has already been told about.
+    ///
+    /// In the registry's own order, which is stable between runs and means nothing.
+    /// That is deliberate: see `QuestionAnnouncement.detect`.
+    private(set) var answerableHypotheses: [String] = []
+
+    /// Questions already announced, or nil when no baseline has ever been taken.
+    ///
+    /// The optionality is the whole first-run rule and `Record.announcedHypotheses`
+    /// carries the argument: nil is a record that has never had a baseline, and the
+    /// run that takes one says nothing.
+    private(set) var announcedHypotheses: Set<String>?
+
     /// Set when a session ends, to hand it straight to the reflection sheet.
     var pendingReflectionSessionId: UUID?
 
@@ -93,6 +121,10 @@ final class HourssStore {
         removedImports = Set(record.removedImports ?? [])
         experiments = record.experiments ?? []
         declinedExperiments = Set(record.declinedExperiments ?? [])
+        // `map` rather than `?? []`: a missing key and an empty list mean different
+        // things here, and collapsing them would eat the first announcement this
+        // feature ever has to make. `Record.announcedHypotheses` has the argument.
+        announcedHypotheses = record.announcedHypotheses.map(Set.init)
         // Before the rebuild below, not after: a residual is an input to an
         // observation, and restoring it afterwards would leave the first rebuild
         // of every launch running on a record with no heart rate in it.
@@ -133,6 +165,11 @@ final class HourssStore {
         record.experiments = experiments.isEmpty ? nil : experiments
             .sorted { ($0.startedAt, $0.id.uuidString) < ($1.startedAt, $1.id.uuidString) }
         record.declinedExperiments = declinedExperiments.isEmpty ? nil : declinedExperiments.sorted()
+        // Sorted for the reason the two arrays above are, and deliberately *not*
+        // collapsed to nil when empty, unlike every one of them: an empty baseline
+        // is a baseline, and writing it as a missing key would make the next launch
+        // take another one and swallow the first question ever to open.
+        record.announcedHypotheses = announcedHypotheses.map { $0.sorted() }
         record.physiology = physiologyReadings.isEmpty ? nil : physiologyReadings
             .map { Physiology.StoredReading(sessionId: $0.key, reading: $0.value) }
             .sorted { $0.sessionId.uuidString < $1.sessionId.uuidString }
@@ -473,6 +510,11 @@ final class HourssStore {
         pendingReflectionSessionId = nil
         hasCompletedOnboarding = false
         removedImports = []
+        // Back to nil, not to empty: an erased record is a first run, and the run
+        // after it takes its baseline in silence like any other first run.
+        announcedHypotheses = nil
+        answerableHypotheses = []
+        openedQuestion = nil
         live?.endAll()
         persist()
     }
@@ -698,6 +740,22 @@ final class HourssStore {
         // is bounded by `InteractionBudget` precisely so it can be afforded on
         // every rebuild rather than becoming a thing that runs sometimes.
         let mainEffectFindings = Engine.applyingCorrection(to: Engine.findings(for: input))
+
+        // Which questions the engine can now ask, which is detection for the
+        // announcement and costs nothing: `findings` returns exactly the questions
+        // that cleared their gate, and it has just run.
+        //
+        // **Detection here, the announcement elsewhere.** This method runs on
+        // restore, on every Health read, on every physiology read and after every
+        // session, rating and deletion — many times in one launch — so an
+        // announcement raised from here would be raised repeatedly, and worse, would
+        // interrupt somebody mid-session the instant a rating cleared a gate.
+        // `PRD-LOCKS.md` §5 is explicit that it waits for the next opening of the
+        // app. So this records *what is answerable* and nothing else;
+        // `announceOpenedQuestion()` is called once by the launch task and is the
+        // only thing that can speak.
+        answerableHypotheses = mainEffectFindings.map(\.hypothesis.id)
+
         let candidates = InteractionCandidates.findings(
             for: input,
             mainEffects: InteractionCandidates.mainEffects(from: mainEffectFindings)
@@ -717,6 +775,82 @@ final class HourssStore {
             return restored
         }
     }
+
+    // MARK: - Questions that opened
+
+    /// Say, once, that a question the engine could not ask can be asked now.
+    ///
+    /// **Called once per launch, by the launch task, and that is the design.**
+    /// `PRD-LOCKS.md` §5 says the announcement arrives the next time the app is
+    /// opened rather than the moment a gate clears, and the reason is the obvious
+    /// one: a sheet that interrupts somebody who has just rated a session is a sheet
+    /// that punishes them for logging. So detection runs wherever the findings are —
+    /// `rebuildInsights()`, many times a launch — and speaking happens here, from
+    /// `HourssApp`'s own task, after Health has landed. Health is why it is not in
+    /// `init`: `healthByDay` arrives a second or two after launch, so a health
+    /// question announced from the restore would never be announced at all.
+    ///
+    /// **Nothing stops this being called twice, because nothing needs to.** The keys
+    /// are spent and written down *before* the sheet is raised, so a second call
+    /// finds nothing new, and so does the next launch. Marking on the way in rather
+    /// than on dismissal is deliberate: a sheet somebody force-quits out of is lost,
+    /// and the alternative is a sheet that comes back on every launch until it is
+    /// dismissed in the one particular way the app expected. The question itself is
+    /// open on Patterns with its answer beside it either way, which is what makes
+    /// the losing side of that trade cheap.
+    ///
+    /// **Silent before onboarding is finished.** `RootView` puts onboarding, the
+    /// account gate and the Health screen in front of the tabs, so a sheet raised
+    /// behind any of them would be a sheet nobody sees and a key spent for nothing.
+    /// Somebody mid-onboarding has nothing logged and nothing answerable in any
+    /// case, so this costs nothing and closes the hole.
+    func announceOpenedQuestion() {
+        guard hasCompletedOnboarding else { return }
+
+        let detection = QuestionAnnouncement.detect(answerable: answerableHypotheses,
+                                                    told: announcedHypotheses)
+        // Written down first, before anything is shown. Everything that makes this
+        // fire once rests on these two lines happening before the sheet.
+        //
+        // The guard is not a weakening of that: a question to announce is by
+        // definition a key not yet in the told set, so whenever `opened` is
+        // non-nil the set has grown and this writes. All the guard skips is a
+        // full-record rewrite on the ordinary launch where nothing has changed,
+        // and on that launch there is nothing to say either.
+        if detection.told != announcedHypotheses {
+            announcedHypotheses = detection.told
+            persist()
+        }
+
+        guard let opened = detection.opened else { return }
+        // The question itself, rebuilt from the registry rather than kept on the
+        // store: the ids are what the rebuild records, and recovering a `Hypothesis`
+        // from them is a pass over the rows with no bootstrap in it — the cheap half
+        // of an engine run, paid once per launch.
+        guard let question = HypothesisRegistry.hypotheses(for: engineObservations)
+            .first(where: { $0.id == opened })
+        else { return }
+
+        // The claim the engine published for it, if it published one. Nil is the
+        // ordinary case and the sheet is built for it: see `AnnouncementCopy.sheet`.
+        // Read from `insights` rather than re-derived, so the sheet cannot say
+        // something the Patterns tab does not.
+        let claim = insights.first { $0.id == Engine.identity(of: opened) }
+        openedQuestion = QuestionAnnouncement(question: question, claim: claim)
+    }
+
+    #if DEBUG
+    /// Pretend this person has already been told about these questions.
+    ///
+    /// For the fixture and for tests. It exists because the one state this feature
+    /// is about — a record where exactly one question has opened since the last
+    /// launch — cannot be reached by running the app for a fortnight in a simulator,
+    /// and a card nobody can get to is a card nobody reviews. Compiled out of any
+    /// build that is not DEBUG, like the fixture it serves.
+    func seedAnnouncedQuestions(_ keys: Set<String>) {
+        announcedHypotheses = keys
+    }
+    #endif
 
     func setStatus(_ status: InsightStatus, for id: UUID) {
         guard let index = insights.firstIndex(where: { $0.id == id }) else { return }

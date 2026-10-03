@@ -97,4 +97,36 @@ enum QuestionCopy {
 
     /// The heading above questions that cannot be asked yet.
     static let waitingHeading = "Waiting on"
+
+    /// The one line that stands in for every waiting question whose gap is total.
+    ///
+    /// **It names the question's shape, not the person's.** "Things you have not
+    /// logged" was the first draft and it puts the gap on the reader, which is one
+    /// short step from a list of errands — and `PRD-LOCKS.md` §6 refuses that shape
+    /// by name, because ordering or framing these as tasks is how a record becomes a
+    /// chore. A side with nothing in it is a fact about the comparison. It is also
+    /// the actual reason these fold and the ones above them do not: there is no
+    /// number to print, so there is nothing to read.
+    ///
+    /// **It says what is inside.** A fold whose label is a count — or worse, a
+    /// chevron — is a box the reader has to open to learn anything, and a count is
+    /// the figure this whole feature refuses to compute. This says the kind of thing
+    /// in there, and by contrast with the rows above it ("3 more days with a session
+    /// of Creative") it says how they differ: those are short by an amount, these
+    /// have not started.
+    ///
+    /// **Twenty-eight characters, and that is a constraint rather than a
+    /// coincidence.** It is set at `.action`, which scales from `.subheadline`, so at
+    /// `AccessibilityL` it is roughly 30pt bold in a 357pt column — about twenty
+    /// characters to the line. Two lines is the budget; a fold whose own label runs
+    /// to four has not shortened anything.
+    static let foldedHeading = "Questions with an empty side"
+
+    /// What opening and closing the fold do, for somebody who cannot see the arrow.
+    ///
+    /// "Shows" and "hides", not "reveals" — a reveal is the slot-machine word, and
+    /// nothing is being uncovered here. The rows were always going to say what they
+    /// say; the list was simply long.
+    static let foldOpenHint = "Shows those questions."
+    static let foldCloseHint = "Hides those questions."
 }

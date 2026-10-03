@@ -82,6 +82,22 @@ struct HourssApp: App {
                     // the app is shut far more often than while somebody is looking
                     // at it, so the moment to notice is the moment they come back.
                     store.settleClosedExperiments()
+
+                    // Last, and once per launch: a question the engine could not ask
+                    // can be asked now, said on the opening after it opened rather
+                    // than the instant a rating cleared its gate. `PRD-LOCKS.md` §5
+                    // asks for exactly that, and the reason is that a sheet
+                    // interrupting somebody who has just logged something punishes
+                    // them for logging.
+                    //
+                    // **After Health, which is why it cannot live in the store's
+                    // init.** `healthByDay` is not in the record — HealthKit holds
+                    // it — so it arrives here, a moment after launch, and a
+                    // health-split question announced from the restore would never
+                    // be announced at all. After the settling for the same reason
+                    // the settling is after Health: the rows have to be the real
+                    // ones before anything speaks about them.
+                    store.announceOpenedQuestion()
                 }
                 // The one thing a cold launch cannot do: score a session that
                 // ended after it.

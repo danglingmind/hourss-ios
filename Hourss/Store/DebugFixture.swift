@@ -78,6 +78,46 @@ enum DebugFixture {
         ProcessInfo.processInfo.arguments.contains(randomisedArgument)
     }
 
+    /// Hold one question back, so its announcement is raised on this launch.
+    ///
+    /// **The state this feature is about cannot be reached by running the app.** A
+    /// question opens when six distinct days exist on each side of it, and the
+    /// announcement fires on the launch *after* that — so seeing one in a simulator
+    /// otherwise means logging for a fortnight, closing the app, and opening it
+    /// again at the right moment. The fixture instead marks every answerable
+    /// question as already told except one, which is precisely the record somebody
+    /// has the morning after a gate cleared, and then runs the real detection and
+    /// the real sheet over it. Nothing about the announcement is faked; only the
+    /// history behind it is, which is what the whole file is for.
+    ///
+    /// This one withholds a question that **found nothing**, because that is the
+    /// common case and the one `PRD-LOCKS.md` §8 says the design has to be good at
+    /// rather than apologise for — so it is the one worth looking at. Pass
+    /// `questionFoundArgument` instead for the other half.
+    ///
+    /// Needs `skipOnboardingArgument` with it: the announcement is deliberately
+    /// silent until onboarding is finished, since a sheet behind that gate is a
+    /// sheet nobody sees.
+    static let questionOpenedArgument = "-hourss-fixture-question-opened"
+
+    /// The same, for a question the engine did have something to say about.
+    ///
+    /// Both halves are reachable because they are the one thing about this feature
+    /// that has to be *compared*: the claim and the non-answer are supposed to
+    /// arrive in the same sheet at the same weight, and nobody can check that by
+    /// looking at one of them.
+    static let questionFoundArgument = "-hourss-fixture-question-found"
+
+    static var announcesOpenedQuestion: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains(questionOpenedArgument)
+            || arguments.contains(questionFoundArgument)
+    }
+
+    static var announcesAnsweredQuestion: Bool {
+        ProcessInfo.processInfo.arguments.contains(questionFoundArgument)
+    }
+
     /// Small deterministic PRNG. `SystemRandomNumberGenerator` would make the demo
     /// different on every launch, which is exactly what we don't want.
     struct Seeded: RandomNumberGenerator {
@@ -375,6 +415,36 @@ enum DebugFixture {
         // Last, and only when asked: every test that walks onboarding depends on
         // this staying false by default.
         if skipsOnboarding { store.hasCompletedOnboarding = true }
+
+        // After that line, because the announcement is silent until onboarding is
+        // done and would otherwise spend its keys on a sheet nobody sees.
+        if announcesOpenedQuestion { seedAnnouncement(into: store) }
+    }
+
+    /// Mark every answerable question as already told except one, then announce.
+    ///
+    /// The argument for doing it this way rather than building a
+    /// `QuestionAnnouncement` by hand is the one the whole file rests on: a fixture
+    /// that assembles the thing it is meant to let somebody review can show a sheet
+    /// the app could never produce. This seeds a *record* — one question not yet
+    /// told about — and lets `announceOpenedQuestion()` do exactly what it does on a
+    /// real morning.
+    private static func seedAnnouncement(into store: HourssStore) {
+        let answerable = store.answerableHypotheses
+        guard !answerable.isEmpty else { return }
+
+        // Whether the withheld question has a published claim decides which half of
+        // the design is on screen. Read from `insights`, which is the same list the
+        // announcement itself reads, so the fixture cannot pick a question the sheet
+        // would then describe differently.
+        let wantsClaim = announcesAnsweredQuestion
+        let withheld = answerable.first { id in
+            store.insights.contains { $0.id == Engine.identity(of: id) } == wantsClaim
+        }
+        guard let withheld else { return }
+
+        store.seedAnnouncedQuestions(Set(answerable).subtracting([withheld]))
+        store.announceOpenedQuestion()
     }
 
     /// A settled experiment, so the result card is reachable without waiting a

@@ -198,18 +198,93 @@ asserts the grammar now.
 - [x] **8.** Grouped by priority, as now. No ordering by closeness.
 - [x] **9.** Decide leads versus locks and write it into `DESIGN.md`.
 
-### Phase 3 — the announcement
-- [ ] **10.** `Record.announcedHypotheses: [String]?`, optional, schema bump, and the
-      `PersistenceTests` tripwire updated deliberately.
-- [ ] **11.** Detection on rebuild; one at a time; never on first run, when
-      everything would open at once.
-- [ ] **12.** The sheet carries the answer, including nothing.
-- [ ] **13.** Motion through `Motion`; Reduce Motion lands finished.
-- [ ] **14.** A test that an announcement never fires twice for one question.
+### Phase 3 — the announcement — **done**
 
-### Phase 4 — the map
-- [ ] **15.** Far questions collapsed by default.
-- [ ] **16.** The whole space readable at `AccessibilityL`.
+**Detection and announcing are separate acts.** `rebuildInsights()` records which
+questions the engine can now ask — free, because `findings` has just returned
+exactly those — and nothing else. Speaking is one call,
+`HourssStore.announceOpenedQuestion()`, made once by `HourssApp`'s launch task.
+That split is what §5's "next time the app is opened" requires: the rebuild runs
+many times a launch, including the instant a rating clears a gate, and a sheet
+raised from there would interrupt somebody for logging. It is called after Health
+rather than from the store's `init`, because `healthByDay` is not in the record —
+so a health question announced at restore would never be announced at all.
+
+**Nothing guards against being called twice, because the keys are spent first.**
+The told set is written and persisted before the sheet is raised, so a second call
+in the same launch finds nothing new and so does the next launch. Marking on the
+way in rather than on dismissal loses a sheet somebody force-quits out of; the
+alternative is a sheet that returns until it is dismissed in one particular way,
+and the question is open on Patterns with its answer either way.
+
+**Nil is a missing baseline and `[]` is an empty one**, which is the one place this
+field breaks the house habit of collapsing empty arrays to nil. Missing means no
+baseline has been taken — a new record, or the first launch of this build for
+somebody with months of history — and that run absorbs everything already open in
+silence. Collapsing the two would have made a new person's empty baseline read as
+a missing one on their next launch, swallowing the first question they ever opened,
+which is the one the feature exists for. A test pins it.
+
+**One at a time means no backlog.** When several open together, one is announced
+and the rest are marked told with it rather than drip-fed over later launches —
+that is still the queue §5 refuses, only spread thin enough to be hard to see.
+
+**Two things found by reading the sentences the cohorts actually produce.**
+Lowercasing a registry label gave "Days with higher hrv"; only the first character
+is sentence-cased now, so an acronym survives. And the possessive template gave
+"Your Meetings sessions", because several default activities are already plural —
+that family now borrows the registry's own "your time in Meetings". Neither would
+have failed a test written from the template.
+
+- [x] **10.** `Record.announcedHypotheses: [String]?`, optional, schema bump, and the
+      `PersistenceTests` tripwire updated deliberately.
+- [x] **11.** Detection on rebuild; one at a time; never on first run, when
+      everything would open at once.
+- [x] **12.** The sheet carries the answer, including nothing.
+- [x] **13.** Motion through `Motion`; Reduce Motion lands finished.
+- [x] **14.** A test that an announcement never fires twice for one question.
+
+### Phase 4 — the map — **done**
+
+**A `DirectionalLink` that opens in place, labelled "Questions with an empty
+side".** The system `DisclosureGroup` brings a chevron, an indent and a spinning
+triangle onto a screen whose only action idiom is bold text and an oversized
+arrow, and it is the settings shape the tests entry was moved off You to escape. A
+screen of its own was the other candidate and loses for the reason the leads
+section lost: putting the never-happened questions behind a navigation boundary
+says they belong somewhere other than with the questions they are listed among.
+The name does not change when it opens — while the rows show, that line is the
+only thing standing over them saying what they are — so the arrow turns, `↘` to
+`↗`, one control changing state rather than two swapped. `DESIGN.md` carries the
+full argument, along with the phase 2 decision about leads, which item 9 recorded
+in `QuestionCopy` and here but not there.
+
+**No count on the lid, and none computed anywhere.** "4 more questions" is a fact
+about the screen and would have been legal; it sits one word from "4 of 12 open",
+and a figure beside a fold is the first thing a reader starts comparing between
+sections. The label locates the gap in the question rather than in the person —
+"things you have not logged" was the first draft and is one step from a list of
+errands, which §6 refuses by name. One untouched question is printed rather than
+given a lid, because a lid over a single row spends the line it saves; the
+threshold of two is the only number in the feature.
+
+**The wall is not there, and that is the finding.** §8 budgeted for sixty cards.
+The seeded fixture mints thirty-four hypotheses, twenty-seven of which have
+already cleared their gates, so the whole waiting list is seven questions across
+three priorities — two, three and none — and no priority holds more than one whose
+side has never happened. The fold is therefore correct, tested and dormant on every
+record this repo can produce. It engages on a thin or lopsided record: an empty
+record has eight untouched questions under Focus alone, and `shortHistory` has
+three. Both of those are `isWarmingUp`, so **Patterns does not draw the map at all
+in exactly the state the fold exists for** — `isWarmingUp` is "no visible
+insights", which is also "nothing has cleared a gate yet". Whether the map should
+appear beside the warm-up readout is a product decision and was left alone; it is
+the one thing standing between this feature and the day-one value phase 1 found.
+
+- [x] **15.** Far questions collapsed by default.
+- [x] **16.** The whole space readable at `AccessibilityL`. The lid's label is laid
+      out in DM Sans Bold at the `UIFontMetrics` scaled size and counted, rather
+      than budgeted in characters, and the measurement is proved able to fail.
 
 ### Verification
 - [ ] **17.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.
