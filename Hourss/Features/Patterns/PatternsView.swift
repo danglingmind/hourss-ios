@@ -81,7 +81,21 @@ struct PatternsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
                 if store.isWarmingUp {
-                    warmingUp
+                    // Two different answers, and the screen used to give one.
+                    //
+                    // `isWarmingUp` is "no visible insight", which is true both of
+                    // somebody who has not logged enough to compare anything and of
+                    // somebody who has logged plenty and whose days simply do not
+                    // separate. The first is a progress screen; the second is a
+                    // result. Showing the progress screen to the second reads as the
+                    // app still gathering while every bar on it sits full, which is
+                    // the state the owner was looking at when they asked why no
+                    // pattern had appeared.
+                    //
+                    // `ObservationSlotView` already draws this distinction on Today,
+                    // between `evidenceProgress` and `stillLooking`. This is the same
+                    // pair on the screen whose whole job is explaining it.
+                    if hasAskedSomething { nothingSeparated } else { warmingUp }
                 } else {
                     ranked
                 }
@@ -413,6 +427,47 @@ struct PatternsView: View {
         .accessibilityLabel("\(title). \(detail)")
         .accessibilityIdentifier(identifier)
         .overlay(alignment: .bottom) { HRule() }
+    }
+
+    /// Whether any question has actually been compared.
+    ///
+    /// The registry's questions, less the ones that could not be asked. Cheap —
+    /// building the registry is a pass over the rows and `pending` runs no bootstrap,
+    /// which is the whole point of it being a separate list from `findings`.
+    private var hasAskedSomething: Bool {
+        HypothesisRegistry.hypotheses(for: store.engineObservations).count > waiting.count
+    }
+
+    /// Enough was compared, and nothing came apart.
+    ///
+    /// **Not a progress screen.** Two things this may not do, both inherited from
+    /// `ObservationSlotView.stillLookingCopy`, which settled them first: it may not
+    /// imply something is being withheld, and it may not imply that more logging
+    /// will change it — because for somebody whose days genuinely are flat it will
+    /// not, and that is the engine being right rather than slow.
+    ///
+    /// No count of how many were asked. A number here would be the score
+    /// `PRD-LOCKS.md` §6 refuses, one step removed.
+    private var nothingSeparated: some View {
+        VStack(alignment: .leading, spacing: Space.md) {
+            DisplayHeadline([
+                Text("Nothing stands").styled(.sectionTitle),
+                Text("apart.").styled(.emphasis(42)),
+            ], style: .sectionTitle)
+            .padding(.top, Space.md)
+
+            HRule()
+
+            Text("Your days have been compared, and none of them separated from the rest.")
+                .textStyle(.body)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Evenly matched days are an answer, not a missing one.")
+                .textStyle(.label)
+                .foregroundStyle(Color.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityIdentifier("nothing-separated")
     }
 
     /// Questions this priority covers that cannot be asked yet.

@@ -99,3 +99,79 @@ struct QuestionCopyTests {
         #expect(!QuestionCopy.noSeparation.lowercased().contains("yet"))
     }
 }
+
+/// That Patterns tells "not enough yet" apart from "measured, nothing separated".
+@Suite("Patterns empty states")
+@MainActor
+struct PatternsEmptyStateTests {
+
+    private static let start = Date(timeIntervalSince1970: 1_767_225_600)
+    private static let calendar = Calendar.current
+
+    private func store(_ entries: [(dayOffset: Int, hour: Int, feeling: Int)]) -> HourssStore {
+        let store = HourssStore(repository: InMemoryRecordRepository())
+        store.profile.priorities = [.focus, .energy]
+        let activity = store.activities.first!
+        var sessions: [Session] = []
+        var reflections: [UUID: Reflection] = [:]
+        for entry in entries {
+            let day = Self.calendar.date(byAdding: .day, value: entry.dayOffset, to: Self.start)!
+            let startAt = Self.calendar.date(bySettingHour: entry.hour, minute: 0, second: 0, of: day)!
+            let session = Session(activityId: activity.id, startAt: startAt,
+                                  endAt: startAt.addingTimeInterval(3600))
+            sessions.append(session)
+            reflections[session.id] = Reflection(sessionId: session.id, feelingScore: entry.feeling,
+                                                 performanceScore: nil, note: nil, submittedAt: startAt)
+        }
+        store.sessions = sessions
+        store.reflections = reflections
+        store.rebuildInsights()
+        return store
+    }
+
+    private func asked(_ store: HourssStore) -> Bool {
+        let pending = Engine.pending(for: EngineInput(observations: store.engineObservations,
+                                                      priorities: store.profile.priorities))
+        return HypothesisRegistry.hypotheses(for: store.engineObservations).count > pending.count
+    }
+
+    @Test("A thin record has asked nothing, so it is still gathering")
+    func thinRecordIsGathering() {
+        // Three mornings. No split has six days a side, so nothing was compared.
+        let store = store((0..<3).map { ($0, 9, 4) })
+        #expect(store.isWarmingUp)
+        #expect(!asked(store))
+    }
+
+    /// The state the owner was looking at: every bar full, no pattern, and a screen
+    /// that said it was still gathering.
+    @Test("A full record where nothing separates has asked plenty")
+    func flatRecordHasBeenMeasured() {
+        // Twelve days, mornings and afternoons on each, every rating identical. Six
+        // a side on the timing split, so it is compared — and a constant rating
+        // cannot separate, so nothing survives.
+        var entries: [(Int, Int, Int)] = []
+        for day in 0..<12 {
+            entries.append((day, 9, 4))
+            entries.append((day, 15, 4))
+        }
+        let store = store(entries)
+
+        #expect(store.bestBalancedDays >= EvidenceFloor.perSide)
+        #expect(asked(store), "the timing split should have been compared")
+        // Nothing separated, so there is still no visible insight — and the screen
+        // must say that rather than showing a progress bar sitting at full.
+        #expect(store.isWarmingUp)
+    }
+
+    @Test("The two states cannot both be true of one record")
+    func theyAreExclusive() {
+        let thin = store((0..<3).map { ($0, 9, 4) })
+        var entries: [(Int, Int, Int)] = []
+        for day in 0..<12 { entries.append((day, 9, 4)); entries.append((day, 15, 4)) }
+        let flat = store(entries)
+        // One is gathering, the other has been measured. The screen branches on
+        // exactly this, so they must never agree.
+        #expect(asked(thin) != asked(flat))
+    }
+}
