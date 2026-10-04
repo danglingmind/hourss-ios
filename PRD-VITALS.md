@@ -297,7 +297,12 @@ gap → Health-seeded starter.
 - [ ] **16.** Still never shown; a test that no prior's number reaches a string.
 
 ### Phase 5 — gap-filling
-- [ ] **17.** Time-based gaps removed. Activity gaps kept, with the reason.
+- [x] **17.** Time-based gaps removed. Activity gaps kept, with the reason.
+      `ExperimentGaps.isActivityGap` is the whole of the line, and it changes who a
+      gap is for: somebody who logs a single activity now has **no** activity gap at
+      all, because that activity's own side is already full. They are served by
+      phase 2 instead. What a gap now catches is an activity somebody does too
+      rarely to compare — a choice, inside hours they already keep.
 
 ### Verification
 - [ ] **18.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.
