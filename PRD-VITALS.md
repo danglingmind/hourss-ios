@@ -116,20 +116,75 @@ does not have and will not get from sixty days of wrist data.
 `NarrationGuard`'s clinical ban already forbids most of the right-hand column.
 Nothing here loosens it.
 
-## 7. Questions worth settling before anything is built
+## 7. Settled
 
-1. **The flat-record case (§5).** Which of the three options, and is a prior allowed
-   to choose the question if it is never shown?
-2. **Band or hour?** The fit is on four bands. Hour-level would be more useful and
-   much thinner — four windows per cell is already the floor.
-3. **How big a difference is worth a sentence?** A 2 bpm gap between bands is real
-   and probably meaningless. Every other threshold in this app is derived from
-   something; there may be nothing to derive this one from.
-4. **Does this replace gap-filling or sit beside it?** Gap-filling is defensible for
-   *activities* — "you have never given Deep work a session of its own" is about a
-   choice, not about hours somebody does not have. It is only wrong about time.
-5. **Workday or not.** The cell carries it. A suggestion that ignores it could
-   propose a 10am slot to somebody who is at work at 10am on five days in seven.
+**Hour, not a gate.** Fit hourly where there is enough density and fall back to the
+band where there is not. Accuracy improves where somebody logs a lot; nothing is
+withheld from anybody who does not. An hour is never required for a pattern or a
+test to appear.
+
+**Two beats per minute is not a difference worth a sentence.** A real floor is
+needed and there is nothing in the app to derive it from — this is the one number
+here that has to be chosen rather than borrowed, and it should be chosen knowing
+that.
+
+**Gap-filling goes, for time.** Not giving something a time block is a choice, and
+an app that reads a choice as a hole is the 3pm problem in general form. It may
+survive for *activities*, where "you have never given Deep work a session of its
+own" really is about a choice and not about hours somebody does not have.
+
+**Workdays count.** The cell already carries the distinction, so a suggestion can
+respect it for free — and must, or it will propose ten in the morning to somebody
+who is at work at ten on five days in seven.
+
+**No config file.** It was considered and dropped. Most of what would have gone in
+it is either a statistical floor that must not be casually tunable — six days a side
+is what the bootstrap needs, not a preference — or a value that belongs beside the
+code that reads it.
+
+## 8. Which hours suit which activity
+
+`Surprise.priors` already holds expectations about **time of day** and about
+**activities**, separately:
+
+```
+"timeOfDay.afternoon": Prior(raised: false, share: 0.70)   // the post-lunch dip
+"activity.meetings":   Prior(raised: false, share: 0.78)
+```
+
+What it does not hold is the **pairing** — that deep work in a morning is a
+different expectation from either "morning" or "deep work" alone. That pairing is
+the thing worth adding, and it is what makes "try deep work at ten" a question the
+app can think of asking.
+
+**Same shape, nothing new.** `Prior(raised:share:)`, keyed on the id grammar, with
+an absent key meaning no expectation either way. No weighting beyond the `share`
+already there, and no second mechanism.
+
+**Still never shown.** The boundary note above that table is the whole reason this
+is allowed: a prior decides which true thing comes first, and the person is told
+only what is true of them. A pairing prior may put "deep work in your mornings"
+ahead of other questions to ask. It may not appear as a reason, and it may not
+survive into any sentence.
+
+**Be honest about what the literature supports.** Between-person chronotype spread
+is larger than the within-person time-of-day effect, and most of the alertness work
+is small, lab-based and measuring reaction time rather than anything resembling
+focused work. These entries are the things *everybody already believes*, which is
+exactly what the existing table says it is — a list of folk expectations, not a list
+of findings. Written with that in the comment beside them, at shares that admit it.
+
+## 9. Still open
+
+1. **The flat-record case (§5), which is the one that matters.** The chain needs the
+   calibration, the calibration needs six rated days a side, and the person this
+   whole thread began with may not have them. Three options are listed there, none
+   free.
+2. **The bpm floor.** Settled that 2 is too small; not settled what it should be, or
+   what could justify any particular number.
+3. **Whether a pairing prior may choose the question** when the vitals chain is
+   incomplete — which is §9.1 wearing a different hat, and probably has the same
+   answer.
 
 ## 8. What it would take
 
