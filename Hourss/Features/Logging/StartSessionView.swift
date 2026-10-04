@@ -23,6 +23,19 @@ struct StartSessionView: View {
     /// Minutes from the start of today. The sliders work in minutes so both can
     /// snap to the same quarter-hour grid.
     @State private var startMinutes: Double = 0
+
+    /// The length that was asked for, when what fitted was shorter.
+    ///
+    /// **A preset cannot always be honoured, and used to say nothing about it.** The
+    /// slot is placed around what is already logged, so tapping "30m" at ten past four
+    /// with something logged until ten to four leaves seventeen free minutes and the
+    /// readout quietly said `17m`. The length is right — there is nowhere else for it
+    /// to go without covering a session that is already there — and the silence was
+    /// not, because the one number on screen disagreed with the button just pressed.
+    ///
+    /// Nil whenever the slot is the person's own: dragging the strip or nudging an
+    /// edge sets a length deliberately, and nothing was trimmed from anything.
+    @State private var trimmedFrom: Int?
     @State private var durationMinutes: Double = 60
 
     private static let stepMinutes: Double = 15
@@ -186,9 +199,25 @@ struct StartSessionView: View {
                 }
                 .accessibilityIdentifier("slot-steppers")
 
-                Text(formatMinutes(Int(durationMinutes)))
-                    .textStyle(.label)
-                    .foregroundStyle(Color.muted)
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text(formatMinutes(Int(durationMinutes)))
+                        .textStyle(.label)
+                        .foregroundStyle(Color.muted)
+                        .accessibilityIdentifier("slot-length")
+
+                    if let trimmedFrom {
+                        // Says what happened and why, and names neither a fault nor a
+                        // fix: the slot is as long as the free time is, and the only
+                        // thing to do about it is move the slot, which the strip and
+                        // the steppers directly above already offer.
+                        Text("Trimmed from \(formatMinutes(trimmedFrom)) to fit around "
+                             + "what you have already logged.")
+                            .textStyle(.body)
+                            .foregroundStyle(Color.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("slot-trimmed")
+                    }
+                }
 
                 HRule()
             }
@@ -240,6 +269,7 @@ struct StartSessionView: View {
             in: loggableWindow, logged: loggedSpans
         ) else { return }
         write(placed)
+        noteTrim(from: minutes, got: placed)
     }
 
     /// A handle dragged on the strip. Already clamped by the picker; written here
@@ -253,6 +283,7 @@ struct StartSessionView: View {
             in: loggableWindow, logged: loggedSpans
         ) else { return }
         write(moved)
+        trimmedFrom = nil
     }
 
     private func nudge(_ edge: SlotGeometry.Edge, by steps: Int) {
@@ -261,6 +292,18 @@ struct StartSessionView: View {
             in: loggableWindow, logged: loggedSpans
         ) else { return }
         write(moved)
+        trimmedFrom = nil
+    }
+
+    /// Whether what fitted was shorter than what was asked for.
+    ///
+    /// Compared in whole minutes, because that is what the readout shows and what the
+    /// button said: a slot a few seconds short of the hour reads as `1h` either way,
+    /// and a note beside a number that already matches would be the app apologising
+    /// for nothing.
+    private func noteTrim(from requested: Int, got slot: DateInterval) {
+        let fitted = Int(slot.duration / 60)
+        trimmedFrom = fitted < requested ? requested : nil
     }
 
     private var currentSlot: DateInterval {
@@ -378,6 +421,11 @@ struct StartSessionView: View {
             in: loggableWindow, logged: loggedSpans
         ) else { return }
         write(placed)
+        // The default asks for an hour like any preset, and is trimmed like one. This
+        // is the commonest way somebody meets a short slot — they open the sheet and
+        // the hour behind them is half full — so it is the one that most needed
+        // explaining.
+        noteTrim(from: 60, got: placed)
     }
 
     /// Takes up an empty hour somebody tapped in a day's hour strip.
@@ -406,6 +454,12 @@ struct StartSessionView: View {
             in: loggableWindow, logged: loggedSpans
         ) else { return }
         write(placed)
+        // An hour was tapped because it was empty, so this slot is the hour rather
+        // than a length that had to fit somewhere. Reported as its own trim, which
+        // also clears whatever `resetSlotToLastHour` left behind a moment ago —
+        // `onAppear` runs both, and a note about the hour behind you has nothing to
+        // say about the hour you tapped.
+        noteTrim(from: 60, got: placed)
     }
 
     private func save() {

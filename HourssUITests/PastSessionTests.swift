@@ -75,7 +75,15 @@ final class PastSessionTests: XCTestCase {
         attach("24-start-session-now")
     }
 
-    /// Switching to past time reveals the slot, pre-set to the hour just gone.
+    /// Switching to past time reveals the slot, pre-set to the hour just gone — or
+    /// to as much of it as is free, saying so.
+    ///
+    /// **Why this does not assert `1h` outright.** The slot is placed around what is
+    /// already logged, so how long it comes out depends on what the fixture's day
+    /// holds *at the wall-clock time the suite runs*. Asserting the hour passed in the
+    /// morning and failed in the afternoon, which is a test that reports the clock
+    /// rather than the code. What is always true is the contract: the slot is an hour,
+    /// or it is shorter and says what it was trimmed from.
     func testPastModeShowsAnHourLongSlot() {
         launchToToday()
         openSheet()
@@ -85,7 +93,7 @@ final class PastSessionTests: XCTestCase {
                       "No slot picker")
         XCTAssertTrue(app.descendants(matching: .any)["preset-60"].firstMatch.exists,
                       "No one-hour preset")
-        XCTAssertTrue(app.staticTexts["1h"].exists, "The slot should default to an hour")
+        assertLength(is: 60, "The slot should default to an hour, or explain why it is shorter")
         XCTAssertTrue(app.descendants(matching: .any)["Log it"].firstMatch.exists,
                       "The action should say what it does in this mode")
         attach("25-start-session-past")
@@ -105,9 +113,9 @@ final class PastSessionTests: XCTestCase {
         XCTAssertTrue(half.waitForExistence(timeout: UITest.timeout), "No half-hour preset")
         half.tapWhenReady()
 
-        XCTAssertTrue(app.staticTexts["30m"].waitForExistence(timeout: UITest.timeout),
-                      "Tapping the half-hour preset did not update the readout")
-        XCTAssertFalse(app.staticTexts["1h"].exists, "The old duration is still showing")
+        let readout = app.descendants(matching: .any)["slot-length"].firstMatch
+        XCTAssertTrue(readout.waitForExistence(timeout: UITest.timeout), "No length readout")
+        assertLength(is: 30, "Tapping the half-hour preset did not update the readout")
         attach("26-start-session-slot-adjusted")
 
         // And back out. Each preset is a whole slot rather than a nudge, so the
@@ -192,4 +200,34 @@ final class PastSessionTests: XCTestCase {
         app.descendants(matching: .any)["Done"].firstMatch.tapWhenReady()
     }
 
+
+    /// The slot is the length that was asked for, or shorter and explaining itself.
+    ///
+    /// Both halves matter and neither alone is the behaviour. A slot that silently
+    /// comes back short is the defect this replaced — the readout disagreeing with the
+    /// button just pressed — and a slot that is the right length does not need a note
+    /// beside it saying nothing was trimmed.
+    private func assertLength(is minutes: Int, _ message: String) {
+        let readout = app.descendants(matching: .any)["slot-length"].firstMatch
+        XCTAssertTrue(readout.waitForExistence(timeout: UITest.timeout), "No length readout")
+        let note = app.descendants(matching: .any)["slot-trimmed"].firstMatch
+
+        if readout.label == formatted(minutes) {
+            XCTAssertFalse(note.exists,
+                           "The slot is the length that was asked for, so nothing was trimmed")
+            return
+        }
+        XCTAssertTrue(note.exists,
+                      "\(message) — it reads '\(readout.label)' and says nothing about why")
+        XCTAssertTrue(note.label.contains(formatted(minutes)),
+                      "The note should name the length that was asked for: '\(note.label)'")
+    }
+
+    /// `formatMinutes`, which the app target owns and the UI target cannot see.
+    private func formatted(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let mins = minutes % 60
+        if hours == 0 { return "\(mins)m" }
+        return mins == 0 ? "\(hours)h" : "\(hours)h \(mins)m"
+    }
 }
