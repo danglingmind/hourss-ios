@@ -218,6 +218,91 @@ enum Physiology {
         let isWorkday: Bool
     }
 
+    // MARK: - The shape of a day
+
+    /// Where in somebody's own day their heart rate sits apart from the rest of it.
+    ///
+    /// **The fit has always known this and nothing has ever read it.** A baseline per
+    /// `Cell` is fitted from sixty days of this person's least-moving windows and
+    /// then used only as a denominator: every session's residual is measured against
+    /// it, and the *shape* — which corner of their week sits low, which sits high —
+    /// has never left the struct. This is that shape, and it needs no new permission,
+    /// no new read and no new arithmetic. It needs the numbers to stop being private.
+    ///
+    /// **It can only ever point at hours somebody has.** A cell earns a baseline from
+    /// four of their own recorded windows, so a person who sleeps from four in the
+    /// afternoon has no evening cell and nothing here can name an evening to them.
+    /// That is the structural difference from reasoning about *gaps*, which inferred
+    /// from absence and therefore pointed at precisely the hours somebody does not
+    /// have. This reasons from presence and cannot do that, and the property is worth
+    /// protecting rather than merely noting: any future version of this that
+    /// enumerates `TimeBucket.allCases` and asks what is missing has reintroduced the
+    /// bug.
+    ///
+    /// **A reading, never a verdict.** A `Place` says where a measured number sits
+    /// and carries no opinion about whether sitting there is good. Nothing in sixty
+    /// days of wrist data supports one, and `ExperimentCopy`'s wording is written to
+    /// the same rule.
+    struct DayShape: Sendable, Equatable {
+
+        /// Beats per minute a place must sit away from the rest of the day before it
+        /// is reported at all.
+        ///
+        /// **Chosen, not derived, and recorded as chosen.** Two beats is not a
+        /// difference worth a sentence and five probably is, and there is nothing in
+        /// this app to derive a replacement from: every other threshold here is
+        /// borrowed from something — six days a side from what the bootstrap needs,
+        /// twenty-eight days from needing six a side after halving, `minimumDaysPerHour`
+        /// from the engine's six — and this one is not. Dressing it up as derived
+        /// would be worse than admitting it: below five, the app says nothing about
+        /// where somebody's day differs, because somebody decided five.
+        ///
+        /// It is applied in exactly one place, `MovementCurve.dayShape`, and after
+        /// the resolution is settled. Applied before, an hour that earned a finer
+        /// number could be thrown away for its band's coarser one.
+        static let minimumDifference: Double = 5
+
+        /// One corner of somebody's week their heart rate sits apart in.
+        struct Place: Sendable, Equatable {
+            let band: TimeBucket
+            /// Workday or not, kept apart because the cell already keeps them apart.
+            /// Heart rate has a different circadian shape on days off, and a place
+            /// that pooled the two would be a difference between two kinds of day
+            /// reported as a difference between two times of day.
+            let isWorkday: Bool
+            /// The hour this resolved to, or nil where the band is as fine as the
+            /// evidence goes.
+            ///
+            /// **An improvement, never a requirement.** Somebody who has recorded six
+            /// separate days of one hour gets that hour; somebody who has not gets
+            /// their band, and gets it on the same terms. Nothing is withheld for
+            /// want of an hour.
+            let hour: Int?
+            /// Beats per minute against the median of this person's other bands of
+            /// the same day type. Negative sits lower, positive higher.
+            let difference: Double
+
+            var isLower: Bool { difference < 0 }
+            var cell: Cell { Cell(band: band, isWorkday: isWorkday) }
+            /// How far from the rest of the day, without the direction.
+            var magnitude: Double { abs(difference) }
+        }
+
+        /// Every place clearing the floor, furthest from the rest of the day first.
+        ///
+        /// Often empty, and empty is the common answer rather than a failure: most
+        /// people's days do not move five beats between bands, and the five-beat floor
+        /// is there to make the app quiet about them.
+        let places: [Place]
+
+        /// The place sitting furthest below the rest of the day, if any does.
+        var lowest: Place? { places.filter(\.isLower).min { $0.difference < $1.difference } }
+        /// And furthest above.
+        var highest: Place? { places.filter { !$0.isLower }.max { $0.difference < $1.difference } }
+
+        var isEmpty: Bool { places.isEmpty }
+    }
+
     // MARK: - A summarised window
 
     /// One window reduced to the few numbers the curve is fitted on.
@@ -232,6 +317,16 @@ enum Physiology {
         let sampleCount: Int
         let cadence: Double
         let band: TimeBucket
+        /// The hour the window started in, 0–23.
+        ///
+        /// Carried as well as the band, not instead of it, because the two answer
+        /// different questions. The band is what a residual is measured against —
+        /// four groups is what a few hundred windows can support — while the hour is
+        /// what `MovementCurve.dayShape` refines a baseline to where somebody has
+        /// recorded enough separate days of one hour to earn it. Dropping it here
+        /// and recovering it later is not possible: the fit is the only place that
+        /// sees every window.
+        let hour: Int
         let isWorkday: Bool
 
         var bin: CadenceBin { .containing(cadence) }
@@ -283,9 +378,41 @@ enum Physiology {
         /// rather than borrowing the day type's or the person's overall one.
         static let minimumWindowsPerCell = 4
 
+        /// Separate days of one hour before that hour may stand in for its band.
+        ///
+        /// **Days rather than windows, and borrowed rather than chosen.** Six is the
+        /// engine's floor everywhere else — `Hypothesis.minimumDays` is six distinct
+        /// rated days on each side — and the reason given there applies here
+        /// unchanged: thirty windows of ten o'clock from three mornings are three
+        /// mornings of evidence about ten o'clock, and counting them as thirty is the
+        /// pseudo-replication that let eighteen days of noise produce four confident
+        /// claims. The tiling is half-hourly, so six days of an hour is twelve
+        /// windows and comfortably above `minimumWindowsPerCell` — which is why an
+        /// hour clearing this bar implies its cell earned its own baseline, a
+        /// property `dayShape` relies on and states anyway.
+        ///
+        /// Stricter than the cell's bar on purpose. An hour is a narrower claim than
+        /// a band and narrower claims need more behind them, not the same.
+        static let minimumDaysPerHour = 6
+
+        /// The finest baseline one cell earned.
+        ///
+        /// Stored per cell rather than per hour because only one hour of a band is
+        /// ever used — see `fit` — and keeping the losers would be keeping numbers
+        /// nothing may read.
+        private struct FinestHour: Sendable {
+            let hour: Int
+            let baseline: Double
+        }
+
         private let cellBaselines: [Cell: Double]
         private let dayTypeBaselines: [Bool: Double]
         private let overallBaseline: Double
+        /// Hour-resolution baselines, for the cells that earned one. Never a
+        /// fallback and never read by `baseline(for:)`: a residual is measured
+        /// against the band, because that is what the uncertainty figure was built
+        /// over. This is read by `dayShape` and nothing else.
+        private let finestHours: [Cell: FinestHour]
         /// Ordered by cadence, anchored so `lift(0) == 0`.
         private let knots: [Knot]
 
@@ -339,6 +466,36 @@ enum Physiology {
                 $0.count >= minimumWindowsPerCell ? median($0) : nil
             }
 
+            // One hour per cell, where the person has recorded enough separate days
+            // of it. Fitted from the same reference windows as the cell baselines
+            // above, so the two are the same quantity at two resolutions rather than
+            // two different numbers that happen to be in beats per minute.
+            //
+            // **The densest hour, never the most extreme one.** Picking the hour
+            // whose baseline sits furthest from the rest of the day would be six
+            // comparisons reported as one, and the winner of six noisy draws is
+            // mostly the noise — the same multiple-comparisons problem
+            // `Engine.applyingCorrection` exists to answer, which cannot be answered
+            // here because there is no interval to widen. Choosing on density
+            // instead makes the hour a fact about where this person's recorded day
+            // actually is, and leaves the five-beat floor to decide whether the
+            // number it produces is worth a sentence. Earliest hour on a tie, so two
+            // runs over one history pick the same hour.
+            var byHour: [Cell: [Int: [WindowSummary]]] = [:]
+            for window in reference {
+                byHour[window.cell, default: [:]][window.hour, default: []].append(window)
+            }
+            var finestHours: [Cell: FinestHour] = [:]
+            for (cell, hours) in byHour where cellBaselines[cell] != nil {
+                let earned = hours.filter {
+                    Set($0.value.map(\.day)).count >= minimumDaysPerHour
+                }
+                guard let densest = earned.max(by: {
+                    ($0.value.count, -$0.key) < ($1.value.count, -$1.key)
+                }), let level = median(densest.value.map(\.heartRate)) else { continue }
+                finestHours[cell] = FinestHour(hour: densest.key, baseline: level)
+            }
+
             func baseline(_ cell: Cell) -> Double {
                 cellBaselines[cell] ?? dayTypeBaselines[cell.isWorkday] ?? overall
             }
@@ -369,6 +526,7 @@ enum Physiology {
                 cellBaselines: cellBaselines,
                 dayTypeBaselines: dayTypeBaselines,
                 overallBaseline: overall,
+                finestHours: finestHours,
                 knots: anchored,
                 referenceBin: referenceBin,
                 fittedCeiling: CadenceBin.containing(anchored.last?.cadence ?? 0),
@@ -382,6 +540,86 @@ enum Physiology {
 
         func baseline(for cell: Cell) -> Double {
             cellBaselines[cell] ?? dayTypeBaselines[cell.isWorkday] ?? overallBaseline
+        }
+
+        /// Where this person's day sits apart from itself.
+        ///
+        /// The one thing outside this struct may learn about the baselines, and it is
+        /// deliberately not the baselines. A bpm figure for somebody's mornings is a
+        /// number about their heart and nothing in this product is allowed an opinion
+        /// about one; a *difference* between two corners of their own week is a fact
+        /// about their day, which is the thing being asked for. So the dictionaries
+        /// stay private and this returns differences.
+        ///
+        /// **Only cells that earned their own baseline, and this is the subtlest rule
+        /// here.** `baseline(for:)` falls back to the day type's number and then to
+        /// the person's overall one, which is right for scoring a session — a
+        /// residual needs *some* denominator — and wrong for every use below. A cell
+        /// whose number was borrowed from the day type would sit exactly where the
+        /// day type sits, so the difference computed from it would be a difference
+        /// between a real band and an average of bands: it would report that this band
+        /// differs from that one when what actually happened is that one of them was
+        /// never measured. That is inventing a difference out of a missing one, which
+        /// is the failure this whole approach exists to avoid. `cellBaselines` holds
+        /// only the earned ones — `fit` drops the rest — so reading it rather than
+        /// calling `baseline(for:)` is the entire guard, and it is why this does not
+        /// call `baseline(for:)`.
+        ///
+        /// **The yardstick is the other bands, at band resolution, from the same day
+        /// type.** Three decisions, each of which the alternative gets wrong:
+        ///
+        /// - *The other bands*, not the person's overall baseline. The overall number
+        ///   includes this band, so a band would be compared partly against itself,
+        ///   and the comparison would shrink for whoever has the least data.
+        /// - *At band resolution*, even when the place itself resolved to an hour.
+        ///   Refining the yardstick too would make the figure depend on which of
+        ///   somebody's other hours happened to be dense, so the same morning would
+        ///   read differently as unrelated parts of their week filled in. The thing
+        ///   being refined is the place, never what it is measured against.
+        /// - *The same day type*, because the cell already separates them.
+        ///
+        /// At least two other earned bands are required, and that is not a spare
+        /// guard. Against one other band the figure is a difference between two times
+        /// of day, while every sentence built on it — and the word "elsewhere" in
+        /// `ExperimentCopy.vitalsReading` — claims something about the rest of a day.
+        var dayShape: DayShape {
+            var places: [DayShape.Place] = []
+            for (cell, bandBaseline) in cellBaselines {
+                let others = cellBaselines
+                    .filter { $0.key.isWorkday == cell.isWorkday && $0.key.band != cell.band }
+                    .map(\.value)
+                guard others.count >= 2, let rest = Physiology.median(others) else { continue }
+
+                // The finest number this cell earned, which is an hour of it where
+                // enough separate days of that hour were recorded and the band
+                // otherwise. Resolved before the floor, so the floor judges the best
+                // estimate available rather than the coarsest.
+                let finest = finestHours[cell]
+                let difference = (finest?.baseline ?? bandBaseline) - rest
+                guard abs(difference) >= DayShape.minimumDifference else { continue }
+
+                places.append(DayShape.Place(
+                    band: cell.band,
+                    isWorkday: cell.isWorkday,
+                    hour: finest?.hour,
+                    difference: difference
+                ))
+            }
+
+            // Furthest from the rest of the day first, with a total order under it so
+            // that two runs over one history produce the same list. Dictionary
+            // iteration is unordered, and a shape that reshuffled itself between runs
+            // would hand a different proposal to the same person on two launches.
+            places.sort { left, right in
+                if left.magnitude != right.magnitude { return left.magnitude > right.magnitude }
+                if left.isWorkday != right.isWorkday { return left.isWorkday }
+                let order = TimeBucket.allCases
+                let li = order.firstIndex(of: left.band) ?? 0
+                let ri = order.firstIndex(of: right.band) ?? 0
+                if li != ri { return li < ri }
+                return (left.hour ?? -1) < (right.hour ?? -1)
+            }
+            return DayShape(places: places)
         }
 
         /// Beats per minute this pace adds, relative to standing still. Piecewise
@@ -624,6 +862,15 @@ enum Physiology {
             )
         }
 
+        /// Where this person's day sits apart from itself, or an empty shape.
+        ///
+        /// Empty rather than nil when there is no curve, because the two answers are
+        /// the same answer: nothing can be said about where their day differs. A
+        /// caller that has to distinguish "no curve yet" from "a curve with nothing
+        /// above five beats" would be a caller about to say something about the
+        /// difference, and there is nothing to say about either.
+        var dayShape: DayShape { curve?.dayShape ?? DayShape(places: []) }
+
         // MARK: Summarising
 
         func summary(for window: Window) -> WindowSummary? {
@@ -664,6 +911,7 @@ enum Physiology {
                 sampleCount: beats.count,
                 cadence: stepTotal / window.minutes,
                 band: TimeBucket.bucket(forHour: hour),
+                hour: hour,
                 isWorkday: workdays.contains(weekday)
             )
         }

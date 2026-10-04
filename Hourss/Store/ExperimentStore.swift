@@ -132,15 +132,90 @@ extension HourssStore {
         -> [ExperimentDesign.Proposal] {
         let proposals = ExperimentDesign.proposals(
             from: findings, input: input, excluding: experimentKeysToExclude)
-        return ExperimentStarters.completing(
+
+        // Every hypothesis the engine got far enough to test. Past that point the
+        // measured path owns the question, and a later source saying nothing is known
+        // about it would be the app contradicting itself. Computed once and handed to
+        // all four of them, because four recomputations are four chances to disagree.
+        let measured = Set(findings.map(\.hypothesis.id))
+
+        // The order below is the whole of `PRD-VITALS.md` §10 and it is a ranking by
+        // *what the offer rests on*, strongest first: this person's own ratings, then
+        // their own body, then what is expected of people in general, then an absence
+        // in their own record, then a Health reading about something else.
+        //
+        // Assembled in one function for the reason the function exists — the
+        // precedence rule is enforced by the order the list comes back in rather than
+        // by a comparison somewhere, so a second assembly is a second chance to get it
+        // wrong.
+
+        // Vitals first behind the measured findings, because a place where somebody's
+        // own heart rate sits five beats apart is a fact about them, which every
+        // source below this line is not. `completing` skips a priority already served
+        // above it, so this never puts a second offer on one focus area.
+        let withVitals = ExperimentVitals.completing(
             proposals,
+            priorities: input.priorities,
+            shape: dayShape,
+            // Calibrated where the person's own residual has been resolved, which is
+            // what lets the premise name a direction; uncalibrated otherwise, where it
+            // may only name the place. §10 ranks those two apart and this is the one
+            // value that separates them.
+            direction: OutcomeDirection.resolved(from: findings),
+            observations: input.observations,
+            measured: measured,
+            excluding: experimentKeysToExclude
+        )
+
+        // Then what is expected of people in general — the only source here that rests
+        // on nothing about this person at all, which is why it sits below everything
+        // that does and why §9 makes it say so in its own premise.
+        //
+        // Filtered by priority rather than passed a shortened list: `ExperimentPriors`
+        // reads `priorityRank` off the position in what somebody actually ranked, and
+        // handing it a filtered list would have it report itself as their first
+        // priority because the two above it were served elsewhere.
+        let served = Set(withVitals.map(\.priority))
+        let withPriors = withVitals + ExperimentPriors.offers(
+            for: input.priorities,
+            activities: pickableActivities,
+            measured: measured,
+            excluding: experimentKeysToExclude.union(withVitals.map(\.hypothesisId))
+        ).filter { !served.contains($0.priority) }
+
+        // Gaps sit between what has been measured and what Health can seed.
+        //
+        // **Behind anything measured**, because an offer resting on this person's own
+        // ratings beats one resting on their own silence.
+        //
+        // **Ahead of a Health-seeded starter**, because a gap is a fact about the
+        // record the test will be measured in, while a starter is a reading about
+        // something else — and because `ExperimentStarters` never looks at what
+        // somebody logs, so it will happily propose a morning session to somebody
+        // who already works every morning and spend a fortnight making one side of a
+        // comparison heavier than it already was.
+        //
+        // This is the only offer in the app for a person whose days do not vary, who
+        // is also the person with the most to gain from being asked to vary them.
+        //
+        // Below the two sources above it now, which is a change §10 made and the
+        // reason is the same one that narrowed this source to activities: a gap
+        // reasons from silence, and silence is the weakest thing in this app to
+        // reason from. It still beats a Health-seeded starter, because the absence is
+        // a fact about the record the test will be measured in.
+        let servedAbove = Set(withPriors.map(\.priority))
+        let withGaps = withPriors + ExperimentGaps.gaps(
+            for: input.priorities,
+            pending: Engine.pending(for: input),
+            excluding: experimentKeysToExclude.union(withPriors.map(\.hypothesisId))
+        ).filter { !servedAbove.contains($0.priority) }
+
+        return ExperimentStarters.completing(
+            withGaps,
             priorities: input.priorities,
             healthByDay: healthByDay,
             activities: pickableActivities,
-            // Every hypothesis the engine got far enough to test. Past that point
-            // the measured path owns the question and a starter saying nothing is
-            // known about it would be the app contradicting itself.
-            measured: Set(findings.map(\.hypothesis.id)),
+            measured: measured,
             excluding: experimentKeysToExclude
         )
     }

@@ -555,6 +555,21 @@ final class HourssStore {
     /// see `applyPhysiology(_:)`.
     private(set) var physiologyReadings: [UUID: Physiology.Reading] = [:]
 
+    /// The corners of the week this person's heart rate sits apart in.
+    ///
+    /// Set by `applyPhysiology(feed:)` and nil until a Health read has happened, which
+    /// is the honest state: with no feed there is no curve, and a caller that treated
+    /// nil as "nothing stands apart" would be reporting an absence of evidence as
+    /// evidence of absence. `ExperimentVitals` is the only reader and guards on it.
+    private(set) var dayShape: Physiology.DayShape?
+
+    /// The day of the newest heart-rate sample the shape was last fitted through.
+    ///
+    /// Keeps the fit to once a day. Not persisted, because `dayShape` is not either —
+    /// a stored date with no stored shape beside it would skip the first fit after
+    /// launch and leave the shape nil for the rest of the day.
+    private var dayShapeFittedThrough: Date?
+
     /// Recomputes observations with Health context folded in.
     ///
     /// Insights are derived, not authored, so connecting or disconnecting Health
@@ -651,11 +666,28 @@ final class HourssStore {
         // frozen residuals that cannot be recomputed.
         guard !feed.isEmpty else { return }
         let pending = sessionsAwaitingPhysiology()
-        // The whole point of freezing: in the steady state there is nothing here,
-        // and the sixty-day fit below — which runs on the main actor — never
-        // happens. See `PhysiologyCatchUp`, which asks the same question before it
-        // even goes to HealthKit.
-        guard !pending.isEmpty else { return }
+        let newestSample = feed.heartRate.map(\.at).max()
+
+        // Whether the day's shape needs fitting, which is a second reason to run and
+        // did not used to exist.
+        //
+        // **The guard below cannot be the only one, because of who needs the shape.**
+        // It returns whenever no session is awaiting a reading, which is the steady
+        // state and the point of freezing — the sixty-day fit runs on the main actor
+        // and should not happen for nothing. But somebody who has logged *nothing* has
+        // no pending sessions either, and they are exactly the person a vitals-led
+        // offer exists for: a Health read and an empty record. Under the old guard
+        // alone they never got a shape, so the one source built for them never fired.
+        //
+        // Refitted at most once per day of newest sample rather than on every read.
+        // A shape is a reading of the last few weeks of heart rate, so it does not
+        // move hour to hour, and a daily fit is the cheapest cadence that is never
+        // stale by more than a day. The fit is still real work, so it is spent on a
+        // changed day and not otherwise.
+        let shapeDay = newestSample.map { Calendar.current.startOfDay(for: $0) }
+        let needsShape = shapeDay != nil && shapeDay != dayShapeFittedThrough
+
+        guard !pending.isEmpty || needsShape else { return }
 
         // Nothing is scored until its window has finished arriving.
         //
@@ -674,10 +706,30 @@ final class HourssStore {
         // later than the session ended, then everything inside that window which
         // is ever going to arrive has arrived. Sessions failing this stay pending
         // and are scored on a later pass, which is what `nil` already means here.
-        let newestSample = feed.heartRate.map(\.at).max()
         let analyzer = Physiology.Analyzer(
             feed: feed, sessions: sessions, workdays: profile.workdays
         )
+
+        // Where this person's day sits apart from itself, kept because the curve it
+        // comes from does not survive this function. The feed is a parameter rather
+        // than a stored property — it is large, it is re-read on launch, and holding
+        // it would mean two copies of the same Health window — so the one derived
+        // thing an offer needs is taken here, off the analyzer that already exists,
+        // rather than by fitting a second curve somewhere with no feed to fit from.
+        //
+        // Not persisted, deliberately. A shape is a reading of the last few weeks of
+        // Health, so a stored one is a claim about a window that has since moved; the
+        // launch read fills it in before anything asks. Frozen readings are different
+        // and are persisted, because a reading is tied to one session that has
+        // already happened.
+        if needsShape, let shapeDay {
+            dayShape = analyzer.dayShape
+            dayShapeFittedThrough = shapeDay
+        }
+
+        // Unchanged, and conditional only so that a run entered for the shape alone
+        // does not reach the freeze path with nothing to freeze.
+        guard !pending.isEmpty else { return }
         var readings: [UUID: Physiology.Reading] = [:]
         for session in pending {
             guard let end = session.endAt, let newestSample, newestSample >= end else { continue }

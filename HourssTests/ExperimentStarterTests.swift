@@ -612,16 +612,53 @@ struct StarterStoreTests {
         #expect(!after.isEmpty)
     }
 
-    @Test("No Health, and the slot falls back to the evidence mark")
-    func noHealthFallsBack() {
+    /// This used to assert that an empty record with no Health gets nothing at all,
+    /// and that was the dead end the whole app was built into.
+    ///
+    /// **What fills it has changed once, and the change is the point.** It was a gap —
+    /// reasoning from an empty side of a question — until one example killed that for
+    /// time of day: somebody whose work ends at three and who then sleeps has no
+    /// evening sessions because they have no evenings. Gaps are activities only now,
+    /// and an empty record has no activity gap either, because an activity nobody has
+    /// logged has no question in the registry to be short of.
+    ///
+    /// So the offer here is prior-led: what is expected of people in general, said as
+    /// a question about this person. That is a weaker thing to rest on than silence
+    /// was meant to be, and it is honest about it in a way silence never was.
+    @Test("No Health and an empty record still offers something")
+    func noHealthStillOffersSomething() throws {
         let store = HourssStore(repository: InMemoryRecordRepository())
         store.profile.priorities = Priority.allCases
         store.activities = Activity.defaults
         store.rebuildInsights()
 
-        #expect(store.experimentProposals(resamples: 50).isEmpty)
-        let state = store.slotState(on: Date(), recommendations: [], proposals: [])
-        #expect(ObservationSlot.content(for: state) == .evidenceProgress(days: 0))
+        // No Health means no Health-seeded starter — a starter's premise *is* a
+        // Health fact, so without one there is nothing to seed from.
+        #expect(ExperimentStarters.starters(for: Priority.allCases, healthByDay: [:]).isEmpty)
+
+        // And no shape, because a shape is a reading of a Health curve there is none
+        // of — so nothing vitals-led either.
+        #expect(store.dayShape == nil)
+
+        // What is left is the prior. Asserted by what makes a prior-led premise what
+        // it is rather than by its wording: it is the one string in this app that
+        // names people in general, so the ordinary sweep must refuse it as
+        // `.population` and the one exempt sweep must pass it. Pinning the sentence
+        // here instead would duplicate `ExperimentPriorTests` and break on a copy
+        // edit that changed nothing about where the offer came from.
+        let offers = store.experimentProposals(resamples: 50)
+        #expect(!offers.isEmpty)
+        let first = try #require(offers.first)
+        #expect(first.standing == .starter)
+        #expect(first.evidenceDays == 0)
+        if case .population = NarrationGuard.offence(in: first.premise) {} else {
+            Issue.record("the offer on an empty record is not prior-led: \(first.premise)")
+        }
+        #expect(NarrationGuard.priorPremiseOffence(in: first.premise) == nil)
+
+        // And the slot now shows that offer rather than a progress mark.
+        let state = store.slotState(on: Date(), recommendations: [], proposals: offers)
+        #expect(ObservationSlot.content(for: state) == .experimentProposal(id: first.id))
     }
 
     /// Where the two halves meet, on one engine run rather than two.

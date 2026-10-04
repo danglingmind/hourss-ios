@@ -24,6 +24,16 @@ import Foundation
 ///
 /// A test sweeps every string this file can produce for causal, clinical and
 /// population offences, mirroring the sweep `RecordFactsTests` already runs.
+///
+/// **One function is exempt from the population half of that sweep, and only one.**
+/// `priorPremise` states what is expected of people in general, under the framing
+/// rule `PRD-VITALS.md` §9 writes out in full, and it is swept by
+/// `NarrationGuard.priorPremiseOffence` instead — which lifts `population` and
+/// demands the framing in exchange. It is excluded from
+/// `ExperimentDesignTests.copyPassesTheGuard` for that reason and swept by
+/// `ExperimentPriorTests` in more detail than anything else in this file. Nothing
+/// else here may name people, and adding a second function that does would mean
+/// reopening §9 rather than reusing an exemption.
 enum ExperimentCopy {
 
     // MARK: - Premise
@@ -163,6 +173,285 @@ enum ExperimentCopy {
     private static func generic(_ focusLabel: String, _ baselineLabel: String) -> String {
         "Nothing you have logged says yet how \(focusLabel.lowercased()) "
             + "reads against \(baselineLabel.lowercased())."
+    }
+
+    /// Why a gap is worth a fortnight.
+    ///
+    /// **It promises no outcome, because none has been measured.** What it says is
+    /// that the comparison cannot be made at all right now, and that doing the thing
+    /// is what makes it possible. That is a true and complete reason to run one, and
+    /// it is the only honest reason available for a split nobody has ever varied.
+    ///
+    /// Deliberately not "find out whether your evenings are better" — that is the
+    /// slot-machine framing `PRD-LOCKS.md` §2 forbids, and it would be a promise the
+    /// fortnight may well answer with nothing.
+    static func gapPremise(_ gap: Engine.Pending) -> String {
+        let label = gap.hypothesis.focusLabel
+        return gap.focusDays == 0
+            ? "There is nothing in your record to compare \(label.lowercased()) against the rest. "
+                + "A fortnight of it would make the comparison possible."
+            : "Your record has too little \(label.lowercased()) to compare it against the rest. "
+                + "A fortnight of it would make the comparison possible."
+    }
+
+    // MARK: - A reading of their own day
+
+    /// What this person's own heart rate does across their own day, said as a
+    /// measurement.
+    ///
+    /// **A reading, never a verdict, and this is the whole line.** What the fit
+    /// knows is where a number sits. What it does not know, and what sixty days of
+    /// wrist data will never tell it, is whether sitting there is better:
+    ///
+    /// | Allowed | Forbidden |
+    /// | --- | --- |
+    /// | Your heart rate sits lower around 10am. | Your late mornings are your most efficient. |
+    /// | Nothing you have logged says yet how they read. | Deep work will land better there. |
+    /// | Your body reads differently across your day. | Your body is at its best at 10am. |
+    ///
+    /// The right-hand column makes a claim about performance out of a cardiac
+    /// reading, which is a medical opinion this app does not have and will not
+    /// acquire. `NarrationGuard`'s clinical ban already refuses most of it;
+    /// everything here is written so that it never has to.
+    ///
+    /// **No superlative.** "Sits lowest" would be a claim across the whole day, and
+    /// this function is handed one place rather than the day — a caller picking a
+    /// place for its own reasons would make the superlative false without changing a
+    /// word of it. "Sits lower … than it does elsewhere in your day" is what was
+    /// measured, and it stays true whichever place is passed.
+    ///
+    /// **The day type is always named.** Not decoration: the cell separates workdays
+    /// from days off because heart rate has a different shape on each, so a sentence
+    /// that said only "in your mornings" would be reporting a fact about one kind of
+    /// day as a fact about all of them — and would read as an invitation to move an
+    /// hour the person spends at work.
+    static func vitalsReading(_ place: Physiology.DayShape.Place) -> String {
+        "\(dayType(place.isWorkday)), your heart rate sits "
+            + (place.isLower ? "lower " : "higher ")
+            + "\(where_(place)) than it does elsewhere in your day."
+    }
+
+    /// A vitals-led proposal's premise: the reading, then what is still unread.
+    ///
+    /// **Two sentences, and the second is load-bearing** — the same argument
+    /// `starterPremise` makes, and it is stronger here rather than weaker. A Health
+    /// sentence about sleep sitting above "log one session in your morning" implies a
+    /// relationship nobody has measured. A heart-rate sentence about *that very
+    /// hour* sitting above the same instruction implies it far harder, because the
+    /// two are plainly about the same hour. So the sentence that says nothing logged
+    /// speaks to this yet is what keeps the reading a premise instead of a reason,
+    /// and it is reused verbatim from `starterUnknown` rather than reworded: two
+    /// phrasings of one disclaimer is two places for one of them to soften.
+    ///
+    /// **Identical with a calibration and without one.** What a confirmed
+    /// calibration buys is which end of the curve gets pointed at, and it buys it
+    /// silently — exactly as `Surprise.expectedness` spends a population prior
+    /// without ever reaching a screen. The alternative, printing the calibration's
+    /// own claim beside the reading, would invite the reader to join a between-band
+    /// baseline to a within-band residual, which are two different quantities. See
+    /// `ExperimentVitals` for that argument at length; the consequence for copy is
+    /// that there is one premise, so there is one thing to sweep.
+    static func vitalsPremise(_ place: Physiology.DayShape.Place) -> String {
+        vitalsReading(place) + " " + starterUnknown(
+            type: .bestTimeWindow,
+            focusLabel: place.band.label,
+            baselineLabel: "Rest of the day",
+            metric: nil)
+    }
+
+    /// What a vitals-led proposal asks for.
+    ///
+    /// **The band, not the hour, and that is deliberate.** The fortnight is settled
+    /// against `time.<band>.vs.rest.feeling`, whose focus side is every session in
+    /// that band. Asking for an hour instead would mean adherence counted mornings
+    /// while the person had been asked for ten o'clock: somebody logging at eleven
+    /// every day would clear adherence without doing the thing, and the result would
+    /// be about their mornings while the card said ten. The hour is a better
+    /// *reading* and it stays in the premise, where being more precise costs
+    /// nothing.
+    ///
+    /// **The day type is named here too**, and here it is the difference between a
+    /// request somebody can act on and one they cannot. "Log one session in your
+    /// morning hours" to somebody who is at work every weekday morning is the app
+    /// not paying attention; naming the days off says which mornings are meant.
+    static func vitalsChange(_ place: Physiology.DayShape.Place) -> String {
+        "Log one session in your \(place.band.label.lowercased()) hours "
+            + (place.isWorkday ? "on most workdays" : "on your days off")
+            + ", for two weeks."
+    }
+
+    /// The registry's own limit on a time-of-day claim, plus the one that travels
+    /// with any heart-rate number.
+    ///
+    /// Both, because this proposal rests on both: the fortnight tests a band and the
+    /// premise quotes a heart rate. The residual's caveat is taken from
+    /// `HypothesisRegistry` rather than restated, for the reason written there — two
+    /// caveats about one number is two places for one of them to drift into naming a
+    /// cause.
+    static func vitalsCaveat(_ base: String) -> String {
+        "\(base) \(HypothesisRegistry.residualCaveat)"
+    }
+
+    /// "On your workdays" or "On your days off". Sentence-initial, because that is
+    /// the only position it is used in.
+    private static func dayType(_ isWorkday: Bool) -> String {
+        isWorkday ? "On your workdays" : "On your days off"
+    }
+
+    /// Where in the day, at whatever resolution the evidence reached.
+    ///
+    /// Underscored because `where` is a keyword, which is a small ugliness in
+    /// exchange for the one name that says what the thing is.
+    private static func where_(_ place: Physiology.DayShape.Place) -> String {
+        guard let hour = place.hour else {
+            return "in your \(place.band.label.lowercased()) hours"
+        }
+        return "around \(clockHour(hour))"
+    }
+
+    /// An hour of the clock, in words somebody reads rather than a 24-hour number.
+    ///
+    /// "around 15" is not a time anybody says. Written by hand rather than through
+    /// `DateFormatter` because this is one of the app's own sentences and a formatter
+    /// would make its wording depend on the device's locale and hour-cycle setting —
+    /// so the swept string and the shown string could differ, which is the one
+    /// property a copy sweep cannot survive losing.
+    static func clockHour(_ hour: Int) -> String {
+        switch hour {
+        case 0: return "midnight"
+        case 12: return "midday"
+        case 1...11: return "\(hour)am"
+        default: return "\(hour - 12)pm"
+        }
+    }
+
+    // MARK: - The prior-led premise
+
+    /// What a folk expectation can be about, in the three shapes this app can both
+    /// hold an expectation about and ask somebody to do something about.
+    ///
+    /// An enum rather than a `(type, label)` pair so the switch in `priorPremise` is
+    /// total: a fourth kind of expectation cannot be offered without writing the
+    /// sentence that states it, which is the failure mode this whole section is
+    /// built around. `Surprise.priors` has rows the list below has no case for —
+    /// every duration row expects the focus side to read *below* a person's
+    /// baseline, so there is never a duration to ask for, and the body-association
+    /// rows describe a reading nobody can act on directly, which is the line
+    /// `ExperimentStarters` draws as "no instruction about the body, ever".
+    enum PriorSubject: Equatable {
+        /// A time of day, and the priority whose kind of work the expectation is
+        /// about. The priority rather than a phrase, so the words stay in this file.
+        case band(TimeBucket, Priority)
+        /// One activity, by the name the person's own picker gives it.
+        case activity(String)
+        /// Days off against working days.
+        case daysOff
+    }
+
+    /// The premise for a proposal whose reason is what is expected of people in
+    /// general — the one sentence in this app that is about anybody but its reader.
+    ///
+    /// **Read `PRD-VITALS.md` §9 before changing a word of this.** It is a
+    /// specification rather than a preference, and the accuracy of the whole feature
+    /// lives in these two sentences. Three parts, all required:
+    ///
+    /// 1. **Who the fact is about, named.** "A lot of people" — never "it is known
+    ///    that", never "research shows", never the passive voice. A reader must not
+    ///    have to work out whose fact this is.
+    /// 2. **That it is not known of them**, said outright in the same breath. This is
+    ///    the part doing the work, and a premise missing it is a population claim
+    ///    with a decoration on it.
+    /// 3. **That the test is what would settle it.** The reason to run one, and the
+    ///    thing that makes the first part a question rather than an answer.
+    ///
+    /// **There is no link word between the fact and the change, and that absence is
+    /// the rule.** Not "so", not "therefore", not "which is why", not "because". The
+    /// moment the expectation becomes a reason to *act* rather than a reason to
+    /// *ask*, it is exactly the claim `NarrationGuard.population` exists to stop, and
+    /// the two sentences differ by one word. The premise says what people in general
+    /// expect, says nobody has read this person, and stops. What to do about it is
+    /// `change`'s sentence, written for the measured path and reused here unaltered.
+    ///
+    /// **No number from the table, ever.** The share that chose this question stays
+    /// inside `Surprise` — `expectedRaised` hands its caller keys and no figures, so
+    /// there is nothing here to spend. "A lot of people" is as precise as this is
+    /// allowed to be and more precise than the work behind the table deserves.
+    ///
+    /// **Nothing about this person being usual or unusual.** "Typical", "normal" and
+    /// "unlike most" compare *them* to people, which is a different act and still
+    /// forbidden. The expectation is stated about people; the person is only ever
+    /// asked about.
+    ///
+    /// **It checks itself, which is why it returns an optional.** The one place the
+    /// population ban is lifted is also the only place that demands what buys the
+    /// lift: the sentence is swept by `NarrationGuard.priorPremiseOffence` before it
+    /// is returned, and a sentence that fails produces nil and therefore no
+    /// proposal — the same fail-closed shape `change` uses for a type it has no
+    /// honest sentence for. A person's own activity name goes into one of these
+    /// arms, so this is not a theoretical path: somebody with an activity called
+    /// "Stress relief" or "Sprint 3" gets no prior-led offer rather than a premise
+    /// carrying a clinical word or an invented figure.
+    ///
+    /// - Parameter windowDays: spelled through `span`, so the premise names the same
+    ///   length as the change beneath it and no digit reaches the sentence.
+    static func priorPremise(_ subject: PriorSubject,
+                             windowDays: Int = Experiment.defaultWindowDays) -> String? {
+        let settles = "\(span(windowDays)) would say"
+        let text: String
+
+        switch subject {
+        case .band(let bucket, let priority):
+            // No phrase for this priority, no premise. The band arm is reachable from
+            // `focus` alone — `Priority.insightTypes` gives nobody else a time-window
+            // hypothesis — and inventing a phrase for the other five would be a claim
+            // about what a priority is about that no row of the table holds.
+            guard let work = priorWork(for: priority) else { return nil }
+            text = "\(bandPhrase(bucket)) suit \(work) for a lot of people. "
+                + "Nobody knows yet whether they suit you — \(settles)."
+
+        case .activity(let name):
+            text = "\(name) suits a lot of people. "
+                + "Nobody knows yet whether it suits you — \(settles)."
+
+        case .daysOff:
+            text = "Days off read differently from working days for a lot of people. "
+                + "Nobody knows yet whether yours do — \(settles)."
+        }
+
+        guard NarrationGuard.priorPremiseOffence(in: text) == nil else { return nil }
+        return text
+    }
+
+    /// What a priority's kind of work is called, for the band arm of a premise.
+    ///
+    /// Only `focus` has one, and the five nils are the honest answer rather than a
+    /// hole: the table's pairing rows are about focused work in a band, and a premise
+    /// that said "mornings suit movement for a lot of people" would be stating an
+    /// expectation nothing in `Surprise.priors` records. Named case by case so that a
+    /// row added for another kind of work is a compile error here instead of a
+    /// silently unreachable offer.
+    private static func priorWork(for priority: Priority) -> String? {
+        switch priority {
+        case .focus: "focused work"
+        case .energy, .sleep, .movement, .calm, .balance: nil
+        }
+    }
+
+    /// A band as the plural subject of a sentence about people.
+    ///
+    /// Plural because the expectation is about mornings in general and not about one
+    /// morning. "Middays" is awkward English and is also unreachable — midday has no
+    /// row in `Surprise.priors` and no pairing, because there is no folk expectation
+    /// about the middle of the day to record — but an unreachable branch that reads
+    /// badly is still a branch that could be reached by a row somebody adds, so it is
+    /// written out rather than left to a fallback.
+    private static func bandPhrase(_ bucket: TimeBucket) -> String {
+        switch bucket {
+        case .morning: "Mornings"
+        case .midday: "Middays"
+        case .afternoon: "Afternoons"
+        case .evening: "Evenings"
+        }
     }
 
     // MARK: - Change

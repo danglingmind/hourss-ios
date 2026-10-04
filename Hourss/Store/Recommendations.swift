@@ -291,6 +291,62 @@ enum Surprise {
         "activity.exercise": Prior(raised: true, share: 0.78),
         "activity.personal-rest": Prior(raised: true, share: 0.70),
         "activity.social": Prior(raised: true, share: 0.60),
+
+        // MARK: Pairings — one activity inside one band
+        //
+        // Deep work in a morning is not the expectation "mornings" and not the
+        // expectation "deep work", and no row above can hold it: the rows are keyed
+        // on one `family.subject` at a time. So a pairing is keyed on the two keys
+        // it joins, in the id grammar's own words — `activity.deep-work` and
+        // `timeOfDay.morning` become `activity.deep-work.timeOfDay.morning`. Nothing
+        // else changes: the same `Prior(raised:share:)`, the same meaning for an
+        // absent key, and no second mechanism.
+        //
+        // `expectedness(of:)` will never find one of these, because a `Pattern` has
+        // exactly one family and a two-family key cannot be built from a finding.
+        // That is correct rather than a gap. A pairing exists to order which
+        // question gets *asked*; no claim about anybody is ever scored against it,
+        // and `pairingsAreUnreachableFromAFinding` in `ExperimentPriorTests` pins
+        // that the rows above still rank findings exactly as they did before these
+        // were added.
+        //
+        // **These are the weakest rows in the table and their shares say so.**
+        // Between-person chronotype spread is larger than the within-person
+        // time-of-day effect, so for any one person the expectation may well point
+        // the wrong way — which is the whole reason it may only choose a question
+        // and never answer one. And the alertness work behind it is mostly small,
+        // lab-based, and measuring reaction time rather than anything resembling
+        // focused work. So these sit at the bottom of the range this table uses,
+        // 0.56 to 0.62 against 0.85 for days off: that is the table saying out loud
+        // that it lists what everybody believes rather than what has been shown. Two
+        // weeks of somebody's own ratings outranks every one of them.
+        //
+        // **Two deliberate absences, because this table cannot say what the belief
+        // actually is.** Every row here means "the focus side reads above, or below,
+        // this person's own baseline". The folk belief about admin in an afternoon is
+        // not that admin reads well then — it is that the afternoon is the better
+        // time *for admin*, a comparison inside one activity that a key of this shape
+        // cannot express, so admin has no pairing at all. Evening exercise is absent
+        // for the opposite reason: the belief is genuinely split, and absent is
+        // precisely how this table spells "no expectation either way".
+        //
+        // Midday has no pairing for the same reason it has no row of its own. There
+        // is no folk expectation about the middle of the day to record.
+        "activity.deep-work.timeOfDay.morning": Prior(raised: true, share: 0.62),
+        "activity.deep-work.timeOfDay.afternoon": Prior(raised: false, share: 0.60),
+        // Believed, and barely. "I work better at night" is a thing a great many
+        // people say about themselves, so this is a coin toss with a lean.
+        "activity.deep-work.timeOfDay.evening": Prior(raised: false, share: 0.56),
+        // The one pairing that points where its own band does not: `timeOfDay.evening`
+        // expects a session to read below, and the belief about creative work in an
+        // evening runs the other way. A pairing that could only ever agree with its
+        // band would not be worth a key.
+        "activity.creative.timeOfDay.evening": Prior(raised: true, share: 0.58),
+        "activity.exercise.timeOfDay.morning": Prior(raised: true, share: 0.60),
+        // Not "meetings are draining" — that is the row above, and it stands on its
+        // own. This is the narrower belief that a meeting in a morning costs the
+        // hours people most want for something else.
+        "activity.meetings.timeOfDay.morning": Prior(raised: false, share: 0.60),
     ]
 
     /// What a finding is about, read off the hypothesis rather than the copy.
@@ -329,6 +385,55 @@ enum Surprise {
         // someone who sleeps *less* at weekends outranks the ordinary case by the
         // ratio log(1/0.15) : log(1/0.85) rather than by a bonus somebody tuned.
         return pattern.raised == prior.raised ? prior.share : 1 - prior.share
+    }
+
+    /// Whether the table holds any expectation about a key, in either direction.
+    ///
+    /// **Presence only, and no number crosses this boundary.** A caller choosing
+    /// between a pairing key and the plain band key behind it has to know which one
+    /// the table has a row for, and needs nothing else to decide. Telling it only
+    /// that is what keeps the boundary note above the table true by construction
+    /// rather than by discipline.
+    static func hasExpectation(of key: String) -> Bool { priors[key] != nil }
+
+    /// Which of these keys people in general expect to read *above* a person's own
+    /// baseline, most expected first.
+    ///
+    /// **This returns keys and never shares, which is the whole design of it.** The
+    /// boundary note forbids a prior's number reaching any string a person reads,
+    /// and the surest way to keep that true is a caller that cannot see a number to
+    /// leak: the share orders this list and then stays inside this type. What the
+    /// caller learns is which question is worth asking first, which is exactly what
+    /// a prior is for and nothing it could print.
+    ///
+    /// A key with no row is dropped rather than ordered last. An absent key means no
+    /// expectation either way, and there is nothing to ask on the strength of an
+    /// expectation nobody has.
+    ///
+    /// Ties fall back to the key, so the order never depends on dictionary
+    /// iteration — the same rule `ranked` follows for the same reason.
+    static func expectedRaised(among candidates: [String]) -> [String] {
+        candidates
+            .compactMap { key -> (key: String, share: Double)? in
+                guard let prior = priors[key], prior.raised else { return nil }
+                return (key, prior.share)
+            }
+            .sorted { $0.share == $1.share ? $0.key < $1.key : $0.share > $1.share }
+            .map(\.key)
+    }
+
+    /// The key for one activity inside one band, in the id grammar's own words.
+    ///
+    /// Built here rather than written out by a caller, because the grammar is the
+    /// thing that makes a pairing findable: a key assembled a character differently
+    /// somewhere else would not fail or warn, it would silently mean "no expectation
+    /// either way" — the same failure `ExperimentStarters` takes its ids from the
+    /// registry to avoid.
+    ///
+    /// - Parameter slug: `HypothesisRegistry.slug` of the activity name, which is
+    ///   what the id grammar carries.
+    static func pairKey(activity slug: String, band: TimeBucket) -> String {
+        "activity.\(slug).timeOfDay.\(band.rawValue)"
     }
 
     /// How narrow the slice being claimed about is, 0…1.

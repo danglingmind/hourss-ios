@@ -373,6 +373,12 @@ enum NarrationGuard {
         /// A figure the evidence record does not contain. The model is told to
         /// write none; this is what happens when it does anyway.
         case invention(String)
+        /// A prior-led premise that is not framed as `PRD-VITALS.md` §9 requires —
+        /// a missing part, a link word joining the fact to the change, a verdict, or
+        /// a precision the table is not allowed to spend. Only
+        /// `priorPremiseOffence` can report it, because it is the only sweep that
+        /// lets a population statement past in the first place.
+        case framing(String)
     }
 
     /// Causation, in the forms a small model reaches for.
@@ -402,13 +408,34 @@ enum NarrationGuard {
 
     /// Anybody other than the person reading. A record is compared only with
     /// itself.
+    ///
+    /// **The last four are here so that one exemption can be real.**
+    /// `PRD-VITALS.md` §9 lets a prior-led proposal state what is expected of people
+    /// in general, in its premise and nowhere else, and the phrases it is allowed to
+    /// use are `populationNamed` below. Those phrases have to be *on this list* or
+    /// the exemption would be decorative: `priorPremiseOffence` would be lifting a
+    /// ban that never applied, and any other string in the app could say "a lot of
+    /// people" and sail through every sweep in the suite. They are banned
+    /// everywhere, and lifted in exactly one function with one caller.
     static let population = [
         "average", "averages", "most people", "other people", "others",
         "everyone", "anyone else", "normal", "typical", "typically",
         "population", "peers", "compared with people", "than most",
         "benchmark", "the norm", "norms", "studies", "research",
-        "people who", "for people"
+        "people who", "for people", "unlike most",
+        "a lot of people", "lots of people", "many people", "plenty of people"
     ]
+
+    /// Everything on `population` except the four phrases §9 allows a premise to use.
+    ///
+    /// **This is the exemption, and it is narrower than "population is lifted".** What
+    /// §9 permits is *naming* people in general; what it leaves untouched is every word
+    /// that measures this person against them. "Typical", "normal", "the average" and
+    /// "unlike most" compare *them* to people, which is a different act and still
+    /// forbidden — in a premise as everywhere else. So `priorPremiseOffence` sets aside
+    /// four phrases rather than a list, and a premise that named people and then called
+    /// somebody ordinary would be refused on the second half.
+    static let populationBeyondNaming = population.filter { !populationNamed.contains($0) }
 
     /// Advice. The paid tier says what held up; the free tier proposes a test;
     /// narration does neither.
@@ -420,6 +447,140 @@ enum NarrationGuard {
         "start doing", "stick to", "lean into", "plan to", "be sure", "ensure",
         "worth doing", "could try", "why not", "let us", "remember to"
     ]
+
+    // MARK: The one exemption
+    //
+    // Everything from here to `priorPremiseOffence` serves `PRD-VITALS.md` §9 and
+    // nothing else. §9 reverses the population ban in one place — a proposal's
+    // premise may say what is expected of people in general — on the condition that
+    // it says so as a question about this person rather than a fact about them. The
+    // ban is why this app can claim to be about you, so the reversal is narrow,
+    // written down, and tested more heavily than the thing it enables.
+    //
+    // The accuracy lives entirely in the framing, and framing erodes. So the lift is
+    // not a flag a caller passes: it is a function that demands the framing in
+    // exchange, which makes it useless as a general-purpose bypass. A string that
+    // names people and is *not* a well-formed premise is rejected by both sweeps.
+
+    /// The only ways this app may name people in general.
+    ///
+    /// Each one says plainly whose fact it is, which is §9's first required part. "It
+    /// is known that", "research shows" and the passive voice are deliberately
+    /// absent and will stay absent: a reader must not have to work out whose fact
+    /// they are being told. Every phrase here is also on `population`, so it is
+    /// banned everywhere except through `priorPremiseOffence`.
+    static let populationNamed = [
+        "a lot of people", "lots of people", "many people", "plenty of people"
+    ]
+
+    /// §9's second required part: that it is not known of *this* person, said
+    /// outright in the same breath.
+    ///
+    /// Matched on literal phrasing rather than inferred, and that strictness is the
+    /// feature. A premise missing this part is a population claim with a decoration
+    /// on it, and the only way to be sure the part is present is to require words
+    /// that say it. Rewording the premise therefore fails the sweep until the new
+    /// wording is added here on purpose, which is the point: this is the sentence
+    /// that must not drift quietly.
+    static let notKnownOfYou = [
+        "nobody knows yet", "no one knows yet", "nothing here knows yet"
+    ]
+
+    /// §9's third required part: that the test is what would settle it. The reason to
+    /// run one, and the thing that makes the first part a question rather than an
+    /// answer.
+    static let settledByTheTest = ["would say", "would settle", "would tell"]
+
+    /// Words that would turn the population fact into a reason to *act*.
+    ///
+    /// **This is the single likeliest way §9 erodes and it is one word wide.** "A lot
+    /// of people find mornings suit focused work, so give yours a fortnight" is the
+    /// claim the population ban exists to stop, and it differs from the allowed
+    /// sentence by two letters. `causal` already holds "because", "which is why",
+    /// "the reason" and "so that"; what it does not hold is the bare conjunctions,
+    /// because "so" and "thus" on a list applied to every string in the app would
+    /// reject ordinary prose. They are rejected here, where the fact being linked is
+    /// a fact about other people.
+    static let populationLinks = [
+        "so", "and so", "so you", "so your", "therefore", "thus", "hence",
+        "that is why", "which is why", "as a result", "accordingly",
+        "consequently", "it follows", "means you", "means your", "suggests you"
+    ]
+
+    /// Verdicts. A premise that reaches one has answered the question it was meant to
+    /// ask.
+    ///
+    /// "Should", "best", "optimal", "ideal" and "most efficient" are §9's own list.
+    /// Only the first is on `instruction` already; the rest are judgements rather
+    /// than instructions and nothing in the app had needed to refuse them before.
+    static let priorPremiseVerdicts = [
+        "best", "better", "worse", "optimal", "optimum", "ideal", "ideally",
+        "most efficient", "more efficient", "efficient", "productive",
+        "more productive", "right time", "wrong time"
+    ]
+
+    /// Precision the literature does not support, which is any precision at all.
+    ///
+    /// The `share` in `Surprise.priors` never reaches a screen — "a lot of people" is
+    /// as precise as this is allowed to be, and more precise than the work behind the
+    /// table deserves. Digits are refused outright by the sweep, so this list is the
+    /// other road: a share spelled in words, or a quantifier standing in for one.
+    /// "Most" is here because `population`'s "most people" is two words and a premise
+    /// could reach the same place in three.
+    static let priorPremisePrecision = [
+        "percent", "per cent", "percentage", "proportion", "share", "majority",
+        "most", "nearly all", "almost all", "half", "two thirds", "three quarters",
+        "one in three", "one in four", "nine in ten"
+    ]
+
+    /// The one sweep in this app that lets a sentence about people in general past,
+    /// and the only thing in it that may.
+    ///
+    /// **Scoped exactly as `instruction` already is: lifted in one place, banned
+    /// everywhere else.** `ExperimentCopy` is the one file allowed to instruct, and
+    /// `ExperimentCopy.priorPremise` is the one function allowed to name people — it
+    /// is the only caller of this, it checks its own output through it, and it returns
+    /// nil rather than a sentence when the check fails, so a premise that cannot be
+    /// framed correctly produces no proposal instead of a bad one. Every other string
+    /// in the app goes through `offence`, where `populationNamed` is a `.population`
+    /// offence like any other.
+    ///
+    /// **What is demanded in exchange for the lift**, in the order a reader meets it:
+    /// no figure at all; every ban that still applies, which is all of them but the
+    /// four naming phrases of `populationNamed`; no link word between the fact and the
+    /// change; no verdict; no precision; and then all three of §9's parts, each by
+    /// name. A string that
+    /// names people and is not a premise fails here as surely as it fails `offence`,
+    /// which is why this cannot be used to smuggle a population claim anywhere.
+    ///
+    /// Figures take no `allowingFigures` parameter, deliberately. A premise quotes
+    /// nothing from anybody's record — it is the offer made when there is nothing to
+    /// quote — so every digit run in one is either an invention or a share, and both
+    /// are forbidden. Lengths are spelled: `ExperimentCopy.span` writes "two weeks".
+    static func priorPremiseOffence(in text: String) -> Offence? {
+        let padded = " " + flatten(text) + " "
+        func says(_ list: [String]) -> String? {
+            list.first { padded.contains(" \($0) ") }
+        }
+
+        if let run = figures(in: text).sorted().first { return .invention(run) }
+        if let word = says(causal) { return .causal(word) }
+        if let word = says(clinical) { return .clinical(word) }
+        if let word = says(instruction) { return .instruction(word) }
+        // Lifted here, and only here, and only the naming phrases: every population
+        // word that compares this person to people still applies.
+        if let word = says(populationBeyondNaming) { return .population(word) }
+        if let word = says(populationLinks) { return .causal(word) }
+        if let word = says(priorPremiseVerdicts) { return .framing(word) }
+        if let word = says(priorPremisePrecision) { return .framing(word) }
+
+        guard says(populationNamed) != nil else { return .framing("whose fact this is") }
+        guard says(notKnownOfYou) != nil else { return .framing("that it is not known of them") }
+        guard padded.contains(" you ") || padded.contains(" your ") || padded.contains(" yours ")
+        else { return .framing("said to this person") }
+        guard says(settledByTheTest) != nil else { return .framing("that the test would settle it") }
+        return nil
+    }
 
     /// Whether a generated string may be shown.
     ///

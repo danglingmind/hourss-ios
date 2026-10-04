@@ -264,37 +264,37 @@ gap → Health-seeded starter.
 ## 11. Checklist
 
 ### Phase 1 — read the curve
-- [ ] **1.** Expose the per-cell baselines, or a value derived from them, without
+- [x] **1.** Expose the per-cell baselines, or a value derived from them, without
       making the fit's internals public beyond what is needed.
-- [ ] **2.** Hourly where there is density, band where there is not. **Never a
+- [x] **2.** Hourly where there is density, band where there is not. **Never a
       gate** — an hour is not required for anything to appear.
-- [ ] **3.** The five-beat floor, applied once, in one place.
-- [ ] **4.** Workday and non-workday kept apart; a cell already carries it.
-- [ ] **5.** Nothing is reported for a cell that borrowed its baseline from the day
+- [x] **3.** The five-beat floor, applied once, in one place.
+- [x] **4.** Workday and non-workday kept apart; a cell already carries it.
+- [x] **5.** Nothing is reported for a cell that borrowed its baseline from the day
       type or the overall — a borrowed number is not evidence of a difference.
 
 ### Phase 2 — the prior-led proposal
-- [ ] **6.** The premise, with all three parts of §9 and none of its forbidden words.
-- [ ] **7.** `NarrationGuard.population` lifted in exactly one function, and a test
+- [x] **6.** The premise, with all three parts of §9 and none of its forbidden words.
+- [x] **7.** `NarrationGuard.population` lifted in exactly one function, and a test
       that nothing else in the app clears a sweep including it.
-- [ ] **8.** A test per forbidden link word, and per missing part.
-- [ ] **9.** No `share` from the table reaches any string.
-- [ ] **10.** It never appears outside a proposal's premise.
+- [x] **8.** A test per forbidden link word, and per missing part.
+- [x] **9.** No `share` from the table reaches any string.
+- [x] **10.** It never appears outside a proposal's premise.
 
 ### Phase 3 — the vitals-led proposal
-- [ ] **11.** Reads phase 1; proposes the priority's activity at the hour or band
+- [x] **11.** Reads phase 1; proposes the priority's activity at the hour or band
       that differs.
-- [ ] **12.** Uses the calibration for direction. Without one, it is phase 2's
+- [x] **12.** Uses the calibration for direction. Without one, it is phase 2's
       premise with phase 1's hour — and says only what was measured, never that it
       is better.
-- [ ] **13.** Respects workdays: no 10am proposal to somebody at work at 10am.
+- [x] **13.** Respects workdays: no 10am proposal to somebody at work at 10am.
 
 ### Phase 4 — the pairing priors
-- [ ] **14.** `activity × band` entries, `Prior(raised:share:)`, keyed on the id
+- [x] **14.** `activity × band` entries, `Prior(raised:share:)`, keyed on the id
       grammar.
-- [ ] **15.** A comment recording that between-person chronotype spread exceeds the
+- [x] **15.** A comment recording that between-person chronotype spread exceeds the
       within-person effect, at shares that admit it.
-- [ ] **16.** Still never shown; a test that no prior's number reaches a string.
+- [x] **16.** Still never shown; a test that no prior's number reaches a string.
 
 ### Phase 5 — gap-filling
 - [x] **17.** Time-based gaps removed. Activity gaps kept, with the reason.
@@ -305,8 +305,33 @@ gap → Health-seeded starter.
       rarely to compare — a choice, inside hours they already keep.
 
 ### Verification
-- [ ] **18.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.
-- [ ] **19.** `DebugFixture` reaches a prior-led and a vitals-led proposal.
+- [x] **18.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.
+      824 tests in 75 suites, all passing, no `Restarting after unexpected exit`,
+      289s. UI suite run after it on the same device.
+- [x] **19.** `DebugFixture` reaches a prior-led and a vitals-led proposal.
+      Not from the default fixture, and that is the correct answer rather than a
+      shortfall: its record has all four time-of-day questions **measured**, so the
+      measured path owns them and the vitals source rightly stands down. A
+      vitals-led offer is reachable from the day-one state — a Health read with an
+      empty record — which is the state it was built for. `OfferChainTests` pins
+      both, and pins that a vitals offer outranks a prior one.
+
+### Amendments the build forced
+
+**A. The shape could not be fitted where the readings are.** `applyPhysiology(feed:)`
+returns early when no session awaits a reading — the freeze rule, protecting a
+sixty-day fit that runs on the main actor. But somebody who has logged nothing has
+no pending sessions either, and they are precisely who a vitals-led offer is for, so
+under that guard alone the source never fired for its own audience. The shape is now
+fitted at most once per day of newest sample, which is a second reason to enter the
+function and the cheapest cadence that is never stale by more than a day.
+
+**B. `ExperimentPriors.offers` has no `skipping` parameter**, unlike
+`ExperimentVitals.completing`, so the offer chain filters its output by priority
+instead. Filtering the output rather than shortening the priority list it is handed,
+because it reads `priorityRank` off the position in what somebody actually ranked —
+a shortened list would have it report itself as their first priority because the two
+above it were served elsewhere.
 
 ## 12. Still open
 
