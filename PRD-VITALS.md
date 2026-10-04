@@ -123,10 +123,12 @@ band where there is not. Accuracy improves where somebody logs a lot; nothing is
 withheld from anybody who does not. An hour is never required for a pattern or a
 test to appear.
 
-**Two beats per minute is not a difference worth a sentence.** A real floor is
-needed and there is nothing in the app to derive it from — this is the one number
-here that has to be chosen rather than borrowed, and it should be chosen knowing
-that.
+**Five beats per minute is the floor.** Two is not a difference worth a sentence,
+and there is nothing in this app to derive a replacement from — every other
+threshold here is borrowed from something (six days a side from the bootstrap's
+needs, twenty-eight days from needing six a side after halving) and this one is
+chosen. It is recorded as chosen rather than dressed up as derived: below five, the
+app says nothing about where somebody's day differs.
 
 **Gap-filling goes, for time.** Not giving something a time block is a choice, and
 an app that reads a choice as a hole is the 3pm problem in general form. It may
@@ -231,7 +233,77 @@ The person this thread began with — fixed routine, flat record, nothing to com
 — gets a reason on day one instead of waiting for a calibration they may never
 reach. That was the complaint, and nothing else on the table answered it.
 
-## 10. Still open
+## 10. Phases
+
+Five, and only one pair has a dependency between them.
+
+**Phase 1 — read the curve.** `Physiology.Fit.cellBaselines` is private and nothing
+reads the shape of it. Expose where a person's day differs, hourly where the density
+supports it and by band where it does not, with the five-beat floor applied. No
+screen changes.
+
+**Phase 2 — the prior-led proposal.** §9's framing rule, the scoped
+`NarrationGuard` exemption, and the premise with its three parts. Needs nothing from
+phase 1: it is the offer for somebody the app knows nothing about.
+
+**Phase 3 — the vitals-led proposal.** Phase 1's reading plus the calibration, which
+decides which direction suits this person. Ranks above phase 2 wherever it exists.
+
+**Phase 4 — the pairing priors.** `activity × band` entries in `Surprise.priors`,
+same `Prior` shape, still never shown. Improves which question phases 2 and 3 pick.
+
+**Phase 5 — narrow gap-filling to activities.** It goes for time, because not giving
+something a time block is a choice. "You have never given Deep work a session of its
+own" is about a choice and survives.
+
+### The order offers are ranked in, once all five land
+
+measured finding → calibrated vitals → uncalibrated vitals → prior-led → activity
+gap → Health-seeded starter.
+
+## 11. Checklist
+
+### Phase 1 — read the curve
+- [ ] **1.** Expose the per-cell baselines, or a value derived from them, without
+      making the fit's internals public beyond what is needed.
+- [ ] **2.** Hourly where there is density, band where there is not. **Never a
+      gate** — an hour is not required for anything to appear.
+- [ ] **3.** The five-beat floor, applied once, in one place.
+- [ ] **4.** Workday and non-workday kept apart; a cell already carries it.
+- [ ] **5.** Nothing is reported for a cell that borrowed its baseline from the day
+      type or the overall — a borrowed number is not evidence of a difference.
+
+### Phase 2 — the prior-led proposal
+- [ ] **6.** The premise, with all three parts of §9 and none of its forbidden words.
+- [ ] **7.** `NarrationGuard.population` lifted in exactly one function, and a test
+      that nothing else in the app clears a sweep including it.
+- [ ] **8.** A test per forbidden link word, and per missing part.
+- [ ] **9.** No `share` from the table reaches any string.
+- [ ] **10.** It never appears outside a proposal's premise.
+
+### Phase 3 — the vitals-led proposal
+- [ ] **11.** Reads phase 1; proposes the priority's activity at the hour or band
+      that differs.
+- [ ] **12.** Uses the calibration for direction. Without one, it is phase 2's
+      premise with phase 1's hour — and says only what was measured, never that it
+      is better.
+- [ ] **13.** Respects workdays: no 10am proposal to somebody at work at 10am.
+
+### Phase 4 — the pairing priors
+- [ ] **14.** `activity × band` entries, `Prior(raised:share:)`, keyed on the id
+      grammar.
+- [ ] **15.** A comment recording that between-person chronotype spread exceeds the
+      within-person effect, at shares that admit it.
+- [ ] **16.** Still never shown; a test that no prior's number reaches a string.
+
+### Phase 5 — gap-filling
+- [ ] **17.** Time-based gaps removed. Activity gaps kept, with the reason.
+
+### Verification
+- [ ] **18.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.
+- [ ] **19.** `DebugFixture` reaches a prior-led and a vitals-led proposal.
+
+## 12. Still open
 
 1. **The flat-record case (§5), which is the one that matters.** The chain needs the
    calibration, the calibration needs six rated days a side, and the person this
