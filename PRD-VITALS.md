@@ -174,7 +174,64 @@ focused work. These entries are the things *everybody already believes*, which i
 exactly what the existing table says it is — a list of folk expectations, not a list
 of findings. Written with that in the comment beside them, at shares that admit it.
 
-## 9. Still open
+## 9. A prior may give the reason — the rule, exactly
+
+**Decided: option B.** When the vitals chain is incomplete, a proposal may state
+what is expected of people in general as its reason, provided it says so as a
+question about this person and not as a fact about them.
+
+This reverses `NarrationGuard`'s population ban in one place. The ban is why the app
+can claim to be about you, so the reversal is narrow, written down, and tested —
+the accuracy lives entirely in the framing, and framing erodes.
+
+### The three parts, all required
+
+> **Mornings suit focused work for a lot of people. Nobody knows yet whether they
+> suit you — two weeks would say.**
+
+1. **Who it is about.** Named explicitly — "a lot of people". Not "it is known
+   that", not "research shows", not the passive voice. A reader must not have to
+   work out whose fact this is.
+2. **That it is not known of them.** Said outright, in the same breath. This is the
+   part doing the work, and a premise missing it is a population claim with a
+   decoration.
+3. **That the test is what would settle it.** The reason to run it, and the thing
+   that makes the first part a question rather than an answer.
+
+### Forbidden, and these are the ways it will erode
+
+- **No link word between the fact and the change.** No "so", "therefore", "which is
+  why", "because". The moment the population fact becomes a *reason to act* rather
+  than a *reason to ask*, it is the claim the ban exists to stop.
+- **No "should", "best", "optimal", "ideal", "most efficient".**
+- **No number from the table.** The `share` never reaches a screen. "A lot of
+  people" is as precise as this is allowed to be, and more precise than the
+  literature deserves.
+- **Never about this person being usual or unusual.** The existing ban on
+  "typical", "normal", "unlike most" stands untouched — those compare *them* to
+  people, which is a different and still-forbidden act.
+- **Nowhere but a proposal's premise.** Not in a finding, a result, a caveat, a
+  record row or a verdict. A result is about them and only them, always.
+
+### How it is enforced
+
+Scoped exactly as `instruction` already is: lifted in one function, banned
+everywhere else. `ExperimentCopy`'s sweeps exclude `.instruction` today and nothing
+else does; the prior-premise builder becomes the one place `.population` is also
+excluded, and a test asserts no other string in the app clears a sweep that includes
+it.
+
+Plus a test on the premise itself for the three parts and for every forbidden link
+word above — the framing is the whole safeguard, so it is the thing with the most
+tests on it rather than the least.
+
+### What it buys
+
+The person this thread began with — fixed routine, flat record, nothing to compare
+— gets a reason on day one instead of waiting for a calibration they may never
+reach. That was the complaint, and nothing else on the table answered it.
+
+## 10. Still open
 
 1. **The flat-record case (§5), which is the one that matters.** The chain needs the
    calibration, the calibration needs six rated days a side, and the person this
@@ -182,9 +239,13 @@ of findings. Written with that in the comment beside them, at shares that admit 
    free.
 2. **The bpm floor.** Settled that 2 is too small; not settled what it should be, or
    what could justify any particular number.
-3. **Whether a pairing prior may choose the question** when the vitals chain is
-   incomplete — which is §9.1 wearing a different hat, and probably has the same
-   answer.
+3. ~~Whether a pairing prior may choose the question.~~ **Settled — §9.** It may,
+   and it may give the reason, under the framing rule written there.
+
+   This also answers most of §5: the flat-record person is served by a prior-led
+   proposal rather than by waiting for a calibration. The vitals chain stays the
+   better source where it exists, and the ranking becomes: measured finding,
+   calibrated vitals, uncalibrated vitals, prior-led, Health-seeded starter.
 
 ## 8. What it would take
 
