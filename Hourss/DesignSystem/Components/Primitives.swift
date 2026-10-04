@@ -137,6 +137,12 @@ struct DirectionalLink: View {
                 Text(arrow)
                     .font(.custom("DMSans-Bold", fixedSize: 18))
                     .foregroundStyle(.orange)
+                    // Decoration, and hidden so it is not part of the name. A button
+                    // whose accessible label is "Don't offer this test again, →"
+                    // announces a glyph as though it were a word, and the label on a
+                    // permanent act is the whole of what anybody gets — the sheet
+                    // deleted the paragraph under this one for exactly that reason.
+                    .accessibilityHidden(true)
             }
             .foregroundStyle(color ?? surface.foreground)
             .opacity(isEnabled ? 1 : 0.35)
