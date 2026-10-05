@@ -10,10 +10,12 @@ import XCTest
 /// rather than off the bottom, and whether a reader who cannot see the arrow is told
 /// what the control does. Those are the assertions here.
 ///
-/// **Why the seeded fixture rather than day one.** Patterns only draws the question
-/// map once it is past warm-up — `isWarmingUp` is "no visible insights" — so a
-/// day-one record shows the coverage readout and no questions at all. Six weeks of
-/// history is the shortest record that reaches the map.
+/// **Why the seeded fixture rather than day one.** The question map is drawn in
+/// every state now, warm-up included, but a day-one record has almost nothing in it
+/// to draw: the fold only appears where a priority holds two or more questions whose
+/// side has never happened, and the rows it hides are the point of this file. Six
+/// weeks of history is the shortest record that puts anything substantial in the
+/// map.
 ///
 /// **Two of these skip on the current fixture, loudly, and that is the finding
 /// rather than a hole in the test.** The seeded record mints thirty-four

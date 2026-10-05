@@ -275,11 +275,20 @@ three priorities — two, three and none — and no priority holds more than one
 side has never happened. The fold is therefore correct, tested and dormant on every
 record this repo can produce. It engages on a thin or lopsided record: an empty
 record has eight untouched questions under Focus alone, and `shortHistory` has
-three. Both of those are `isWarmingUp`, so **Patterns does not draw the map at all
+three. Both of those are `isWarmingUp`, so **Patterns did not draw the map at all
 in exactly the state the fold exists for** — `isWarmingUp` is "no visible
-insights", which is also "nothing has cleared a gate yet". Whether the map should
-appear beside the warm-up readout is a product decision and was left alone; it is
-the one thing standing between this feature and the day-one value phase 1 found.
+insights", which is also "nothing has cleared a gate yet". That was named here as a
+product decision left alone, and as the one thing standing between this feature and
+the day-one value phase 1 found.
+
+**Decided, and it was the day-one hole.** The warm-up readout and "Nothing stands
+apart" are preambles now, not alternatives to the sections — `PatternsView.body` no
+longer branches over the page. A day-one record draws its priority headings, the one
+change to try under each and what each is waiting on, with the readout above them.
+`PatternsEmptyStateTests` pins that every ranked priority holds an offer or a waiting
+question in both warm-up states, and `PatternsDayOneTests` pins that the readout and
+the sections reach the screen together, because what was wrong was a `ViewBuilder`
+branch and no unit test can see one.
 
 - [x] **15.** Far questions collapsed by default.
 - [x] **16.** The whole space readable at `AccessibilityL`. The lid's label is laid

@@ -759,11 +759,29 @@ be past warm-up has had most of its questions *asked*. What is left waiting is
 mostly short by a countable amount, which is the half that stays printed.
 
 Where the fold does bite is a thin or lopsided record — an empty one has eight
-untouched questions under Focus alone — and that is also where `isWarmingUp` hides
-the map entirely, because "no visible insights" and "nothing has cleared a gate yet"
-are the same condition. So the collapsing works and the state it works in cannot be
-reached. That is a product question about whether the map belongs beside the warm-up
-readout, not a layout one, and it is left open here deliberately.
+untouched questions under Focus alone — and that used to be exactly where
+`isWarmingUp` hid the map entirely, because "no visible insights" and "nothing has
+cleared a gate yet" are the same condition. The collapsing worked and the state it
+worked in could not be reached.
+
+**That is now settled: the map belongs beside the warm-up readout, and the readout is
+a preamble rather than a screen.** Patterns drew either the warm-up readout or the
+priority sections, never both, so somebody with nothing logged got a headline and no
+Focus, no Energy, no Balance and no offer under any of them — the person with the
+least to look at was the one person given nothing to do about it. Every section was
+written to handle that record and none could be drawn on it. The sections are drawn
+in every state now; the readout and "Nothing stands apart" sit above them. On day one
+that is three orange headings, a change to try under each and what each is waiting on,
+which is the whole of what this screen can honestly offer in a first fortnight.
+
+The gate that chooses between the two preambles — `hasAskedSomething` — stays loose,
+and one compared question still flips it. That mattered when it chose between two
+whole screens; it chooses between two headlines now, above sections that list every
+question still waiting, so the screen no longer hides what the headline glosses over.
+Both stricter forms are worse: counting is the tally §6 refuses, and requiring an
+empty waiting list means requiring every activity and every outcome to have been
+asked, which for most records never happens — that is the full-bars state the pair
+was split to fix, reintroduced.
 
 If the printed half ever becomes the wall instead, the lever is **not** a second fold
 keyed to length. A fold that hides things because there are a lot of them is a fold

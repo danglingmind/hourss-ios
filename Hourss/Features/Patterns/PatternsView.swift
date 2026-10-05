@@ -80,34 +80,44 @@ struct PatternsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
+                // A preamble, not a screen. It used to be the alternative to
+                // `ranked` — one `if/else` over the whole page — and that put every
+                // per-priority section behind a door that only opens once something
+                // has already separated. The sections are where a priority says what
+                // it is waiting on and what there is to try about it, so the person
+                // with nothing to show was the one person shown nothing to do. The
+                // owner found it the obvious way: a sentence about days coming out
+                // alike, and no Focus, no Sleep, no offer under either.
+                //
+                // Two different answers here, and the screen once gave one.
+                // `isWarmingUp` is "no visible insight", which is true both of
+                // somebody who has not logged enough to compare anything and of
+                // somebody who has logged plenty and whose days simply do not
+                // separate. The first is a progress readout; the second is a result.
+                // Showing the progress readout to the second reads as the app still
+                // gathering while every bar on it sits full.
+                //
+                // `ObservationSlotView` already draws this distinction on Today,
+                // between `evidenceProgress` and `stillLooking`. This is the same
+                // pair on the screen whose whole job is explaining it.
                 if store.isWarmingUp {
-                    // Two different answers, and the screen used to give one.
-                    //
-                    // `isWarmingUp` is "no visible insight", which is true both of
-                    // somebody who has not logged enough to compare anything and of
-                    // somebody who has logged plenty and whose days simply do not
-                    // separate. The first is a progress screen; the second is a
-                    // result. Showing the progress screen to the second reads as the
-                    // app still gathering while every bar on it sits full, which is
-                    // the state the owner was looking at when they asked why no
-                    // pattern had appeared.
-                    //
-                    // `ObservationSlotView` already draws this distinction on Today,
-                    // between `evidenceProgress` and `stillLooking`. This is the same
-                    // pair on the screen whose whole job is explaining it.
                     if hasAskedSomething { nothingSeparated } else { warmingUp }
-                } else {
-                    ranked
                 }
 
-                // Outside both branches, which is the whole reason it is here and
-                // not inside `ranked`. A warming-up record has no groups and no
-                // claims, but `ExperimentDesign` still offers a starter — the one
-                // thing the app can propose early — so a tests entry that lived in
-                // the ranked branch would be missing on exactly the weeks when the
-                // only thing somebody can do about their record is agree to a test.
-                // Today's observation slot sits outside its two branches for the
-                // same reason and the comment there names the bug it caught.
+                // Always. With no insights the lead card is absent and every section
+                // falls through to what it is waiting on and the one thing to try —
+                // which is the whole of what this screen can offer early, and was
+                // written for that case long before it could reach it.
+                ranked
+
+                // Outside the preamble, which is the whole reason it is here and not
+                // inside `ranked`. A warming-up record has no claims, but
+                // `ExperimentDesign` still offers a starter — the one thing the app
+                // can propose early — so a tests entry that lived in the ranked
+                // branch would be missing on exactly the weeks when the only thing
+                // somebody can do about their record is agree to a test. Today's
+                // observation slot sits outside its two branches for the same reason
+                // and the comment there names the bug it caught.
                 testsEntry
             }
             .pageGutter()
@@ -230,6 +240,13 @@ struct PatternsView: View {
     }
 
     /// P2 — one lead observation, then a sparse grouped feed.
+    ///
+    /// Drawn in every state, including warm-up. Nothing in here assumes an insight
+    /// exists: the lead card is `if let`, and `byPriority` returns a section per
+    /// stated priority whether or not anything falls into it — deliberately, because
+    /// a priority with nothing to show still has what it is waiting on and still has
+    /// the one thing to try, and those are the only two things this screen can give
+    /// somebody in their first fortnight.
     private var ranked: some View {
         let insights = store.visibleInsights
 
@@ -431,6 +448,17 @@ struct PatternsView: View {
 
     /// Whether any question has actually been compared.
     ///
+    /// **Deliberately a loose gate — one compared question flips it.** That used to
+    /// matter, because it chose between two whole screens and so a single comparison
+    /// could put "nothing stands apart" over a record that had barely been read. It
+    /// chooses between two preambles now, above sections that list every question
+    /// still waiting, so the screen no longer hides what the headline glosses over.
+    /// A stricter gate was the other candidate and both forms of it are wrong:
+    /// counting is the tally `PRD-LOCKS.md` §6 refuses, and requiring an empty
+    /// waiting list means requiring every activity and every outcome to have been
+    /// asked, which for most records never happens — that is the full-bars state the
+    /// pair was split to fix, reintroduced.
+    ///
     /// The registry's questions, less the ones that could not be asked. Cheap —
     /// building the registry is a pass over the rows and `pending` runs no bootstrap,
     /// which is the whole point of it being a separate list from `findings`.
@@ -439,6 +467,13 @@ struct PatternsView: View {
     }
 
     /// Enough was compared, and nothing came apart.
+    ///
+    /// **A preamble over the sections, not a screen instead of them.** It says what
+    /// has come of the questions that were asked; the sections beneath say which
+    /// ones those were and which are still waiting. That division is what keeps the
+    /// sentence honest while `hasAskedSomething` stays a loose gate — a reader who
+    /// wants to know how much was actually compared can see it in the rows rather
+    /// than having to trust the headline.
     ///
     /// **Not a progress screen.** Two things this may not do, both inherited from
     /// `ObservationSlotView.stillLookingCopy`, which settled them first: it may not

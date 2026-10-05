@@ -174,4 +174,64 @@ struct PatternsEmptyStateTests {
         // exactly this, so they must never agree.
         #expect(asked(thin) != asked(flat))
     }
+
+    // MARK: - Every priority has something in it
+
+    /// The four things a priority section can hold, in the order it draws them.
+    ///
+    /// Mirrors the condition in `prioritySection` that prints "Nothing here has
+    /// repeated enough to show." — deliberately a copy rather than shared, because
+    /// the view's version is a `ViewBuilder` branch and the thing worth pinning is
+    /// the arithmetic, not the layout. If the two drift, the section grows a state
+    /// this suite does not know about, which is a failure worth having.
+    private func holdings(
+        _ store: HourssStore, _ priority: Priority, resamples: Int = 200
+    ) -> (insights: Int, leads: Int, offers: Int, waiting: Int) {
+        let input = EngineInput(observations: store.engineObservations,
+                                priorities: store.profile.priorities)
+        let waiting = Engine.pending(for: input)
+        return (
+            insights: store.visibleInsights.filter { priority.insightTypes.contains($0.type) }.count,
+            leads: PatternsView.leads(in: store)
+                .filter { priority.insightTypes.contains($0.publishedType) }.count,
+            offers: store.experimentProposals(resamples: resamples)
+                .filter { $0.priority == priority }.count,
+            waiting: waiting.filter { priority.insightTypes.contains($0.hypothesis.type) }.count
+        )
+    }
+
+    /// The bug the owner found: a thin record showed one sentence and no sections,
+    /// so the person with the least to look at was the one person given nothing to
+    /// do about it. Everything asserted here was already true of the engine — the
+    /// screen simply could not reach it, because the warm-up state replaced the
+    /// whole page instead of sitting above it.
+    @Test("A warming-up priority still holds something to do or something to wait for")
+    func warmUpPrioritiesAreNotEmpty() {
+        let store = store((0..<3).map { ($0, 9, 4) })
+        #expect(store.isWarmingUp, "three mornings should separate nothing")
+
+        for priority in store.profile.priorities {
+            let held = holdings(store, priority)
+            #expect(held.offers + held.waiting > 0,
+                    Comment(rawValue: "\(priority.title) had nothing: \(held)"))
+        }
+    }
+
+    /// And the other warm-up state, for the same reason. A record that was measured
+    /// and came out alike is not a record with nothing in its sections: every
+    /// question that was asked is a lead row, and the offer stands either way.
+    @Test("A measured-but-flat priority still holds something")
+    func flatPrioritiesAreNotEmpty() {
+        var entries: [(Int, Int, Int)] = []
+        for day in 0..<12 { entries.append((day, 9, 4)); entries.append((day, 15, 4)) }
+        let store = store(entries)
+        #expect(store.isWarmingUp)
+        #expect(asked(store))
+
+        for priority in store.profile.priorities {
+            let held = holdings(store, priority)
+            let total = held.insights + held.leads + held.offers + held.waiting
+            #expect(total > 0, Comment(rawValue: "\(priority.title) had nothing: \(held)"))
+        }
+    }
 }
