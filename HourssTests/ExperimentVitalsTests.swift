@@ -391,7 +391,7 @@ struct ExperimentVitalsTests {
         let proposal = try #require(ExperimentVitals.proposals(
             for: [.focus], shape: shape([place(.morning, -9, hour: 10)]),
             observations: everywhere).first)
-        #expect(proposal.change.contains("morning hours"))
+        #expect(proposal.change.contains("in the morning"))
         #expect(!proposal.change.contains("10am"))
         #expect(proposal.premise.contains("10am"))
     }

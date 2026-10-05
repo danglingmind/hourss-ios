@@ -83,7 +83,7 @@ final class SwipeBackTests: XCTestCase {
         tapID("tab-patterns")
         tapID("lead-insight")
 
-        swipeBack(from: app.staticTexts["An observation, not a rule."])
+        swipeBack(from: app.staticTexts["Something that keeps happening, not a rule."])
 
         XCTAssertTrue(
             app.descendants(matching: .any)["lead-insight"].firstMatch.waitForExistence(timeout: UITest.timeout),
@@ -139,6 +139,6 @@ final class SwipeBackTests: XCTestCase {
         )
         // And the screen is still live afterwards.
         tapID("lead-insight")
-        XCTAssertTrue(app.staticTexts["An observation, not a rule."].waitForExistence(timeout: UITest.timeout))
+        XCTAssertTrue(app.staticTexts["Something that keeps happening, not a rule."].waitForExistence(timeout: UITest.timeout))
     }
 }

@@ -184,7 +184,7 @@ final class HealthAndMarksTests: XCTestCase {
 
         app.descendants(matching: .any)["tab-patterns"].firstMatch.tapWhenReady()
         app.descendants(matching: .any)["lead-insight"].firstMatch.tapWhenReady()
-        XCTAssertTrue(app.staticTexts["An observation, not a rule."].waitForExistence(timeout: UITest.timeout))
+        XCTAssertTrue(app.staticTexts["Something that keeps happening, not a rule."].waitForExistence(timeout: UITest.timeout))
 
         // The chart's marks acquire their labels as they draw, so give the read
         // a chance to be there before taking one snapshot of the whole screen.

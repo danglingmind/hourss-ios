@@ -136,7 +136,7 @@ enum ExperimentHistory {
     /// and the equal-weight principle stated in the one place somebody reads before
     /// they have any results to read it against.
     static let emptySupport = "A test is one change, agreed to before it starts. "
-        + "A finished one is kept here with what it settled at, whether it held up or not."
+        + "A finished one is kept here with how it went, whether it held up or not."
 
     /// The limit on what any of these results can mean, said once for the screen.
     ///

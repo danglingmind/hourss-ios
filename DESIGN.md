@@ -134,20 +134,32 @@ the screen you are on is the thing you are looking at — which is why it is an
 application of this rule and not an exception to it. A different accent for
 navigation chrome would have been the exception.
 
-**It has a second job on one screen, and that was a decision.** See the section
-immediately below. The rule stated here still governs everywhere else, and the
-sentence this paragraph replaced — *do not spend it on a third job* — is now about
-a third job rather than a second.
+**It has a second job, and that was a decision.** Section headings — see the
+section immediately below, where it began as a one-screen trial and has since been
+promoted. The rule stated here still governs everything that is not a heading, and
+the sentence this paragraph replaced — *do not spend it on a third job* — is now
+about a third job rather than a second.
 
-### Orange has a second job on one screen
+### Orange has a second job: a section heading
 
-On `TestProposalSheet`, and nowhere else yet, orange marks **a section heading**:
-the seven `Eyebrow`s that name the questions the sheet answers. The owner asked for
-it in those words — *"in general we have too much of text in our app we should
-atleast use different colors for minimal things to easily differentiate things"* —
-after reading the sheet on device, and this is a trial. If it survives, the same
-treatment goes to section headings across the app and this becomes the rule; if it
-does not, it comes out of one file.
+On `TestProposalSheet` and on `PatternsView`, orange marks **a section heading**.
+The owner asked for it first on the sheet — *"in general we have too much of text in
+our app we should atleast use different colors for minimal things to easily
+differentiate things"* — as a trial, with the condition written here that if it
+survived it would spread and become the rule. It survived: after reading the sheet
+on device the owner asked for the same thing on Patterns, *"change color of section
+heading to orange from our theme for the headings energy, waiting on, sleep etc"*.
+
+So it is the rule now, and the remaining screens take it as they are next touched
+rather than in one sweep — a colour change is cheap to make and expensive to judge,
+and judging it one screen at a time is how this one earned its promotion.
+
+**Which `Eyebrow`s this covers, and which it does not.** A section heading is an
+`Eyebrow` that names a block of content beneath it. Two uses are not that and stay
+as they were: the trailing `Eyebrow` in `PatternsHeader`, which is navigation chrome
+beside the wordmark, and the one on Today's dark noticing card, which is set
+`.subtleOnDark` because it sits on a filled surface where orange on dark fails
+contrast.
 
 **What orange means here, precisely.** A question this screen answers. Not a state,
 not a selection, not emphasis, and not a verdict. The three verdict names in section

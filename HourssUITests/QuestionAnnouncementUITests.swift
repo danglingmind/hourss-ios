@@ -76,7 +76,7 @@ final class QuestionAnnouncementUITests: XCTestCase {
 
         // The answer is on the sheet, not behind a tap. A reveal that deferred it
         // would be the slot machine `PRD-LOCKS.md` §2 forbids by name.
-        XCTAssertTrue(app.staticTexts["Measured, and the two sides came out alike."]
+        XCTAssertTrue(app.staticTexts["Checked, and both kinds of day came out alike."]
                         .waitForExistence(timeout: UITest.timeout),
                       "The non-answer was not carried on the sheet")
         for heading in headings {
@@ -98,7 +98,7 @@ final class QuestionAnnouncementUITests: XCTestCase {
         // Same four sections, same single control, and no extra ceremony: nothing
         // that reads as a reward, and no second control offering to do something
         // about it.
-        XCTAssertFalse(app.staticTexts["Measured, and the two sides came out alike."].exists,
+        XCTAssertFalse(app.staticTexts["Checked, and both kinds of day came out alike."].exists,
                        "A question with a claim is reporting a non-answer")
         attach("announcement-claim")
     }
@@ -154,7 +154,7 @@ final class QuestionAnnouncementUITests: XCTestCase {
         app.launch()
         sheet()
 
-        XCTAssertTrue(app.staticTexts["Measured, and the two sides came out alike."]
+        XCTAssertTrue(app.staticTexts["Checked, and both kinds of day came out alike."]
                         .waitForExistence(timeout: UITest.timeout),
                       "Reduce Motion did not land on the finished sheet")
         attach("announcement-reduce-motion")

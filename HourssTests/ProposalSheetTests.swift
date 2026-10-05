@@ -171,8 +171,8 @@ struct ProposalSheetTests {
         }
         // The argument, not merely the disclaimer: "all three are results" without
         // the second clause is an apology.
-        #expect(text.contains("all three are results"))
-        #expect(text.contains("would not be worth running"))
+        #expect(text.contains("all three are real answers"))
+        #expect(text.contains("would not be worth doing"))
     }
 
     @Test("Section 4 names no direction and no figure")
@@ -253,8 +253,8 @@ struct ProposalSheetTests {
     /// all three of the sentences the mark replaced, and it had to land somewhere.
     @Test("The first gate still says nobody else was involved")
     func stillNobodyElse() {
-        #expect(ExperimentCopy.comparedStage.lowercased().contains("nobody else"))
-        #expect(ExperimentCopy.comparedStage.lowercased().contains("your own record"))
+        #expect(ExperimentCopy.comparedStage.lowercased().contains("anybody else"))
+        #expect(ExperimentCopy.comparedStage.lowercased().contains("your own days"))
     }
 
     @Test("Neither gate explains the arithmetic")

@@ -37,7 +37,7 @@ final class QuestionMapUITests: XCTestCase {
 
     private var app: XCUIApplication!
 
-    private let lidLabel = "Questions with an empty side"
+    private let lidLabel = "Questions still missing days"
 
     /// Straight to Patterns with six weeks in place.
     ///

@@ -18,7 +18,7 @@ import Foundation
 ///
 /// | Not this | This |
 /// | --- | --- |
-/// | Morning blocks improve your focus. | Those blocks settled at 4.2 against your 3.4. |
+/// | Morning blocks improve your focus. | Those blocks averaged 4.2, against 3.4 on your other days. |
 /// | This helped, so keep it up. | It held up for two weeks. Worth keeping. |
 /// | Earlier starts boost your energy. | Your earlier blocks read higher than the rest. |
 ///
@@ -276,7 +276,7 @@ enum ExperimentCopy {
     /// morning hours" to somebody who is at work every weekday morning is the app
     /// not paying attention; naming the days off says which mornings are meant.
     static func vitalsChange(_ place: Physiology.DayShape.Place) -> String {
-        "Log one session in your \(place.band.label.lowercased()) hours "
+        "Log one session in the \(place.band.label.lowercased()) "
             + (place.isWorkday ? "on most workdays" : "on your days off")
             + ", for two weeks."
     }
@@ -653,9 +653,9 @@ enum ExperimentCopy {
     /// own word, which it was not before, so the ask and the result name the same
     /// outcome.
     static func randomisedAsk(windowDays: Int, assignedDays: Int) -> String {
-        "The app picks \(assignedDays) of the next \(windowDays) days, including days you "
-            + "would rather not. Days you did not pick are the ones that can tell a change "
-            + "that held up from a good stretch."
+        "Hourss picks \(assignedDays) of the next \(windowDays) days, including days you "
+            + "would rather not. Days you did not pick are what tell a change that held up "
+            + "from a good run."
     }
 
     /// The limit on a drawn window's result, appended to the hypothesis's own caveat.
@@ -1155,14 +1155,14 @@ enum ExperimentCopy {
     /// against their own history*, said on the screen where somebody is deciding
     /// whether to trust the reading. It was in all three of the sentences this
     /// replaced and it is in the label now.
-    static let comparedStage = "Compared with your own record, and nobody else's"
+    static let comparedStage = "Only your own days, never anybody else's"
 
     /// The second gate, said as what it does rather than as what it is.
     ///
     /// **No maths, and that is a constraint rather than a simplification.** The
     /// honest thing to say about a bootstrap interval over day-clustered resamples is
     /// not a smaller version of the arithmetic — it is what the arithmetic was for.
-    static let correctedStage = "It held up when every other pattern was checked too"
+    static let correctedStage = "Still there after Hourss checked everything else"
 
     /// What the uncleared gate means, for the standings that have one.
     ///
@@ -1231,17 +1231,16 @@ enum ExperimentCopy {
     }
 
     static let verdictPreamble = "One of these three."
-    static let heldUpGloss = "The days with the change came out clearly different "
-        + "from your other days."
-    static let didNotHoldUpGloss = "The two groups of days came out about the same."
-    static let cannotTellGloss = "Too few days carried the change, or too few went "
-        + "without it."
+    static let heldUpGloss = "Your days with the change felt clearly different from "
+        + "your other days."
+    static let didNotHoldUpGloss = "Both kinds of day felt about the same."
+    static let cannotTellGloss = "Too few days with the change, or too few without it."
     /// The line that stops a null reading as a fault. Not shortened past the clause
     /// that does the work: "a test that could only come back the first way would not
     /// be worth running" is the argument, and without it "all three are results" is
     /// a disclaimer rather than a reason.
-    static let verdictClosing = "All three are results. A test that could only come back "
-        + "the first way would not be worth running."
+    static let verdictClosing = "All three are real answers. If it could only ever come "
+        + "back yes, it would not be worth doing."
 
     /// Every string section 4 shows, for the tests that sweep it.
     static var whatYouGetLines: [String] { whatYouGetParts.flatMap(\.strings) }
@@ -1319,11 +1318,11 @@ enum ExperimentCopy {
     static func whatIsMeasured(_ outcome: Outcome) -> String? {
         switch outcome {
         case .feeling:
-            return "How each of your sessions felt, on the days the change happened and "
-                + "on the days it did not."
+            return "How each session felt — on the days you make the change, and on "
+                + "the days you do not."
         case .performance:
-            return "How each of your sessions went, on the days the change happened and "
-                + "on the days it did not."
+            return "How each session went — on the days you make the change, and on "
+                + "the days you do not."
         case .heartRateResidual:
             return nil
         }
@@ -1379,11 +1378,11 @@ enum ExperimentCopy {
         if experiment.isRandomised {
             switch settlement.verdict {
             case .heldUp:
-                return "Your picked days settled at \(focus) against \(baseline) on the rest. "
-                    + "It held up when the days were chosen for you." + dilution(settlement)
+                return "The days Hourss picked averaged \(focus), against \(baseline) on "
+                    + "the rest. It held up, with the days picked for you." + dilution(settlement)
             case .didNotHoldUp:
-                return "Your picked days settled at \(focus) against \(baseline) on the rest. "
-                    + "No difference you could act on." + dilution(settlement)
+                return "The days Hourss picked averaged \(focus), against \(baseline) on "
+                    + "the rest. No difference you could act on." + dilution(settlement)
             case .cannotTell:
                 return cannotTell(settlement)
             }
@@ -1391,12 +1390,12 @@ enum ExperimentCopy {
 
         switch settlement.verdict {
         case .heldUp:
-            return "\(experiment.focusLabel) settled at \(focus) against your \(baseline) "
-                + "across \(settlement.adherenceDays) days. It held up."
+            return "\(experiment.focusLabel) averaged \(focus), against \(baseline) on your "
+                + "other days, across \(settlement.adherenceDays) days. It held up."
 
         case .didNotHoldUp:
-            return "\(experiment.focusLabel) settled at \(focus) against your \(baseline) "
-                + "across \(settlement.adherenceDays) days. No difference you could act on."
+            return "\(experiment.focusLabel) averaged \(focus), against \(baseline) on your "
+                + "other days, across \(settlement.adherenceDays) days. No difference you could act on."
 
         case .cannotTell:
             return cannotTell(settlement)
@@ -1434,9 +1433,9 @@ enum ExperimentCopy {
     /// where the change stayed on the days it was asked for.
     private static func dilution(_ settlement: Experiment.Settlement) -> String {
         guard let contamination = settlement.contaminationDays, contamination > 0 else { return "" }
-        return " The change also happened on \(contamination) of the "
-            + "\(settlement.baselineDays) days it was not picked for, so the two groups of "
-            + "days ended up more alike than the draw asked for."
+        return " You also made the change on \(contamination) of the "
+            + "\(settlement.baselineDays) days Hourss asked you not to, so there was less "
+            + "to tell apart."
     }
 
     /// What was short, and what would have been enough.
@@ -1467,9 +1466,9 @@ enum ExperimentCopy {
             }
             let contamination = settlement.contaminationDays ?? 0
             if contamination > 0 && contrast < floor {
-                return "The change happened on \(contamination) of the \(baseline) days it was "
-                    + "not picked for. That leaves only \(contrast) ordinary days, "
-                    + "where \(floor) would have been enough."
+                return "You also made the change on \(contamination) of the \(baseline) days "
+                    + "Hourss asked you not to. That left only \(contrast) days without it, "
+                    + "where \(floor) were needed."
             }
             if contrast < floor {
                 return "\(floor) days without the change would have been enough to tell. "
@@ -1487,9 +1486,9 @@ enum ExperimentCopy {
             // register as the contamination sentence above: two counts, and no
             // suggestion that either of them was a mistake.
             if settlement.armsSeparated == false {
-                return "The change happened on \(adherence) of the days it was picked for "
-                    + "and \(contamination) of the \(baseline) days it was not. "
-                    + "The two groups ended up too alike to tell apart."
+                return "The change happened on \(adherence) of the days it was picked for, "
+                    + "and on \(contamination) of the \(baseline) days it was not. "
+                    + "That left the two too alike to tell apart."
             }
             return "This one no longer matches anything in your record."
         }

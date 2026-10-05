@@ -685,7 +685,7 @@ struct ExperimentAssignmentCopyTests {
     @Test("A drawn window that held up says the days were chosen for them")
     func heldUpNamesTheDraw() {
         let sentence = ExperimentCopy.result(for: drawn, settlement: settlement(.heldUp))
-        #expect(sentence.contains("It held up when the days were chosen for you."))
+        #expect(sentence.contains("It held up, with the days picked for you."))
         #expect(sentence.contains("4.2"))
         #expect(sentence.contains("3.4"))
         // Still not a cause, in any of the forms that would be the easy mistake here.
@@ -707,7 +707,7 @@ struct ExperimentAssignmentCopyTests {
             // the days the change did not happen on. Calling that figure "Morning"
             // would attach a label the number does not carry.
             #expect(!sentence.contains("Morning"))
-            #expect(sentence.contains("Your picked days"))
+            #expect(sentence.contains("The days Hourss picked"))
         }
     }
 
@@ -727,8 +727,8 @@ struct ExperimentAssignmentCopyTests {
         // what would have been.
         #expect(sentence.contains("11"))
         #expect(sentence.contains("14"))
-        #expect(sentence.contains("only 3 ordinary days"))
-        #expect(sentence.contains("\(Experiment.minimumDays) would have been enough"))
+        #expect(sentence.contains("only 3 days without it"))
+        #expect(sentence.contains("\(Experiment.minimumDays) were needed"))
         for blame in ["you should", "failed", "unfortunately", "did not follow", "broke"] {
             #expect(!sentence.lowercased().contains(blame),
                     Comment(rawValue: "the contamination sentence blamed somebody: \(sentence)"))
@@ -798,11 +798,11 @@ struct ExperimentAssignmentCopyTests {
                 for: drawn,
                 settlement: settlement(verdict, adherence: 12, baseline: 14, contamination: 4))
             #expect(sentence.contains(
-                "The change also happened on 4 of the 14 days it was not picked for"))
-            #expect(sentence.contains("more alike than the draw asked for"))
+                "You also made the change on 4 of the 14 days Hourss asked you not to"))
+            #expect(sentence.contains("less to tell apart"))
             // The verdict still leads. The clause is what the window managed, not a
             // hedge folded into what it measured.
-            #expect(sentence.hasPrefix("Your picked days settled at"))
+            #expect(sentence.hasPrefix("The days Hourss picked averaged"))
         }
         // Nothing added when nothing happened on an unpicked day.
         #expect(!ExperimentCopy.result(for: drawn, settlement: settlement(.heldUp, contamination: 0))

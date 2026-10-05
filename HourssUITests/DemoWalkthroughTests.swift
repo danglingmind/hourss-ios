@@ -182,7 +182,7 @@ final class DemoWalkthroughTests: XCTestCase {
         app.swipeDown()
 
         tapID("lead-insight")
-        XCTAssertTrue(app.staticTexts["An observation, not a rule."].waitForExistence(timeout: UITest.timeout))
+        XCTAssertTrue(app.staticTexts["Something that keeps happening, not a rule."].waitForExistence(timeout: UITest.timeout))
         capture("patterns-detail")
         app.swipeUp()
         capture("patterns-detail-evidence")
