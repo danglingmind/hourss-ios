@@ -140,8 +140,8 @@ final class ProposalSheetUITests: XCTestCase {
                       "An uncleared gate did not speak its state: \(decided.label)")
         XCTAssertFalse(decided.label.contains(": done"),
                        "A starter was shown a gate it has not cleared: \(decided.label)")
-        XCTAssertTrue(decided.label.contains("nobody else"),
-                      "The sheet stopped saying who the comparison was against")
+        XCTAssertTrue(decided.label.contains("anybody else"),
+                      "The sheet stopped saying whose days this is measured against")
     }
 
     /// Readouts name their subject first. Seven blocks, seven readouts, none of them
