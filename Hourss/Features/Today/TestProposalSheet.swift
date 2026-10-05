@@ -163,7 +163,7 @@ struct TestProposalSheet: View {
     @ViewBuilder
     private func section(_ part: ExperimentCopy.ProposalSheet.Section, lead: Bool) -> some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            Eyebrow(part.heading, color: .orange)
+            Eyebrow(part.heading)
 
             VStack(alignment: .leading, spacing: Space.sm) {
                 ForEach(Array(part.parts.enumerated()), id: \.offset) { _, piece in

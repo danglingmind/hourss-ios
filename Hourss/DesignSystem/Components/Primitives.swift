@@ -17,19 +17,48 @@ struct Wordmark: View {
 
 /// 11pt mono, uppercase, +0.05em. The system's only label idiom.
 struct Eyebrow: View {
+
+    /// What this eyebrow is for, which decides whether it gets the accent.
+    ///
+    /// **Orange is the default because headings are the common case.** `DESIGN.md`
+    /// made section headings orange on the proposal sheet as a trial, then on
+    /// Patterns, and the owner then asked for every screen. Done by passing
+    /// `color: .orange` at each site that wanted it, forty-odd call sites would have
+    /// been forty chances to miss one — and missing one is invisible until somebody
+    /// opens that screen. So the rule is the default and the exceptions are named.
+    enum Tone {
+        /// Names the block of content beneath it. Orange.
+        case heading
+        /// Everything an eyebrow does that is not naming a section: a value, a state,
+        /// a verdict, a field label, or navigation chrome. These keep the quiet
+        /// colour, and `DESIGN.md` says why each one is not a heading.
+        case quiet
+    }
+
     let text: String
     var color: Color?
+    var tone: Tone
     @Environment(\.surface) private var surface
 
-    init(_ text: String, color: Color? = nil) {
+    init(_ text: String, color: Color? = nil, tone: Tone = .heading) {
         self.text = text
         self.color = color
+        self.tone = tone
     }
 
     var body: some View {
         Text(text.uppercased())
             .textStyle(.eyebrow)
-            .foregroundStyle(color ?? surface.secondary)
+            // An explicit colour still wins, which is how the eyebrows on a filled
+            // surface stay readable: orange on forest green fails contrast, so those
+            // sites pass `.subtleOnDark` and are unaffected by the default.
+            .foregroundStyle(resolvedColor)
+    }
+
+    /// An explicit colour wins, then the tone decides.
+    private var resolvedColor: Color {
+        if let color { return color }
+        return tone == .heading ? Color.orange : surface.secondary
     }
 }
 

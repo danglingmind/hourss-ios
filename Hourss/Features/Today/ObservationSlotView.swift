@@ -799,7 +799,7 @@ struct ObservationSlotView: View {
                 if !isCarded { HRule() }
 
                 VStack(alignment: .leading, spacing: Space.xs) {
-                    Eyebrow(copy.eyebrow)
+                    Eyebrow(copy.eyebrow, color: isCarded ? .subtleOnDark : nil)
                     ForEach(Array(copy.lines.enumerated()), id: \.offset) { _, line in
                         text(for: line)
                     }

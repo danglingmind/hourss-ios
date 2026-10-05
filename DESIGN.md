@@ -150,16 +150,36 @@ survived it would spread and become the rule. It survived: after reading the she
 on device the owner asked for the same thing on Patterns, *"change color of section
 heading to orange from our theme for the headings energy, waiting on, sleep etc"*.
 
-So it is the rule now, and the remaining screens take it as they are next touched
-rather than in one sweep — a colour change is cheap to make and expensive to judge,
-and judging it one screen at a time is how this one earned its promotion.
+So it is the rule now, on every screen. The owner asked for the rest in one go —
+*"take up other screens as well all of em'"* — so the sweep happened immediately
+rather than screen by screen.
 
-**Which `Eyebrow`s this covers, and which it does not.** A section heading is an
-`Eyebrow` that names a block of content beneath it. Two uses are not that and stay
-as they were: the trailing `Eyebrow` in `PatternsHeader`, which is navigation chrome
-beside the wordmark, and the one on Today's dark noticing card, which is set
-`.subtleOnDark` because it sits on a filled surface where orange on dark fails
-contrast.
+**It is the default rather than forty call sites.** `Eyebrow`'s tone defaults to
+`.heading`, which is orange, and the exceptions pass `tone: .quiet`. Spreading it by
+adding `color: .orange` at each heading would have been forty chances to miss one,
+and a missed heading is invisible until somebody opens that screen — which is how
+this kind of change usually ends up half-applied.
+
+**Which `Eyebrow`s this covers, and which it does not.** A section heading names a
+block of content beneath it. Everything else an eyebrow does is `tone: .quiet`, and
+there are only five:
+
+- **`PatternsHeader`'s trailing eyebrow** — navigation chrome beside the wordmark,
+  not a heading for anything.
+- **`YouView`'s "Connected" / "Not connected"** — a state, and the rule above says
+  orange marks the thing you are looking at rather than the state of something.
+- **`TestsView`'s row standing** — a verdict. The sheet sets the three verdict names
+  in bold ink for the reason given below, and colouring the same words in the history
+  list would undo it one screen over.
+- **`InsightDetailView`'s band label** — a value, not a heading.
+- **`SlotStepper`'s "Started" / "Until"** — field labels inside one control, where
+  two orange words either side of a time would read as two sections.
+
+**On a filled surface the colour is passed explicitly and the default never
+applies.** Orange on forest green fails contrast, so the eyebrows on Today's
+noticing card, the reconnect banner and Today's "Now" label set `.subtleOnDark`.
+The slot band is the one that is both: it is carded only in some states, so its
+eyebrow passes `.subtleOnDark` when carded and takes the orange default when not.
 
 **What orange means here, precisely.** A question this screen answers. Not a state,
 not a selection, not emphasis, and not a verdict. The three verdict names in section

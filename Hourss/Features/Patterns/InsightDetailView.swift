@@ -97,7 +97,7 @@ struct InsightDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
                 VStack(alignment: .leading, spacing: Space.sm) {
-                    Eyebrow(current.band.label)
+                    Eyebrow(current.band.label, tone: .quiet)
                     Text(current.statement)
                         .textStyle(.sectionLead)
                         .fixedSize(horizontal: false, vertical: true)

@@ -312,7 +312,7 @@ struct PatternsView: View {
     /// `TestsView` carries the longer form of both arguments.
     private var testsEntry: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow("Testing", color: .orange)
+            Eyebrow("Testing")
                 .padding(.bottom, Space.xs)
             HRule()
             NavigationLink(value: PatternsRoute.tests) {
@@ -497,7 +497,7 @@ struct PatternsView: View {
         let proposal = priority.flatMap { p in proposals.first { $0.priority == p } }
 
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow(priority?.title ?? "Everything else", color: .orange)
+            Eyebrow(priority?.title ?? "Everything else")
                 .padding(.bottom, Space.xs)
             HRule()
 
@@ -558,7 +558,7 @@ struct PatternsView: View {
             let unasked = waiting(for: priority)
             if !unasked.isEmpty {
                 let split = Self.partition(unasked)
-                Eyebrow(QuestionCopy.waitingHeading, color: .orange)
+                Eyebrow(QuestionCopy.waitingHeading)
                     .padding(.top, Space.sm)
                     .padding(.bottom, Space.xs)
                 HRule()
@@ -717,7 +717,7 @@ struct ScreenHeader: View {
             HStack {
                 Wordmark()
                 Spacer()
-                Eyebrow(trailing ?? title)
+                Eyebrow(trailing ?? title, tone: .quiet)
             }
             .pageGutter()
             .padding(.vertical, Space.gutter)

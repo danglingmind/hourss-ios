@@ -509,7 +509,7 @@ struct HealthConnectionView: View {
                 .padding(.top, Space.md)
 
                 VStack(alignment: .leading, spacing: Space.xs) {
-                    Eyebrow(health.isConnected ? "Connected" : "Not connected")
+                    Eyebrow(health.isConnected ? "Connected" : "Not connected", tone: .quiet)
                     if let synced = health.lastSyncedAt {
                         Text("Last read \(synced.formatted(.dateTime.hour().minute()))")
                             .textStyle(.label)

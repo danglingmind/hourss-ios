@@ -337,7 +337,7 @@ struct TestsView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: Space.xs) {
-                Eyebrow(entry.standing)
+                Eyebrow(entry.standing, tone: .quiet)
                 Text(entry.report)
                     .textStyle(.body)
                     .foregroundStyle(Color.muted)

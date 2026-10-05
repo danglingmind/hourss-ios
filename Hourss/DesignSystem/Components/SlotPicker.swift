@@ -190,7 +190,7 @@ struct SlotStepper: View {
     var body: some View {
         HStack(spacing: Space.xs) {
             VStack(alignment: .leading, spacing: 0) {
-                Eyebrow(title)
+                Eyebrow(title, tone: .quiet)
                 Text(value.formatted(.dateTime.hour().minute()))
                     .textStyle(.stepName)
                     .lineLimit(1)
