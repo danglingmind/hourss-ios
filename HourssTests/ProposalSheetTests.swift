@@ -215,7 +215,7 @@ struct ProposalSheetTests {
         #expect(stages(.starter).allSatisfy { !$0.cleared })
         let note = try #require(ExperimentCopy.howItDecidedNote(.starter))
         #expect(note.lowercased().contains("nothing you have logged"))
-        #expect(note.lowercased().contains("measured against anything"))
+        #expect(note.lowercased().contains("has been checked yet"))
     }
 
     /// Two filled marks beside their own labels is the complete statement for a

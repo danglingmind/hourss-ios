@@ -49,7 +49,7 @@ struct ExperimentStandingCopyTests {
         let line = premise(days: 16)
         #expect(!line.contains("so far"))
         #expect(line.contains("16 days"))
-        #expect(line.contains("without pulling clear"))
+        #expect(line.contains("not clearly enough to call it"))
     }
 
     @Test("The split is the experiment window, and both sides of it hold")

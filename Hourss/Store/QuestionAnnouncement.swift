@@ -143,7 +143,7 @@ enum AnnouncementCopy {
     /// will open many of these and find nothing in most, and that is the engine
     /// being right rather than progress through a list.
     static func whyNow(gate: Int) -> String {
-        "This comparison needs \(gate) days on each side, and both sides have them now."
+        "This one needs \(gate) days of each kind, and you now have them."
     }
 
     /// What was compared with what, as a noun phrase rather than a claim.

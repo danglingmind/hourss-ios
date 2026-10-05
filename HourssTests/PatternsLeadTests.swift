@@ -57,7 +57,7 @@ struct PatternsLeadTests {
                 #expect(line.contains("so far"))
             } else {
                 #expect(!line.contains("so far"))
-                #expect(line.contains("without pulling clear"))
+                #expect(line.contains("not clearly enough to call it"))
             }
         }
     }

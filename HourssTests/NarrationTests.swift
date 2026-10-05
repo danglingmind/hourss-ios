@@ -108,7 +108,7 @@ struct NarrationTests {
         #expect(NarrationTemplate.sentence(for: up).hasPrefix(
             "Your Deep work sessions in the morning have felt more energizing than the rest of your sessions. "
             + "The same is not true of deep work elsewhere in your record. "
-            + "Observed across "))
+            + "Seen across "))
 
         let down = try Self.evidence(["activity.deep-work", "time.morning"],
                                      in: SyntheticCohort.morningDeepWork, combined: -0.42)
@@ -116,7 +116,7 @@ struct NarrationTests {
         #expect(NarrationTemplate.sentence(for: down).hasPrefix(
             "Your Deep work sessions in the morning have felt more draining than the rest of your sessions. "
             + "The same is not true of deep work elsewhere in your record. "
-            + "Observed across "))
+            + "Seen across "))
     }
 
     /// The three-way sentence, in full, in both directions.
@@ -134,14 +134,14 @@ struct NarrationTests {
             "On days after a longer night, your Deep work sessions in the morning have felt "
             + "more energizing than the rest of your sessions. "
             + "The same is not true of deep work elsewhere in your record. "
-            + "Observed across "))
+            + "Seen across "))
 
         let down = try Self.evidence(keys, in: SyntheticCohort.morningDeepWorkAfterSleep, combined: -0.42)
         #expect(NarrationTemplate.sentence(for: down).hasPrefix(
             "On days after a longer night, your Deep work sessions in the morning have felt "
             + "more draining than the rest of your sessions. "
             + "The same is not true of deep work elsewhere in your record. "
-            + "Observed across "))
+            + "Seen across "))
     }
 
     /// A conjunction with no activity in it still has to be a sentence.
@@ -162,7 +162,7 @@ struct NarrationTests {
             "Your sessions of 30 to 89 minutes in the morning have felt more energizing "
             + "than the rest of your sessions. "
             + "The same is not true of your sessions of 30 to 89 minutes elsewhere in your record. "
-            + "Observed across "))
+            + "Seen across "))
     }
 
     // MARK: - Figures
@@ -186,10 +186,10 @@ struct NarrationTests {
         let days = cells.within.days.count
 
         #expect(evidence.sessionCount == sessions, "session count is the conjunction's own cell")
-        #expect(evidence.dayCount == days, "day count is the distinct days behind that cell")
+        #expect(evidence.dayCount == days, "day count is the days behind that cell")
 
         let sentence = NarrationTemplate.sentence(for: evidence)
-        #expect(sentence.hasSuffix("Observed across \(sessions) sessions over \(days) distinct days, past 6 weeks."),
+        #expect(sentence.hasSuffix("Seen across \(sessions) sessions over \(days) days, past 6 weeks."),
                 Comment(rawValue: "sample limit did not match the record: \(sentence)"))
 
         // And nothing else numeric leaked in. Every digit run in the sentence is
@@ -217,7 +217,7 @@ struct NarrationTests {
         }
     }
 
-    /// Singulars, because "1 sessions over 1 distinct days" is the kind of thing
+    /// Singulars, because "1 sessions over 1 days" is the kind of thing
     /// that ships.
     @Test("One session over one day reads as one")
     func singulars() {
@@ -229,7 +229,7 @@ struct NarrationTests {
             sessionCount: 1, dayCount: 1, windowDays: 1)
 
         #expect(NarrationTemplate.sentence(for: evidence)
-            .hasSuffix("Observed across 1 session over 1 distinct day, past day."))
+            .hasSuffix("Seen across 1 session over 1 day, past day."))
     }
 
     // MARK: - The guard
@@ -452,7 +452,7 @@ struct NarrationTests {
         #expect(parts.supplied.allSatisfy { NarrationGuard.figures(in: $0).isEmpty },
                 "no figure reaches the model for this conjunction")
         #expect(!parts.limit.isEmpty, "the sample limit exists and is ours")
-        #expect(parts.supplied.allSatisfy { !$0.contains("Observed across") })
+        #expect(parts.supplied.allSatisfy { !$0.contains("Seen across") })
 
         // A length factor is the one case where a supplied phrase legitimately
         // carries digits, and those digits are what the guard will then allow.

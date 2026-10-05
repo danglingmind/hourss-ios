@@ -727,7 +727,7 @@ struct ExperimentAssignmentCopyTests {
         // what would have been.
         #expect(sentence.contains("11"))
         #expect(sentence.contains("14"))
-        #expect(sentence.contains("3 to read against"))
+        #expect(sentence.contains("only 3 ordinary days"))
         #expect(sentence.contains("\(Experiment.minimumDays) would have been enough"))
         for blame in ["you should", "failed", "unfortunately", "did not follow", "broke"] {
             #expect(!sentence.lowercased().contains(blame),
@@ -747,7 +747,7 @@ struct ExperimentAssignmentCopyTests {
         let empty = ExperimentCopy.result(
             for: drawn,
             settlement: settlement(.cannotTell, adherence: 8, baseline: 2, contamination: 0))
-        #expect(empty.contains("without it would have been enough"))
+        #expect(empty.contains("without the change would have been enough"))
         #expect(empty.contains("There were 2."))
     }
 
@@ -767,7 +767,7 @@ struct ExperimentAssignmentCopyTests {
         // month was made of.
         #expect(diluted.contains("10 of the days it was picked for"))
         #expect(diluted.contains("8 of the 14 days it was not"))
-        #expect(diluted.contains("too alike to read one against the other"))
+        #expect(diluted.contains("too alike to tell apart"))
         // And none of the verdict's own words, in either direction.
         #expect(!diluted.contains("No difference"))
         #expect(!diluted.contains("held up"))
@@ -799,7 +799,7 @@ struct ExperimentAssignmentCopyTests {
                 settlement: settlement(verdict, adherence: 12, baseline: 14, contamination: 4))
             #expect(sentence.contains(
                 "The change also happened on 4 of the 14 days it was not picked for"))
-            #expect(sentence.contains("closer together than the draw asked for"))
+            #expect(sentence.contains("more alike than the draw asked for"))
             // The verdict still leads. The clause is what the window managed, not a
             // hedge folded into what it measured.
             #expect(sentence.hasPrefix("Your picked days settled at"))

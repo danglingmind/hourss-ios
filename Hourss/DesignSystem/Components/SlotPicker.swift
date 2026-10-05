@@ -87,7 +87,7 @@ struct SlotPicker: View {
         // at without sight, and the steppers below are a better control for
         // everyone rather than an accessible alternative to this one.
         .accessibilityElement()
-        .accessibilityLabel("The hours behind you, with this slot on them")
+        .accessibilityLabel("The hours behind you, with the time you are logging marked on them")
         .accessibilityValue("\(clock(start)) to \(clock(end))")
     }
 

@@ -79,8 +79,8 @@ enum ExperimentCopy {
             if days < Experiment.defaultWindowDays {
                 return "\(label) has read higher so far, across \(days) \(unit)."
             }
-            return "\(label) has read a little higher across \(days) \(unit), "
-                + "without pulling clear of the rest."
+            return "\(label) has felt a little better across \(days) \(unit), "
+                + "but not clearly enough to call it."
         case .starter:
             // Unreachable from this function, and a case rather than a `default`
             // so that a fourth standing is a compile error here instead of a
@@ -140,25 +140,26 @@ enum ExperimentCopy {
                                metric: HealthMetric?) -> String {
         switch type {
         case .bestTimeWindow:
-            return "Nothing you have logged says yet how your \(focusLabel.lowercased()) "
-                + "sessions read against the rest of your day."
+            return "Nothing you have logged says yet whether your \(focusLabel.lowercased()) "
+                + "feels any different from the rest of your day."
 
         case .durationSweetSpot:
-            return "Nothing you have logged says yet how your \(focusLabel.lowercased()) "
-                + "sessions read against your other lengths."
+            return "Nothing you have logged says yet whether your \(focusLabel.lowercased()) "
+                + "sessions feel any different from your shorter and longer ones."
 
         case .activityEnergizer:
-            return "Nothing you have logged says yet how your time in \(focusLabel) "
-                + "reads against everything else."
+            return "Nothing you have logged says yet whether \(focusLabel) "
+                + "feels any different from everything else you do."
 
         case .workdayContrast:
-            return "Nothing you have logged says yet how your days off read against your workdays."
+            return "Nothing you have logged says yet whether your days off feel any "
+                + "different from your working days."
 
         // Named by the metric's own higher phrase, which is the wording the change
         // uses too — so the two sentences are plainly about the same days.
         case .sleepContext, .bodyContext:
             guard let metric else { return generic(focusLabel, baselineLabel) }
-            return "Nothing you have logged says yet how your sessions read \(metric.higherPhrase)."
+            return "Nothing you have logged says yet how your sessions feel \(metric.higherPhrase)."
 
         // No starter targets these — `ExperimentStarters.Shape` has no case that
         // produces them and `ExperimentDesign.experimentableTypes` excludes them.
@@ -171,8 +172,8 @@ enum ExperimentCopy {
     }
 
     private static func generic(_ focusLabel: String, _ baselineLabel: String) -> String {
-        "Nothing you have logged says yet how \(focusLabel.lowercased()) "
-            + "reads against \(baselineLabel.lowercased())."
+        "Nothing you have logged says yet whether \(focusLabel.lowercased()) "
+            + "feels any different from \(baselineLabel.lowercased())."
     }
 
     /// Why a gap is worth a fortnight.
@@ -188,10 +189,10 @@ enum ExperimentCopy {
     static func gapPremise(_ gap: Engine.Pending) -> String {
         let label = gap.hypothesis.focusLabel
         return gap.focusDays == 0
-            ? "There is nothing in your record to compare \(label.lowercased()) against the rest. "
-                + "A fortnight of it would make the comparison possible."
-            : "Your record has too little \(label.lowercased()) to compare it against the rest. "
-                + "A fortnight of it would make the comparison possible."
+            ? "You have never logged \(label.lowercased()), so there is nothing to tell it "
+                + "apart from the rest of your days. Two weeks of it would be enough to tell."
+            : "You have logged \(label.lowercased()) on too few days to tell it apart from "
+                + "the rest. Two weeks of it would be enough to tell."
     }
 
     // MARK: - A reading of their own day
@@ -1161,7 +1162,7 @@ enum ExperimentCopy {
     /// **No maths, and that is a constraint rather than a simplification.** The
     /// honest thing to say about a bootstrap interval over day-clustered resamples is
     /// not a smaller version of the arithmetic — it is what the arithmetic was for.
-    static let correctedStage = "Still standing after every other pattern was checked"
+    static let correctedStage = "It held up when every other pattern was checked too"
 
     /// What the uncleared gate means, for the standings that have one.
     ///
@@ -1175,13 +1176,12 @@ enum ExperimentCopy {
         case .lead:
             // "Leans" rather than "shows", for the reason the lead premise says "has
             // read higher" and never "is better".
-            return "It leans one way, and has not been watched long enough to be more "
-                + "than a lean."
+            return "It tilts one way so far, on too few days to be sure."
         case .starter:
             // Says outright that nothing was measured. Deliberately not "so this is a
             // place to start", which the sheet's own title already says eight
             // sections higher and which would be the same claim twice on one screen.
-            return "Nothing you have logged has been measured against anything yet."
+            return "Nothing you have logged has been checked yet."
         }
     }
 
@@ -1231,10 +1231,9 @@ enum ExperimentCopy {
     }
 
     static let verdictPreamble = "One of these three."
-    static let heldUpGloss = "The days with the change settled far enough apart from "
-        + "the rest to read."
-    static let didNotHoldUpGloss = "The two sets of days settled too close together "
-        + "to tell apart."
+    static let heldUpGloss = "The days with the change came out clearly different "
+        + "from your other days."
+    static let didNotHoldUpGloss = "The two groups of days came out about the same."
     static let cannotTellGloss = "Too few days carried the change, or too few went "
         + "without it."
     /// The line that stops a null reading as a fault. Not shortened past the clause
@@ -1436,8 +1435,8 @@ enum ExperimentCopy {
     private static func dilution(_ settlement: Experiment.Settlement) -> String {
         guard let contamination = settlement.contaminationDays, contamination > 0 else { return "" }
         return " The change also happened on \(contamination) of the "
-            + "\(settlement.baselineDays) days it was not picked for, so the two sets of days "
-            + "ended up closer together than the draw asked for."
+            + "\(settlement.baselineDays) days it was not picked for, so the two groups of "
+            + "days ended up more alike than the draw asked for."
     }
 
     /// What was short, and what would have been enough.
@@ -1464,16 +1463,16 @@ enum ExperimentCopy {
         // evidence — the same thing `cannotTell` says in every other arm.
         if let contrast = settlement.contrastDays {
             if adherence < floor {
-                return "\(floor) days of it would have been enough to read. There were \(adherence)."
+                return "\(floor) days of it would have been enough to tell. There were \(adherence)."
             }
             let contamination = settlement.contaminationDays ?? 0
             if contamination > 0 && contrast < floor {
                 return "The change happened on \(contamination) of the \(baseline) days it was "
-                    + "not picked for. That leaves \(contrast) to read against, "
+                    + "not picked for. That leaves only \(contrast) ordinary days, "
                     + "where \(floor) would have been enough."
             }
             if contrast < floor {
-                return "\(floor) days without it would have been enough to read against. "
+                return "\(floor) days without the change would have been enough to tell. "
                     + "There were \(contrast)."
             }
             // Both sides cleared the floor and the two arms still came out too alike
@@ -1490,25 +1489,25 @@ enum ExperimentCopy {
             if settlement.armsSeparated == false {
                 return "The change happened on \(adherence) of the days it was picked for "
                     + "and \(contamination) of the \(baseline) days it was not. "
-                    + "Those two sets came out too alike to read one against the other."
+                    + "The two groups ended up too alike to tell apart."
             }
-            return "This one can no longer be read against your record."
+            return "This one no longer matches anything in your record."
         }
 
         if adherence < floor && baseline < floor {
-            return "\(floor) days of each would have been enough to read. "
+            return "\(floor) days of each would have been enough to tell. "
                 + "There were \(adherence) and \(baseline)."
         }
         if adherence < floor {
-            return "\(floor) days of it would have been enough to read. There were \(adherence)."
+            return "\(floor) days of it would have been enough to tell. There were \(adherence)."
         }
         if baseline < floor {
-            return "\(floor) days of the rest would have been enough to read against. "
+            return "\(floor) days without the change would have been enough to tell. "
                 + "There were \(baseline)."
         }
         // Reached when the hypothesis has left the registry — the activity it named
         // may have been deleted. Says so without blaming the window.
-        return "This one can no longer be read against your record."
+        return "This one no longer matches anything in your record."
     }
 
     /// A figure, in the unit the thing being measured is actually in.

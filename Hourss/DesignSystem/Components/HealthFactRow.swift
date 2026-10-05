@@ -167,7 +167,7 @@ struct HealthFactRow: View {
                 ],
                 scaleMax: max(high, low) * 1.15,
                 unit: "",
-                title: "Comparison"
+                title: "Set against"
             )
         case .none:
             EmptyView()

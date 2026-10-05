@@ -62,7 +62,7 @@ struct ProfileView: View {
 
                 workdaysField
 
-                Text("Priorities change the order of what Hourss shows you, never what it counts as true. Workdays decide which side of a weekday comparison a session falls on.")
+                Text("Priorities change the order of what Hourss shows you, never what it counts as true. Workdays tell Hourss which of your days are working days.")
                     .textStyle(.label)
                     .foregroundStyle(Color.muted)
                     .fixedSize(horizontal: false, vertical: true)

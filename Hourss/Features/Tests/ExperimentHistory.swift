@@ -152,8 +152,8 @@ enum ExperimentHistory {
     ///
     /// The per-experiment caveat is not lost: it stays frozen on the record, and the
     /// card that made the claim is where it was shown.
-    static let footnote = "Each of these was one change you agreed to before it started, "
-        + "measured against your own days. A finished test says where the figures landed "
+    static let footnote = "Each of these was one change you agreed to before it "
+        + "started, checked against your own days. A finished test says how it went "
         + "and stops there."
 
     /// Everything this file wrote, for its own sweep. The carried strings —

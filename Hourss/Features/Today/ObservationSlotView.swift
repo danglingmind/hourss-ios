@@ -573,11 +573,11 @@ extension ObservationSlot {
             ? "One pattern in your own record has held up."
             : "\(spelled(count).capitalizedFirst) patterns in your own record have held up."
         let support = count == 1
-            ? "Membership is where it becomes a recommendation."
-            : "Membership is where they become recommendations."
+            ? "On a paid plan it turns into a suggestion."
+            : "On a paid plan they turn into suggestions."
 
         return SlotCopy(
-            eyebrow: "Pattern membership",
+            eyebrow: "What a paid plan adds",
             lines: [
                 SlotLine(text: lead, emphasis: .lead, origin: .authored),
                 SlotLine(text: support, emphasis: .support, origin: .authored),
@@ -617,9 +617,9 @@ extension ObservationSlot {
     /// of twelve, which was a product heuristic and never the engine's condition.
     private static func progressCopy(days: Int) -> SlotCopy {
         let figure = "\(days) of \(EvidenceFloor.days) days with a rating"
-        let floor = "At least twelve days before anything can be tested."
+        let floor = "Twelve rated days is where Hourss can start telling things apart."
         return SlotCopy(
-            eyebrow: "Evidence so far",
+            eyebrow: "How it is going",
             lines: [
                 SlotLine(text: figure, emphasis: .lead, origin: .authored),
                 SlotLine(text: floor, emphasis: .support, origin: .authored),
@@ -641,8 +641,8 @@ extension ObservationSlot {
     /// that is the engine being right rather than slow. So no "yet", which is a
     /// promise in one syllable, and no suggestion about what to log next.
     private static func stillLookingCopy() -> SlotCopy {
-        let lead = "Nothing in your record stands apart from the rest."
-        let support = "Evenly matched days are an answer, not a missing one."
+        let lead = "Your days have all come out much the same as each other."
+        let support = "That is an answer too, not a missing one."
         return SlotCopy(
             eyebrow: "Still looking",
             lines: [

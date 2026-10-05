@@ -112,7 +112,7 @@ struct ExperimentGapTests {
         let store = store(entries)
         let gap = try #require(gaps(store).first)
 
-        #expect(gap.premise.contains("comparison possible"))
+        #expect(gap.premise.contains("enough to tell"))
         let text = (gap.premise + " " + (gap.context ?? "")).lowercased()
         for promise in ["better", "improve", "find out whether", "discover", "unlock",
                         "will show", "boost", "should"] {

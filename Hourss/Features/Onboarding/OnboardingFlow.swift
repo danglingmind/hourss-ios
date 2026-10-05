@@ -262,7 +262,7 @@ private struct PromiseStep: View {
             // Short on purpose. This page has to reach its button without a
             // scroll — that was reported once already and came straight back the
             // moment prose was added above the fold.
-            Text("Your body has already kept the record. Hourss reads it, so day one starts with a year of evidence.")
+            Text("Your body has already kept the record. Hourss reads it, so day one starts with a year behind you.")
                 .textStyle(.body)
                 .foregroundStyle(Color.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -367,20 +367,20 @@ private struct KeyStep: View {
                 Text("only ").styled(.sectionTitle).then(Text("to you.").styled(.emphasis(42))),
             ], style: .sectionTitle)
 
-            Text("No targets. No averages from strangers. Every observation measures you against your own history.")
+            Text("No targets. No averages from strangers. Everything here comes from your own history.")
                 .textStyle(.body)
                 .foregroundStyle(Color.muted)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: Space.sm) {
                 HRule()
-                Eyebrow("Your own baseline")
+                Eyebrow("Your own normal")
                 ComparisonMark(
                     rows: [
                         .init(label: "Your better weeks", value: 4.3, count: nil, highlighted: true),
                         .init(label: "Your usual", value: 3.4, count: nil, highlighted: false),
                     ],
-                    title: "Comparison against your own history"
+                    title: "Measured against your own history"
                 )
                 // "Reading" rather than naming the shape. The line survived the
                 // bars becoming arcs only by accident; the claim it makes is

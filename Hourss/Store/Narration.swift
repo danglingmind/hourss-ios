@@ -246,8 +246,11 @@ enum NarrationTemplate {
     /// window described no more generously than the evidence supports.
     private static func limit(_ evidence: NarrationEvidence) -> String {
         let sessions = evidence.sessionCount == 1 ? "1 session" : "\(evidence.sessionCount) sessions"
-        let days = evidence.dayCount == 1 ? "1 distinct day" : "\(evidence.dayCount) distinct days"
-        return "Observed across \(sessions) over \(days), \(Engine.describe(windowDays: evidence.windowDays))."
+        // "Distinct" was doing real work for us — the count is of separate days, not
+        // of sessions — and none for a reader, who would not imagine it counted the
+        // same day twice. Dropped, and the sentence says the same thing.
+        let days = evidence.dayCount == 1 ? "1 day" : "\(evidence.dayCount) days"
+        return "Seen across \(sessions) over \(days), \(Engine.describe(windowDays: evidence.windowDays))."
     }
 
     /// A factor as a phrase that attaches to "your sessions".
@@ -373,6 +376,11 @@ enum NarrationGuard {
         /// A figure the evidence record does not contain. The model is told to
         /// write none; this is what happens when it does anyway.
         case invention(String)
+        /// A word from the engine's own vocabulary in a sentence meant for a reader.
+        ///
+        /// See `jargon`. Reported by the ordinary sweep, so every surface already
+        /// checked for a population claim is checked for this too.
+        case jargon(String)
         /// A prior-led premise that is not framed as `PRD-VITALS.md` §9 requires —
         /// a missing part, a link word joining the fact to the change, a verdict, or
         /// a precision the table is not allowed to spend. Only
@@ -436,6 +444,44 @@ enum NarrationGuard {
     /// four phrases rather than a list, and a premise that named people and then called
     /// somebody ordinary would be refused on the second half.
     static let populationBeyondNaming = population.filter { !populationNamed.contains($0) }
+
+    /// The engine talking about its own insides.
+    ///
+    /// **Every word here was once in shipped copy, and that is why the list exists.**
+    /// The app said "your days have been compared, and none of them separated from
+    /// the rest", "Pattern membership", "Evidence so far", "makes the comparison
+    /// possible". None of those words is rare. Each one asks the reader to hold the
+    /// app's model of their record — two sides of a question, a baseline, a window —
+    /// and a reader has none of that. They have a day, hours in it, things they did,
+    /// and how those felt, which is the whole of the vocabulary available.
+    ///
+    /// **A word list cannot catch the real mistake**, which is a sentence that is
+    /// plain in vocabulary and still describes machinery. `PRD-PLAIN.md` holds the
+    /// three questions that catch those, and they are judgement rather than code.
+    /// This catches the relapse: a sentence that reaches back for "contrast" or
+    /// "reads against" fails a test rather than shipping.
+    ///
+    /// **Two words are deliberately narrower than they look.** "Pattern membership"
+    /// is banned and "membership" is not: a paid plan is an ordinary product noun and
+    /// the one in `YouView` is exactly that. "Data point" is banned and "data" is not,
+    /// because "Health data" is what Apple calls it and what the owner calls it.
+    ///
+    /// **"Compare" is here and "compared with" is not.** `ProfileView` says
+    /// "compared with your own record, and nobody else's", which is the promise the
+    /// whole app rests on and the one place the word is the point. The ban is on the
+    /// app narrating a comparison it performed; saying who somebody is measured
+    /// against is a different act, so the entries are the narrating forms.
+    static let jargon = [
+        "baseline", "baselines", "the comparison", "comparison possible",
+        "nothing to compare", "contrast", "contrasts", "residual", "residuals",
+        "reads against", "read against", "reading against", "read one against",
+        "separated from", "stands apart", "standing apart", "pulling clear",
+        "far enough apart", "too close together", "measured against",
+        "evidence so far", "see the evidence", "the evidence", "pattern membership",
+        "both sides", "empty side", "an observation", "observations",
+        "still standing", "distinct days", "data point", "metric", "metrics",
+        "threshold", "sample size", "window of days", "two sets of days"
+    ]
 
     /// Advice. The paid tier says what held up; the free tier proposes a test;
     /// narration does neither.
@@ -604,6 +650,7 @@ enum NarrationGuard {
         if let word = clinical.first(where: { padded.contains(" \($0) ") }) { return .clinical(word) }
         if let word = population.first(where: { padded.contains(" \($0) ") }) { return .population(word) }
         if let word = instruction.first(where: { padded.contains(" \($0) ") }) { return .instruction(word) }
+        if let word = jargon.first(where: { padded.contains(" \($0) ") }) { return .jargon(word) }
         return nil
     }
 

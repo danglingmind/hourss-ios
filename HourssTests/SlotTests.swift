@@ -312,7 +312,7 @@ struct SlotTests {
     func progressStatesAFloor() {
         let copy = ObservationSlot.copy(for: .evidenceProgress(days: 7))
         #expect(copy.lines.map(\.text).contains("7 of 12 days with a rating"))
-        #expect(copy.lines.map(\.text).contains("At least twelve days before anything can be tested."))
+        #expect(copy.lines.map(\.text).contains("Twelve rated days is where Hourss can start telling things apart."))
         // The mark is decorative; the figure has to survive in the spoken label.
         #expect(copy.accessibilityLabel.contains("7 of 12 days"))
     }

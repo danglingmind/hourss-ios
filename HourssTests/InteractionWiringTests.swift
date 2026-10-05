@@ -81,7 +81,7 @@ struct InteractionWiringTests {
             }
             let sentence = NarrationTemplate.sentence(for: evidence)
             #expect(!sentence.isEmpty)
-            #expect(sentence.contains("Observed across"), "the sample limit is missing")
+            #expect(sentence.contains("Seen across"), "the sample limit is missing")
         }
     }
 

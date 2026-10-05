@@ -101,7 +101,7 @@ struct InsightDetailView: View {
                     Text(current.statement)
                         .textStyle(.sectionLead)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("An observation, not a rule.")
+                    Text("Something that keeps happening, not a rule.")
                         .textStyle(.label)
                         .foregroundStyle(Color.orange)
                 }

@@ -206,12 +206,20 @@ struct StartSessionView: View {
                         .accessibilityIdentifier("slot-length")
 
                     if let trimmedFrom {
-                        // Says what happened and why, and names neither a fault nor a
-                        // fix: the slot is as long as the free time is, and the only
-                        // thing to do about it is move the slot, which the strip and
-                        // the steppers directly above already offer.
-                        Text("Trimmed from \(formatMinutes(trimmedFrom)) to fit around "
-                             + "what you have already logged.")
+                        // Says what happened in the words somebody would use looking
+                        // at the strip: there is this much room here and the rest of
+                        // the hour is taken. It names neither a fault nor a fix — the
+                        // only thing to do about it is move the slot, which the strip
+                        // and the steppers directly above already offer.
+                        //
+                        // It deliberately does not say what length was asked for.
+                        // "Trimmed from 30m to fit around what you have already
+                        // logged" was the first version and it was three pieces of
+                        // machinery in one sentence: a length, an operation on it, and
+                        // the record it was fitted against. What a reader needs is why
+                        // the number is small, which is the free time, not the
+                        // arithmetic that got there.
+                        Text("That is all the free time here — the rest is already logged.")
                             .textStyle(.body)
                             .foregroundStyle(Color.muted)
                             .fixedSize(horizontal: false, vertical: true)

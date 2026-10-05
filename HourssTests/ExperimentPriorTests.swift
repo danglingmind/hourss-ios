@@ -588,7 +588,7 @@ struct ExperimentPriorTests {
     @Test("The offer carries the specific absence under the premise")
     func theContextNarrowsThePremise() throws {
         let proposal = try #require(Self.offers([.focus]).first)
-        #expect(proposal.context == "Nothing you have logged says yet how your morning "
-                + "sessions read against the rest of your day.")
+        #expect(proposal.context == "Nothing you have logged says yet whether your morning "
+                + "feels any different from the rest of your day.")
     }
 }

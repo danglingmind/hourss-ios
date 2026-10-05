@@ -375,7 +375,7 @@ struct PrivacyView: View {
                     HRule()
                     ForEach([
                         "Your sessions, ratings and notes are stored for you and nobody else.",
-                        "Observations are computed from your own history — never compared against other people.",
+                        "Everything Hourss tells you comes from your own history — never from other people.",
                         "Nothing is sold, shared, or used for advertising.",
                     ], id: \.self) { line in
                         Text("— \(line)")

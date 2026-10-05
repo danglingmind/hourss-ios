@@ -142,9 +142,11 @@ struct QuestionMapTests {
         let label = QuestionCopy.foldedHeading
         // "Questions" — the same kind of row as the ones printed above it.
         #expect(label.lowercased().contains("question"))
-        // And the gap, which is what distinguishes these from the printed ones: not
-        // short by an amount, empty.
-        #expect(label.lowercased().contains("empty"))
+        // And the gap, which is what distinguishes these from the printed ones: days
+        // are missing, rather than the question being short by an amount. "Empty
+        // side" said that in the engine's own terms — a question has two sides and
+        // one of them has nothing on it — and a reader has no sides.
+        #expect(label.lowercased().contains("missing"))
     }
 
     /// The line this feature is one word away from on either side.

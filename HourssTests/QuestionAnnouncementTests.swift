@@ -404,7 +404,7 @@ struct QuestionAnnouncementTests {
     @Test("Why now names the gate in days and promises nothing")
     func whyNowIsTheGate() {
         let line = AnnouncementCopy.whyNow(gate: 6)
-        #expect(line.contains("6 days on each side"))
+        #expect(line.contains("6 days of each kind"))
         // Not "and here is what we found", not "keep going". It states what was
         // missing and that it is no longer missing.
         #expect(NarrationGuard.offence(in: line, allowingFigures: ["6"]) == nil)

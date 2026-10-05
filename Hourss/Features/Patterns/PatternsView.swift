@@ -188,7 +188,7 @@ struct PatternsView: View {
                 // this screen and still have nothing to compare, and before this the
                 // screen left them to work that out themselves.
                 coverageRow(
-                    "Days on both sides",
+                    "Days to compare",
                     detail: "\(min(store.bestBalancedDays, EvidenceFloor.perSide)) of \(EvidenceFloor.perSide)"
                 ) {
                     DataBar(fraction: min(Double(store.bestBalancedDays) / Double(EvidenceFloor.perSide), 1),
@@ -244,7 +244,7 @@ struct PatternsView: View {
                             .textStyle(.label)
                             .foregroundStyle(Color.mutedOnDark)
                         HStack(spacing: 6) {
-                            Text("See the evidence").textStyle(.action)
+                            Text("See the numbers").textStyle(.action)
                             Text("→").font(.custom("DMSans-Bold", fixedSize: 18)).foregroundStyle(Color.orange)
                         }
                         .padding(.top, Space.xs)
@@ -270,7 +270,7 @@ struct PatternsView: View {
                                observations: store.engineObservations)
 
 
-            Text("Observations, not rules. Hourss only speaks up when the same thing repeats.")
+            Text("Not rules. Hourss only speaks up when the same thing keeps happening.")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
         }
@@ -458,11 +458,11 @@ struct PatternsView: View {
 
             HRule()
 
-            Text("Your days have been compared, and none of them separated from the rest.")
+            Text("Your days have all come out much the same as each other so far.")
                 .textStyle(.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Evenly matched days are an answer, not a missing one.")
+            Text("That is an answer too, not a missing one.")
                 .textStyle(.label)
                 .foregroundStyle(Color.muted)
                 .fixedSize(horizontal: false, vertical: true)

@@ -349,7 +349,7 @@ enum RecordFacts {
             // one day" read as a fault in the app, and the cheaper half of the
             // fix is the sentence that knows which one it is.
             sentence: "That is the most you have logged in one day, not counting "
-                + "nights read from Health, across \(totals.count) days.",
+                + "sleep that came from Health, across \(totals.count) days.",
             kind: .best,
             mark: .none,
             strength: 0.05,
@@ -420,8 +420,11 @@ enum RecordFacts {
             // `fullestDay` makes and for the same reason: the day headings on the
             // screen this lands on count imported nights, so a run computed
             // without them has to say so or it reads as a fault in the app.
-            sentence: "That is the longest run of consecutive days with something "
-                + "logged on them, not counting nights read from Health, out of "
+            // Not "streak", which this file's own sweep forbids and rightly: a streak
+            // is a thing to protect, and an app that hands somebody a streak has given
+            // them a reason to log that is not about their day.
+            sentence: "That is your longest run of days with something logged, "
+                + "not counting sleep that came from Health, out of "
                 + "\(days.count) days in your record.",
             kind: .best,
             mark: .none,
@@ -486,7 +489,7 @@ enum RecordFacts {
             // those count a night the watch recorded. A week total that silently
             // used a different rule would read as a fault in the app.
             sentence: "That is more than any other week in your record, not "
-                + "counting nights read from Health, out of \(totals.count) weeks.",
+                + "counting sleep that came from Health, out of \(totals.count) weeks.",
             kind: .best,
             mark: .none,
             strength: 0.05,

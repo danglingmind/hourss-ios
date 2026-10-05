@@ -45,7 +45,8 @@ enum QuestionCopy {
             return "No \(noun(for: hypothesis, label: label, plural: true)) yet."
         }
         if !focusShort && question.baselineDays == 0 {
-            return "Everything you have rated is in one place, so there is nothing to compare."
+            return "Everything you have rated so far is the same kind of day, so there is "
+                + "nothing to tell apart."
         }
 
         let short = question.gate - (focusShort ? question.focusDays : question.baselineDays)
@@ -93,7 +94,7 @@ enum QuestionCopy {
     /// will never be anything else, and "yet" is a promise in one syllable that the
     /// engine cannot keep. `ObservationSlotView.stillLookingCopy` settles the same
     /// point in the same words.
-    static let noSeparation = "Measured, and the two sides came out alike."
+    static let noSeparation = "Checked, and both kinds of day came out alike."
 
     /// The heading above questions that cannot be asked yet.
     static let waitingHeading = "Waiting on"
@@ -120,7 +121,7 @@ enum QuestionCopy {
     /// `AccessibilityL` it is roughly 30pt bold in a 357pt column — about twenty
     /// characters to the line. Two lines is the budget; a fold whose own label runs
     /// to four has not shortened anything.
-    static let foldedHeading = "Questions with an empty side"
+    static let foldedHeading = "Questions still missing days"
 
     /// What opening and closing the fold do, for somebody who cannot see the arrow.
     ///
