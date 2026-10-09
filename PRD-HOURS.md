@@ -1,6 +1,6 @@
 # Offering an hour nobody has logged
 
-**Status:** phases 0–3, 5 and 7 built. **Phase 4 is built and blocked — see §10.3.** Phase 6 remains.
+**Status:** phases 0–3, 5 and 7 built. **Phase 4's blocker is gone; a second one is in its place — §10.3, §10.7.** Phase 6 remains.
 **Date:** 9 October 2026
 
 ---
@@ -543,6 +543,56 @@ a test pins that a walker keeps enough readings to still be compared; a bar set 
 high would remove the whole case the layer exists to find, and the suite would stay
 green because the claim would simply stop being made.
 
+### 10.7 §10.3 is closed, and it was not the last gate
+
+**What §10.3 said was needed.** An hour-level hypothesis that never enters the
+registry, so it costs nobody power under the correction, and makes the change
+honestly hour-level so adherence counts the thing asked for. It was estimated as
+reaching the correction, adherence and outcome resolution — "three places where a
+mistake is a wrong answer rather than a missing one".
+
+**That estimate was wrong and the work was contained.** Traced:
+
+- **The correction** is not touched. An unregistered row never enters `m`, and a
+  pre-registered experiment's verdict never goes through BH at all.
+- **Adherence** is not touched. `ExperimentOutcome` already counts it with
+  `hypothesis.focus`, so an hour-shaped focus makes adherence hour-shaped for free —
+  the very constraint that forced the band dissolves the moment the row is an hour.
+- **Outcome resolution** is one two-line function, and `ExperimentOutcome.read`
+  already takes the hypothesis as a parameter and handles nil gracefully.
+
+So `HourHypothesis` was built: minted on demand, rebuilt from its id at settling
+time — which an hour can be and most rows cannot, since its focus is arithmetic on a
+start time and needs nothing from the record. The window is half an hour either
+side, narrow because the neighbours are exactly what the offer must be separated
+from: the interpolator logs 06:00 and 08:00, and at a full hour either side both
+would count as adherence to a request for 07:00.
+
+**The second gate, one level up.** The offer still does not survive the whole chain,
+for a different reason. `ExperimentHours` serves only priorities carrying
+`.bestTimeWindow`, which is **`focus` alone**, and `completing` skips any priority an
+earlier source already served. `ExperimentDesign` serves focus for almost everybody —
+if nothing is measured it still emits a starter — so the hour-led offer is skipped
+before it is reached.
+
+**That is a ranking question, not a bug, and it is the one §5 did not anticipate.**
+The chain's rule is that measured beats unmeasured, which is right and is pinned by
+`measuredComesFirst`. But the measured proposal for a habitual early riser is "log
+one session in your morning", which is a request to keep doing what they already do,
+while the hour-led offer is "try 07:00, which you never have". The second is worth
+more to that person and the chain has no way to say so, because it compares sources
+rather than what a proposal would actually ask somebody to change.
+
+Closing it means a rule about **how much a proposal asks for**, not about where its
+evidence came from — and that reaches `ExperimentDesign`, which is the most
+load-bearing source in the chain. Left for a decision rather than taken at the end of
+a long session.
+
+**What is reachable today.** The source, its row and its copy are correct and
+tested, and the offer appears wherever focus is unserved. `OfferChainTests` asserts
+the ordering and the registry rule at that level and says in its own comment why not
+through `experimentProposals`.
+
 ---
 
 ## 9. Checklist
@@ -575,8 +625,9 @@ green because the claim would simply stop being made.
       test against today.
 
 ### Phase 4 — the offer
-- [x] **15.** `ExperimentHours`, wired into `offers` in the §5 order. **Built, and
-      unreachable through the chain — §10.3.**
+- [x] **15.** `ExperimentHours`, wired into `offers` in the §5 order. Carries
+      `HourHypothesis` since §10.3 closed; reachable wherever focus is unserved, and
+      skipped above that — §10.7.
 - [x] **16.** Premise under the §9 framing rule, guard-enforced.
 - [x] **17.** Workdays and waking respected.
 - [x] **18.** `OfferChainTests` extended. The ordering is asserted at the source

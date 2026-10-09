@@ -153,40 +153,38 @@ struct OfferChainTests {
 
     // MARK: - Where the hour-led source sits
 
-    /// Their own ratings outrank a reading of their body — at the source, because
-    /// the chain cannot currently reach this source at all.
+    /// Their own ratings outrank a reading of their body.
     ///
-    /// **`PRD-HOURS.md` §10.3 is the account and this is the evidence for it.** The
-    /// hour-led offer settles against its hour's *band* row, because a change asking
-    /// for an hour while the fortnight measures a band would let somebody logging at
-    /// eleven clear adherence without doing the thing. But a record dense enough for
-    /// the curve to read — ten days of ratings spread across hours — almost always
-    /// carries six days either side of every band, so every band is already measured
-    /// and every hour-led candidate is correctly excluded as a question already
-    /// answered. Measured on `interpolator`: all four of `time.{morning,midday,
-    /// afternoon,evening}.vs.rest.feeling` are measured, and the top candidates are
-    /// 07:00, 10:00, 18:00 and 11:00.
+    /// `PRD-HOURS.md` open decision 1, settled: vitals reads heart rate, which is a
+    /// proxy for how a session felt, and the hour curve reads the ratings themselves.
+    /// Where both have something to say about one focus area, the one built from the
+    /// outcome goes first. Nothing inside either source can see this; it is a
+    /// property of the chain.
     ///
-    /// So the ordering is asserted where it can be: with nothing measured, which is
-    /// the state the chain would be in if the hour had a row of its own. When §10.3
-    /// is settled this test should move back onto `experimentProposals`.
+    /// **Asserted with nothing measured, which is the state this source is for.**
+    /// `completing` skips any focus area an earlier source already served, and
+    /// `ExperimentHours` serves only priorities carrying `.bestTimeWindow` — which is
+    /// `focus` alone. `ExperimentDesign` serves focus for almost everybody, if only
+    /// with a starter, so through the whole chain the hour-led offer is skipped
+    /// before it is reached. `PRD-HOURS.md` §10.7 records that and why it is a
+    /// ranking question rather than a bug.
     @Test("An hour read from their own ratings outranks one read from their body")
     func hoursOutrankVitals() throws {
         let store = interpolatorStore()
         let input = EngineInput(observations: store.engineObservations,
                                 priorities: store.profile.priorities)
 
-        let hourLed = ExperimentHours.proposals(
-            for: store.profile.priorities,
-            shape: RatingShape.fit(input.observations),
-            observations: input.observations)
-        try #require(!hourLed.isEmpty, "the interpolator should reach the hour curve")
-
         let chained = ExperimentVitals.completing(
-            hourLed,
+            ExperimentHours.proposals(
+                for: store.profile.priorities,
+                shape: RatingShape.fit(input.observations),
+                observations: input.observations),
             priorities: store.profile.priorities,
             shape: store.dayShape,
             observations: input.observations)
+
+        try #require(chained.contains(where: isHourLed),
+                     "the interpolator should reach the hour curve")
 
         for proposal in chained.filter(isHourLed) {
             let sameArea = chained.filter { $0.priority == proposal.priority }
@@ -196,6 +194,38 @@ struct OfferChainTests {
                         "the body was offered above their own ratings")
             }
         }
+    }
+
+    /// The offer asks for the hour, and nothing in the registry is about an hour.
+    ///
+    /// Two halves of one rule, and the point of `HourHypothesis`. An hour row may
+    /// never be minted on every run — it would enter `m` and cost every other
+    /// hypothesis power to buy a question one person was offered — and the offer is
+    /// only honest if adherence counts what it asked for, which needs that very row.
+    /// So it is built on demand and rebuilt from its id when the experiment settles.
+    @Test("An hour row reaches the offer and never reaches the registry")
+    func theHourRowIsNeverRegistered() throws {
+        let store = interpolatorStore()
+        let input = EngineInput(observations: store.engineObservations,
+                                priorities: store.profile.priorities)
+        let proposal = try #require(ExperimentHours.proposals(
+            for: store.profile.priorities,
+            shape: RatingShape.fit(input.observations),
+            observations: input.observations).first)
+
+        #expect(HourHypothesis.hour(fromId: proposal.hypothesisId) != nil,
+                Comment(rawValue: "not an hour row: \(proposal.hypothesisId)"))
+        #expect(proposal.change.contains("around"),
+                Comment(rawValue: "the change should ask for the hour: \(proposal.change)"))
+
+        let registry = HypothesisRegistry.hypotheses(for: store.engineObservations)
+        #expect(!registry.contains { HourHypothesis.hour(fromId: $0.id) != nil },
+                "an hour row was minted on an ordinary run and is costing everybody power")
+
+        // And it still resolves when the experiment settles, which is the whole
+        // reason it is allowed to be absent from the registry.
+        #expect(store.hypothesis(for: proposal.hypothesisId) != nil,
+                "an accepted hour experiment could never be read")
     }
 
     /// The source that reads ratings has nothing to say to somebody with none.

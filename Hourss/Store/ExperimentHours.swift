@@ -48,11 +48,17 @@ enum ExperimentHours {
             guard priority.insightTypes.contains(.bestTimeWindow) else { continue }
 
             for candidate in candidates(shape: shape, used: used, wake: wake) {
-                let band = TimeBucket.bucket(forHour: candidate.hour)
-                guard let hypothesis = ExperimentVitals.timeWindow(band),
-                      !taken.contains(hypothesis.id) else { continue }
+                // The hour's own row, not its band's. The band row was what made this
+                // source unreachable — anybody dense enough for a curve has every band
+                // measured — and it was also the reason the change could only ask for
+                // a band. `HourHypothesis` fixes both at once: the question is new, and
+                // adherence counts the hour because `ExperimentOutcome` reads
+                // `hypothesis.focus`.
+                let hypothesis = HourHypothesis.make(hour: candidate.hour)
+                guard !taken.contains(hypothesis.id) else { continue }
                 taken.insert(hypothesis.id)
-                out.append(proposal(hypothesis, at: candidate, band: band,
+                out.append(proposal(hypothesis, at: candidate,
+                                    band: TimeBucket.bucket(forHour: candidate.hour),
                                     priority: priority, rank: rank))
                 break
             }
@@ -138,20 +144,16 @@ enum ExperimentHours {
     /// how this band's sessions read, which is what the fortnight is for, so there is
     /// no effect to quote and no day count to quote it across.
     ///
-    /// **The change asks for the band and the premise names the hour.** That split is
-    /// not a compromise, it is a correctness requirement — `ExperimentCopy.vitalsChange`
-    /// records why. The fortnight is settled against `time.<band>.vs.rest.feeling`,
-    /// whose focus side is every session in the band, so a change asking for an hour
-    /// would have adherence counting mornings while the card said seven o'clock.
-    /// Somebody logging at eleven every day would clear adherence without doing the
-    /// thing, and the result would be about their mornings while the card said 7am.
+    /// **The change asks for the hour, because the hour is what is measured.** The
+    /// first version of this carried the band's row and asked for the band, on
+    /// `ExperimentCopy.vitalsChange`'s argument that a change must ask for whatever
+    /// adherence counts. That argument is right and it is satisfied here the other
+    /// way round: the proposal carries `HourHypothesis`, whose focus is half an hour
+    /// either side of the hour, so adherence counts the hour and the plain wording is
+    /// the honest one. `PRD-HOURS.md` §10.3 records why the band version could never
+    /// reach anybody.
     ///
-    /// **What this costs, stated plainly.** The person is asked for a band and told
-    /// about an hour, so the hour is the reason rather than the request. Making the
-    /// request itself hour-level needs hour-level adherence, which needs a registry
-    /// row for an hour, which costs every other hypothesis power under the
-    /// correction — `PRD-HOURS.md` §10.3 carries the decision.
-    static func proposal(
+        static func proposal(
         _ hypothesis: Hypothesis,
         at hour: RatingShape.Hour,
         band: TimeBucket,
@@ -172,7 +174,7 @@ enum ExperimentHours {
             // logged settles the question. Splitting them would move the disclaimer
             // away from the claim it qualifies.
             context: nil,
-            change: ExperimentCopy.bandChange(band, isWorkday: hour.isWorkday),
+            change: ExperimentCopy.hoursChange(hour: hour.hour, isWorkday: hour.isWorkday),
             caveat: hypothesis.caveat,
             priority: priority,
             priorityRank: rank,

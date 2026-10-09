@@ -1126,9 +1126,10 @@ seven consecutive dates from a fixed Saturday, so it can no longer pass by being
 run on a good day.
 
 
-### The hour-led offer is built and cannot reach anybody
+### The hour-led offer is built, and the chain skips it
 
-**Status:** blocking `PRD-HOURS.md` phase 4. Needs a scope decision, not a fix.
+**Status:** the first blocker is closed. A second, smaller one needs a ranking
+decision. `PRD-HOURS.md` §10.3 and §10.7.
 
 `ExperimentHours` picks the best hour somebody does not already log, from their own
 ratings at the hours either side of it. It works and is tested. It never fires,
@@ -1136,11 +1137,26 @@ because it carries its hour's *band* row and a record dense enough for the curve
 read has every band measured already — so the chain correctly refuses it as a
 question already answered.
 
-The change has to ask for what the fortnight measures, or adherence counts the wrong
-sessions. The fortnight measures a band. The band is taken. The only way out is an
-hour-level hypothesis that exists as an experiment target and never enters the
-registry, so it costs nobody power under the correction. That reaches the correction,
-adherence and outcome resolution. `PRD-HOURS.md` §10.3 has the full account.
+**Closed with `HourHypothesis`**, and the estimate of what it would cost was wrong.
+The correction is not touched — an unregistered row never enters `m`, and a
+pre-registered verdict never goes through BH. Adherence is not touched —
+`ExperimentOutcome` already counts it with `hypothesis.focus`, so an hour-shaped
+focus makes adherence hour-shaped for free. Outcome resolution is one two-line
+function. The row is minted on demand and rebuilt from its id at settling time,
+which an hour can be and most rows cannot.
+
+**What is left is a ranking question.** `ExperimentHours` serves only priorities
+carrying `.bestTimeWindow` — `focus` alone — and `completing` skips any priority an
+earlier source already served. `ExperimentDesign` serves focus for almost everybody,
+if only with a starter, so the hour-led offer is skipped before it is reached.
+
+The chain's rule is that measured beats unmeasured, which is right and pinned. But
+the measured proposal for a habitual early riser is "log one session in your
+morning" — a request to keep doing what they already do — while the hour-led offer
+is "try 07:00, which you never have". The second is worth more to that person and
+the chain cannot say so, because it ranks *sources* rather than how much a proposal
+actually asks somebody to change. Closing it means a rule about the size of the ask,
+which reaches `ExperimentDesign`.
 
 ### When to raise the resample count
 

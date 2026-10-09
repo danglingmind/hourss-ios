@@ -387,6 +387,15 @@ extension HourssStore {
     /// the activity a hypothesis named may have been deleted since, which
     /// `ExperimentOutcome` turns into "cannot tell" rather than a failure.
     func hypothesis(for id: String) -> Hypothesis? {
-        HypothesisRegistry.hypotheses(for: engineObservations).first { $0.id == id }
+        if let registered = HypothesisRegistry.hypotheses(for: engineObservations)
+            .first(where: { $0.id == id }) {
+            return registered
+        }
+        // An hour row is never registered — it would be tested on every run and cost
+        // every other hypothesis power under the correction, to buy a question only
+        // one person was ever offered. It is rebuilt from its id instead, which an
+        // hour can be and most rows cannot: its focus is arithmetic on a start time
+        // and needs nothing from the record. `HourHypothesis` has the argument.
+        return HourHypothesis.rebuilt(from: id)
     }
 }

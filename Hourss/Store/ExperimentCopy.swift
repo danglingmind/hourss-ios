@@ -308,6 +308,26 @@ enum ExperimentCopy {
     /// because that is what the fortnight measures — see `bandChange`. Naming the
     /// hour in the premise costs nothing and is the whole of what this source adds
     /// over the band-level ones.
+    /// What an hour-led proposal asks for.
+    ///
+    /// **The hour, not the band — and that reverses what `vitalsChange` argues.**
+    /// The argument there is sound and still holds for vitals: a change asking for
+    /// seven o'clock while `ExperimentOutcome` counts adherence on a band's focus
+    /// would let somebody logging at eleven clear a fortnight without doing the
+    /// thing. It stops applying here because the hour-led offer carries
+    /// `HourHypothesis`, whose focus is half an hour either side of the hour itself.
+    /// Adherence therefore counts the thing asked for, and asking for it plainly is
+    /// the honest wording rather than a liberty.
+    ///
+    /// "around" because nobody schedules to the minute and the window does not
+    /// either — `HourHypothesis.window` is thirty minutes, and somebody who starts
+    /// at 07:20 did what was asked.
+    static func hoursChange(hour: Int, isWorkday: Bool) -> String {
+        "Log one session around \(clockHour(hour)) "
+            + (isWorkday ? "on most workdays" : "on your days off")
+            + ", for two weeks."
+    }
+
     static func hoursPremise(hour: Int, band: TimeBucket, isWorkday: Bool) -> String {
         "\(dayType(isWorkday)), the hours either side of \(clockHour(hour)) have felt "
             + "better so far, and you have never logged one at \(clockHour(hour)). "
