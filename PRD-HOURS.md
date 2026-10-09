@@ -1,6 +1,6 @@
 # Offering an hour nobody has logged
 
-**Status:** phases 0, 1 and 2 built. Phases 3–7 proposed.
+**Status:** phases 0–3 built. Phases 4–7 proposed.
 **Date:** 9 October 2026
 
 ---
@@ -343,6 +343,44 @@ somebody has no usual waking time.
 **Reopening it** would need a reason that is about the reader rather than about the
 engine's representation, which is the test §4 sets for everything in this document.
 
+### 10.2 A total-support floor is not enough — two-sided support added
+
+**What the PRD asked for.** One `minimumSupport` floor: below it, nil.
+
+**What the cohort found.** That floor catches `extrapolator`, whose support at
+07:00 is `0.00` — an hour far from everything. It does not catch an hour just
+*outside* the edge of somebody's day. The interpolator's curve, with the floor as
+specified:
+
+```
+4:3.47(s14)  5:3.46(s29)  6:3.44(s43)  7:3.40(s48)  8:3.36(s42)
+```
+
+04:00 and 05:00 score **above** the planted hour and clear a floor of 6 comfortably.
+The arithmetic is right: no hour is logged at the peak, so the curve plateaus across
+06:00–08:00, and an hour beyond the earliest logged one inherits that plateau
+without the afternoon pulling it down. The argmax landed on an hour this person has
+never been awake for — the exact failure the feature exists to prevent, in a shape
+the floor cannot see.
+
+**Why one number could not do it.** `minimumSupport` answers *"is this hour near
+anything?"*. The question that matters at the edge of a day is *"is this hour
+**between** things?"*, and the two have different answers exactly there. §2 of this
+document already draws that line and the implementation had collapsed it into one
+test.
+
+**The rule.** An hour needs kernel mass earlier *and* later —
+`minimumSideSupport`, half the total floor on each side, the weakest rule that
+still means "surrounded" rather than "near". Hours 4, 5, 9, 12, 20 and 21 drop out
+of the interpolator's curve; 06:00–19:00 remains, and among the hours they do not
+already use **07:00 wins**, which is where the effect is planted.
+
+**Open decisions 2 and 3, settled by measurement**, as §8 said they would be.
+Bandwidth 1.5 and total floor 6. At that bandwidth the interpolator's support at
+07:00 is **48.05** and the extrapolator's is **0.00** — not a close call, which is
+what makes the exact value of the floor uncritical and the existence of one
+essential. `RatingShapeTests` is the record and fails if either moves.
+
 ---
 
 ## 9. Checklist
@@ -366,10 +404,13 @@ engine's representation, which is the test §4 sets for everything in this docum
 - [x] **10.** Never an hour before the person is up; tested.
 
 ### Phase 3 — the curve
-- [ ] **11.** `RatingShape`, day-clustered, wrapped, workday-split.
-- [ ] **12.** Support weight per hour, nil below the floor.
-- [ ] **13.** Interpolator recovered; Extrapolator refused; flat hours silent.
-- [ ] **14.** No figure from the curve reaches any string.
+- [x] **11.** `RatingShape`, day-clustered, wrapped, workday-split.
+- [x] **12.** Support weight per hour, nil below the floor — **and on each side of
+      it**, see §10.2.
+- [x] **13.** Interpolator recovered; Extrapolator refused; flat hours silent.
+- [~] **14.** No figure from the curve reaches any string. **Deferred to phase 4**,
+      where the first string exists; `RatingShape` has no string-producing API to
+      test against today.
 
 ### Phase 4 — the offer
 - [ ] **15.** `ExperimentHours`, wired into `offers` in the §5 order.
