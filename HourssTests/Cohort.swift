@@ -196,12 +196,69 @@ extension SyntheticCohort {
             forbidden: [.anyVisibleClaim],
             rationale: "A real interaction on too few calendar days to support. The day gate, not the lift gate.")))
 
+    // MARK: - Hours (PRD-HOURS)
+
+    /// Logs 06:00 and 08:00, never 07:00 — and 07:00 is where the effect is.
+    ///
+    /// **The person the whole feature is for.** Every hour they use sits inside
+    /// `.morning`, so the engine's four buckets see one undifferentiated block and
+    /// no hypothesis in the registry can separate 06:00 from 08:00, let alone name
+    /// an hour between them. The only route to 07:00 is reading the hours they do
+    /// have against each other, which is what an hour curve is for.
+    ///
+    /// The afternoon and evening hours are there so the person has a plausible day
+    /// rather than three morning sessions and nothing else, and so "their usual"
+    /// is a real comparison rather than an artifact of a two-hour record.
+    static let interpolator: Person = make(.init(
+        name: "Interpolator", seed: 0x7A01, baseRating: 3.0, noiseSD: 0.7,
+        hours: [6, 8, 13, 16, 19],
+        truth: .init(
+            planted: [.hourOfDay(hour: 7, halfWidth: 1.5, delta: 1.2)],
+            rationale: "The effect sits between two logged hours and inside one bucket. Found only by interpolating.")))
+
+    /// Logs nothing before the evening, and the effect is at 07:00.
+    ///
+    /// **The integrity test, and the reason this feature is not a model.** A smooth
+    /// function asked about 07:00 will happily return a number; the number is
+    /// invented, because nothing within ten hours of it was ever observed. The
+    /// required behaviour is refusal — not a low score, nil — and an offer for this
+    /// person has to come from their body or from a prior instead, both of which
+    /// already ship and both of which are honest about where their reason comes
+    /// from.
+    ///
+    /// `flatline` is to a claim what this person is to an extrapolation.
+    /// `PRD-LOCKS.md` calls that one the most important person in the cohort; this
+    /// is its hour-wise twin, and it fails the same way — silently, by producing
+    /// something plausible.
+    static let extrapolator: Person = make(.init(
+        name: "Extrapolator", seed: 0x7A02, baseRating: 3.0, noiseSD: 0.7,
+        hours: [20, 21, 22],
+        truth: .init(
+            planted: [.hourOfDay(hour: 7, halfWidth: 1.5, delta: 1.2)],
+            forbidden: [.anyVisibleClaim],
+            rationale: "A real effect at an hour ten hours outside anything observed. The curve must refuse rather than reach it.")))
+
+    /// Hours spread across the whole day, and nothing to find in any of them.
+    ///
+    /// `flatline` walks the default schedule, so its sessions cluster where the
+    /// generator happens to put them. This person's hours are stated and wide,
+    /// which is the shape a smoother most wants to find structure in: support
+    /// everywhere, signal nowhere.
+    static let flatHours: Person = make(.init(
+        name: "Flat hours", seed: 0x7A03, baseRating: 3.3, noiseSD: 0.85,
+        hours: [6, 8, 10, 13, 16, 19, 21],
+        truth: .init(
+            planted: [],
+            forbidden: [.anyVisibleClaim],
+            rationale: "Support at every hour and no effect at any of them. A curve that names one here has invented it.")))
+
     /// Everyone, for suites that sweep the cohort.
     static var everyone: [Person] {
         [afternoonSlump, flatline, meetingDrain, shortHistory,
          stillMeetings, walkingMeetings, walksEverywhere, walksAndStrains,
          skipsTheBadOnes,
          morningDeepWork, morningDeepWorkAfterSleep, deepWorkMostlyMorning,
-         scatteredNoise, rareMorningCreative]
+         scatteredNoise, rareMorningCreative,
+         interpolator, extrapolator, flatHours]
     }
 }

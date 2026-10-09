@@ -32,6 +32,23 @@ extension SyntheticCohort {
         /// Explicit placement of sessions across activities and hours. See
         /// `Schedule`. Nil leaves the original day-walking behaviour untouched.
         var schedule: Schedule? = nil
+        /// The hours this person's sessions land in, drawn without replacement
+        /// within a day so no two sessions claim the same window.
+        ///
+        /// **The default generator cannot state a person's hours.** It starts
+        /// between 8 and 10 and walks forward by the length of each session, so
+        /// which hours somebody uses is an emergent property of how long their
+        /// sessions happen to be. `Schedule` places an activity by morning share,
+        /// which is a statement about a bucket rather than an hour. Neither can
+        /// build the people `PRD-HOURS.md` needs: somebody who logs 06:00 and
+        /// 08:00 and never 07:00, and somebody who logs nothing before the
+        /// evening.
+        ///
+        /// Nil for everybody who already existed, and the random stream is only
+        /// touched when it is set — the same discipline `walkingHabit` and
+        /// `schedule` follow, so every person generated before this stays
+        /// byte-identical. `CohortTests` asserts it.
+        var hours: [Int]? = nil
         /// The day this person's history counts back from.
         ///
         /// Stated on the recipe rather than read from the clock inside the
@@ -139,6 +156,13 @@ extension SyntheticCohort {
                                   activities: activities, rng: &rng)
             }
 
+            // Same argument, one dimension smaller: the hours are stated, the
+            // activity is not. Drawn up front and sorted so a day reads forwards.
+            var hourPlan: [Int] = []
+            if recipe.schedule == nil, let hours = recipe.hours {
+                hourPlan = hours.shuffled(using: &rng).prefix(count).sorted()
+            }
+
             for index in 0..<count {
                 let activity: Activity
                 let minutes: Int
@@ -149,6 +173,18 @@ extension SyntheticCohort {
                     activity = slot.activity
                     minutes = slot.minutes
                     guard let at = calendar.date(bySettingHour: slot.hour, minute: slot.minute,
+                                                 second: 0, of: day) else { break }
+                    start = at
+                } else if recipe.hours != nil {
+                    guard index < hourPlan.count else { break }
+                    activity = activities[Int.random(in: 0..<activities.count, using: &rng)]
+                    // Short enough to finish inside its own hour, as `plannedDay`
+                    // keeps its sessions: an hour-of-day effect read from a session
+                    // that spans three of them is an effect attributed to a start
+                    // time the person only partly spent there.
+                    minutes = [25, 45, 50][Int.random(in: 0...2, using: &rng)]
+                    guard let at = calendar.date(bySettingHour: hourPlan[index],
+                                                 minute: Int.random(in: 0...5, using: &rng),
                                                  second: 0, of: day) else { break }
                     start = at
                 } else {
@@ -191,7 +227,7 @@ extension SyntheticCohort {
                         submittedAt: end
                     )
                 }
-                if recipe.schedule == nil {
+                if recipe.schedule == nil && recipe.hours == nil {
                     hour += max(1, minutes / 60) + Int.random(in: 1...2, using: &rng)
                 }
             }
@@ -274,6 +310,23 @@ extension SyntheticCohort {
         return out.sorted { $0.hour < $1.hour }
     }
 
+    /// How far into a planted hour a session lands: 1 at the centre, 0 at
+    /// `halfWidth` hours away and beyond, linear between.
+    ///
+    /// Measured from the session's start to the minute, not to the hour, so two
+    /// sessions forty minutes apart are not given the same effect. The distance
+    /// wraps at midnight — a 23:30 session is half an hour from a planted 00:00,
+    /// not twenty-three and a half.
+    static func hourTaper(_ session: Session, centre: Int, halfWidth: Double) -> Double {
+        let calendar = Calendar.current
+        let parts = calendar.dateComponents([.hour, .minute], from: session.startAt)
+        let at = Double(parts.hour ?? 0) + Double(parts.minute ?? 0) / 60
+        let raw = abs(at - Double(centre))
+        let distance = min(raw, 24 - raw)
+        guard halfWidth > 0, distance < halfWidth else { return 0 }
+        return 1 - distance / halfWidth
+    }
+
     /// How much one planted effect moves one session's rating. Effects that do not
     /// apply to this session contribute exactly zero.
     private static func contribution(
@@ -287,6 +340,8 @@ extension SyntheticCohort {
         switch effect {
         case let .timeWindow(_, worse, delta):
             session.timeBucket == worse ? -delta : 0
+        case let .hourOfDay(hour, halfWidth, delta):
+            hourTaper(session, centre: hour, halfWidth: halfWidth) * delta
         case let .activityEffect(name, delta):
             named == name ? delta : 0
         case let .durationEffect(bucket, delta):

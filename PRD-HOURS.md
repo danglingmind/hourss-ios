@@ -1,0 +1,395 @@
+# Offering an hour nobody has logged
+
+**Status:** phases 0, 1 and 2 built. Phases 3–7 proposed.
+**Date:** 9 October 2026
+
+---
+
+## 1. Why this exists
+
+**The app exists to answer a question about a time the person has not tried.**
+
+Everything else Hourss does — the rank statistic, the day-clustered bootstrap, the
+correction, the silence budget — exists so that an answer can be trusted when it
+comes. None of it is the product. The product is the question.
+
+The promise, stated so it can be held to:
+
+> **For any hour somebody has never logged, the app has a specific, honest,
+> person-grounded reason to suggest it — and says which kind of reason it is.**
+
+Four sources, in descending strength. Which one answers is the whole design.
+
+| | Source | Needs | Status |
+|---|---|---|---|
+| 1 | Their own ratings at nearby hours | sessions logged near the hour | **new — phases 3–4** |
+| 2 | Their own body and their own waking time | Health only; no logging at all | ships, unreliable — **phases 1–2** |
+| 3 | What is ordinarily true of people | nothing | ships as `ExperimentPriors` — **phase 5** |
+| 4 | A fortnight of actually doing it | their consent | ships |
+
+Source 4 is the only one that ever *answers*. Sources 1–3 decide **which question
+is worth a fortnight**. That distinction is §4 and it is the whole integrity
+argument.
+
+---
+
+## 2. Two cases that look like one
+
+The earlier draft of this document opened with a motivating example that its own
+phase 0 then required the engine to refuse. That inconsistency is worth keeping on
+the page, because the two cases underneath it have completely different answers and
+conflating them is how this feature would get built wrong.
+
+**Case A — the hour sits between hours they use.** Logs 06:00 and 08:00, never
+07:00. Their own record contains information about 07:00, and the engine currently
+throws it away by rounding six hours into one bucket. **Recoverable, by source 1.**
+
+**Case B — the hour is nowhere near anything they have logged.** Logs only
+20:00–22:00; is 07:00 better? **Their logged sessions contain no information about
+07:00, and no procedure can extract any.** A gradient within the evening says
+nothing about the morning. Any system returning a confident number here invented
+it — that is a property of the data, not of the method, and it is as true of a
+neural network as of a smoother.
+
+**Case B is not a dead end, and this is the part the earlier draft missed.** Their
+*body* knows about 07:00 even though their *log* does not: the phone records heart
+rate all day, and `Physiology.DayShape` already reads which corners of the week sit
+apart at hour resolution with zero logged sessions required. Their waking time is in
+Health too. So case B is answered by source 2, with source 3 behind it and source 4
+settling it.
+
+**What follows for the plan:** the body half is the answer for case B, case B is the
+harder and more common case, and the body half is currently the unreliable one. So
+it is fixed first.
+
+---
+
+## 3. What is in the way, measured
+
+**3.1 Time has four values.** `TimeBucket` (`Enums.swift:132`) is `morning` 05–11,
+`midday` 11–14, `afternoon` 14–18, `evening` 18–05. Morning is **six hours wide**.
+So "try 07:00" is not a sentence the engine can form even for somebody with a year
+of mornings.
+
+**3.2 The gate is absolute, and correctly so.** Six distinct rated days a side is
+what makes a claim worth printing, and nothing here relaxes it. The gate is not the
+bug. The bug is having **one mechanism**, so a question that cannot clear the gate
+produces nothing rather than producing an *offer*.
+
+**3.3 Clock time is not the person's time.** 07:00 is ninety minutes into the day
+for somebody who wakes at 05:30 and before the day has started for somebody who
+wakes at 09:00. The engine has no representation of waking, so every hour-based
+offer it could make is anchored to a clock the person does not live by.
+
+**3.4 The answer key could not describe the target.** `Planted.timeWindow` takes two
+`TimeBucket`s, and 06:00 and 08:00 are both `.morning`. Closed in phase 0.
+
+---
+
+## 4. The rule
+
+> **The curve, the body and the prior choose the question. The fortnight decides
+> the answer.**
+
+Nothing in sources 1–3 is evidence. None of it survived a correction, and none of it
+may reach a sentence as a fact. What it may do is what `Surprise.priors` and
+`Physiology.DayShape` already do: **decide which question is worth putting in front
+of somebody.**
+
+This is also why no model is needed. We are not predicting a rating. We are ranking
+candidate hours by whether they are worth two weeks of somebody's attention — a much
+weaker claim, and one a closed-form smoother supports where a point prediction
+cannot.
+
+Three consequences, each testable:
+
+- **No number from any of the three reaches a string.** Same boundary as BR-25.
+- **Refusal is a first-class output.** Outside support, nil — not a low score.
+  `Physiology` already refuses for four distinct reasons rather than guessing.
+- **An hour-led offer is a `Proposal`, never an `Insight`.** It enters
+  `ExperimentStore.offers`, carries a premise framed as a question, and cannot
+  become a claim without the fortnight.
+
+---
+
+## 5. Phases
+
+Ordered by what serves §1, not by what is easiest.
+
+### Phase 0 — the instrument — **built**
+
+The answer key could not express an hour-of-day effect, so no measurement of this
+feature would have meant anything.
+
+- `Planted.hourOfDay(hour:halfWidth:delta:)` — a linear taper, not a step, because a
+  step at an hour boundary is a bucket by another name and recoverable without the
+  capability under test. Distance wraps at midnight.
+- `Recipe.hours` — placement stated rather than emergent. Nil for everybody who
+  existed; the random stream is untouched and `CohortTests` proves it.
+- **Interpolator** (06:00 and 08:00, effect at 07:00) — case A.
+- **Extrapolator** (20:00–22:00 only, effect at 07:00) — case B, and the integrity
+  test. Required behaviour is refusal.
+- **Flat hours** — support at every hour, signal at none. The shape a smoother most
+  wants to find structure in.
+
+### Phase 1 — make the body reliable
+
+`DayShape` returns empty on the seeded fixture on some dates. Three suites fail
+today that passed on 5 October, reproduced at `1a5b844` on a second simulator, with
+nothing between touching physiology. Recorded in `BACKLOG.md`.
+
+**This is the top of the list because of §2.** An empty `DayShape` is the vitals-led
+offer not firing, and vitals is the source that answers case B. On those dates the
+day-one path silently degrades to the population prior — a feature that looks like
+it works while answering from a weaker source.
+
+Diagnose before fixing. `DebugFixture.seededFeed` builds relative to `today` and the
+analyzer fits over a trailing window, so the composition of that window moves with
+the weekday; `SyntheticCohort.anchor` is `mostRecentMonday(onOrBefore:)` for exactly
+this class of problem and the fixture has no equivalent. That is the suspicion, not
+the finding.
+
+Whatever the cause, it needs a test that fails on the bad dates rather than one that
+happens to run on good ones — this is the third instance of the date-dependent class
+`README.md` records.
+
+### Phase 2 — anchor the day to waking
+
+**The cheapest honesty win in the document, and it needs no logging at all.**
+
+Health holds their sleep. Deriving a usual wake time turns "07:00" into "about
+ninety minutes after you wake" — which is both more honest and more useful, and
+makes an offer for a never-logged hour *person-specific* without a single session at
+that hour.
+
+- A usual waking time from Health, with its own refusal when sleep is too sparse.
+- Hours expressed relative to it wherever an offer names one.
+- Never suggest an hour before the person is up. The workday check in
+  `PRD-VITALS` item 13 established this shape; this is its sleep-wise twin.
+
+### Phase 3 — the hour curve
+
+**`RatingShape`**, deliberately mirroring `Physiology.DayShape` so there is one idiom
+for "a smooth over the day that chooses a question".
+
+- **Input:** rated observations as `(hour, isWorkday, feeling)`.
+- **Clustered on days.** Three sessions on one Tuesday are one day's evidence; a
+  smoother weighted by session repeats the pseudo-replication the bootstrap exists
+  to prevent.
+- **Fit:** a wrapped circular kernel smoother on day-level medians. Wrapped because
+  23:00 and 01:00 are two hours apart. Medians because a 1–5 scale makes outliers
+  cheap, matching `Physiology`'s choice.
+- **Workday and non-workday kept apart**, as `DayShape` already does.
+- **Output:** per hour, an estimate **and a support weight** — the summed kernel mass
+  of real observations near it. Support is what makes refusal possible and is the
+  single most important number in the feature.
+- **Refusal:** below the support floor, nil.
+
+No Core ML, no base model, no training data that does not exist. A closed-form
+smoother over one person's own ratings, inspectable the way `Shrinkage`'s method of
+moments is inspectable.
+
+### Phase 4 — the offer
+
+**`ExperimentHours`**, alongside `ExperimentVitals`, `ExperimentPriors`,
+`ExperimentGaps` and `ExperimentStarters`.
+
+- Reads `RatingShape`. Picks the best-estimated hour the person does not already
+  use, subject to support above the floor and a gap worth a fortnight.
+- Premise under the `PRD-VITALS` §9 framing rule, guard-enforced.
+- Respects workdays and, from phase 2, waking.
+- **Order in the chain:** after measured findings, before vitals. An hour-led offer
+  is built from their own *ratings*, the outcome the app is about; vitals is built
+  from heart rate, a proxy for it. Flagged in §8 as a decision.
+
+### Phase 5 — the priors table, sourced
+
+Source 3 already ships. What it does not have is provenance: engine doc §10.7 —
+*"Every number in the expectedness table is hand-set from intuition. They are
+plausible and they are not measured."* Every entry added makes that worse.
+
+- **Each entry carries a source, or it is coarsened.** A three-level classification
+  that intuition can defend beats a 0.72 that was invented. This is §10.7's own
+  candidate.
+- **Prefer mechanism to folklore.** Core temperature, sleep pressure, time since
+  waking. These generalise because they are physiological — and they are measurable
+  *on the person*, so the prior can be checked against their own body rather than
+  only asserted.
+- **Prefer adherence findings where that is the honest one.** "You are more likely to
+  actually do it" is better supported than most performance claims about timing, and
+  is a more useful thing to tell somebody.
+- **Record the chronotype caveat beside the table.** Between-person spread exceeds
+  the population time-of-day effect — `PRD-VITALS` item 15 already says so. A
+  population prior about timing is weak evidence about an individual. Good enough to
+  choose a question; never good enough to be a reason.
+- **Body before prior stays.** Already the chain's order.
+
+### Phase 6 — confidence that means something
+
+Engine doc §10.4: the 0–100 number is a presentation device with no calibration
+behind it, and the weights 0.72/0.28 and the bands at 80/65/50 are not derived from
+anything.
+
+It matters here specifically: an hour-led offer that runs a fortnight and comes back
+"it held up" is where the app either earns the person's trust or spends it.
+
+Calibrate `[edge, width, days, dayCount] → measured hit rate` by isotonic regression,
+fitted offline against the cohort, shipped as a table. No model at runtime.
+
+**State the limit in the doc that ships with it.** This calibrates against the
+*generator's* assumptions — how often the engine recovers an effect of the kind we
+chose to plant — not against the world. Somebody will read the band as a probability
+about reality unless the sentence saying otherwise is written down.
+
+### Phase 7 — hygiene, independent of all of the above
+
+Neither serves §1. Both make every claim the app already prints more honest.
+
+- **7.1 Resamples and the p-floor** (§10.3). At 2000 the floor is 0.0005 and every
+  planted effect reports exactly that, so BH only discriminates in 0.005–0.05. Still
+  2000 (`Statistics.swift:155`). Layer 1's speed work makes 10,000 affordable.
+- **7.2 Inverse-variance weighting** (§10.8). `Reading.uncertainty` widens with
+  cadence and the residual then enters layer 2 as a plain number. Weight by inverse
+  uncertainty in `Statistics.compare`. One function, and §10.8's own candidate.
+
+---
+
+## 6. What this may never do
+
+- **Never print a number any of the three sources produced.** They choose; they do
+  not speak.
+- **Never lower the six-day gate.** An offer is not a claim and does not need it; a
+  claim still does.
+- **Never extrapolate confidently.** Outside support, nil. The Extrapolator exists
+  to fail the build if this erodes.
+- **Never compare the person to anybody else in a sentence.** The prior may rank. It
+  may not be quoted.
+- **Never become a silent recommendation.** An untried hour is always an *offer to
+  test*.
+- **Never suggest an hour the person is asleep or at work.**
+
+---
+
+## 7. Deliberately parked
+
+From the ML analysis, with the reason each is out rather than merely unscheduled:
+
+- **A base model trained on aggregate data.** There is none, no server and no
+  collection. Every layer above inherits the absence.
+- **Folding interventional results into a predictive model.** `BACKLOG.md` records
+  this as decided: mixing pre-registered and mined evidence in one correction is the
+  confusion the no-correction argument depends on avoiding.
+- **Replacing the interaction gates with a regularized GBM.** Regularization is not
+  FDR control; unbounded discovery feeding a step-up procedure makes multiplicity
+  worse.
+- **Recency-weighted fine-tuning for §10.6.** It does not answer what §10.6 asks —
+  whether a decayed estimate can still support an honest interval — it discards the
+  interval.
+- **Cross-activity transfer and cold start.** Both ship, as `ExperimentPriors` and
+  the vitals/priors/starters chain.
+
+---
+
+## 8. Open decisions
+
+1. **Where `ExperimentHours` sits in the chain.** Proposed before vitals; the
+   argument for after is that heart rate is measured and a rating is reported.
+2. **The support floor.** Genuinely underivable — it answers "how much of their own
+   evidence is enough to be worth asking". Candidate: the lowest floor at which the
+   Extrapolator is still refused.
+3. **Kernel bandwidth.** Narrower interpolates less and refuses more. Same method:
+   pick it from the cohort and record what it costs the Interpolator.
+4. **Whether a curve may ever downgrade an hour somebody already uses.** "Your 8pm
+   looks like your worst hour" is a claim, not an offer, and is out under §6 — but it
+   is the obvious next request.
+5. **Whether a person's own settled experiments may rank the next offer.** Per-person
+   rather than population, and *not* the thing `BACKLOG.md` bans — that ban is on
+   mixing pre-registered results into the same correction as mined evidence. Using a
+   finished fortnight to choose the next question is a different act, and nobody has
+   looked at it.
+
+---
+
+## 10. Amendments the build forced
+
+### 10.1 Item 9 — expressing an hour relative to waking — dropped
+
+**What it asked for.** That an offer say "about ninety minutes after you wake"
+rather than "around 7am", on the §3.3 argument that a clock hour is not the
+person's time.
+
+**Why it is not built.** The argument is right about the *problem* and wrong about
+the *remedy*. Two things follow from knowing when somebody wakes: do not name an
+hour they are asleep for, and phrase the hour in their terms. The first is a gate,
+it is the half that prevents a harm, and it shipped as item 10. The second turns
+out to make the copy worse.
+
+"Around 7am" is what somebody sets an alarm by. "About ninety minutes after you
+wake" is what they have to do arithmetic on before they can act, and `PRD-PLAIN.md`
+asks of every sentence whether it could be shorter without losing the fact — this
+one is longer and loses the fact somebody needs. The compromise, naming both, fails
+the same test twice over.
+
+The intermediate version — keeping the clock hour and adding a short qualifier like
+"first thing" when the hour sits close to waking — was written out and reads as
+padding. `ExperimentCopy.where_` already returns "around 7am", which is plain, and
+nothing in the sweep's three questions asks it to be anything else.
+
+**What was kept.** `WakeShape.usualWake` exists and is read, because the gate needs
+it. If a later surface genuinely wants to speak in waking-relative terms — a
+morning-specific screen, say — the value is already there and refuses honestly when
+somebody has no usual waking time.
+
+**Reopening it** would need a reason that is about the reader rather than about the
+engine's representation, which is the test §4 sets for everything in this document.
+
+---
+
+## 9. Checklist
+
+### Phase 0 — the instrument
+- [x] **1.** `Planted.hourOfDay(hour:halfWidth:delta:)`, tapering rather than stepped.
+- [x] **2.** Hour placement stated on the recipe; existing people byte-identical.
+- [x] **3.** Interpolator, Extrapolator, flat hours.
+- [x] **4.** The planted effect reaches the ratings, asserted without the engine.
+
+### Phase 1 — the body, made reliable
+- [x] **5.** The empty-`DayShape` defect diagnosed, with the cause named.
+- [x] **6.** Fixed, and a test that fails on the bad dates rather than passing on
+      the good ones.
+- [x] **7.** `README.md`'s date-dependence note gains the third instance.
+
+### Phase 2 — the day anchored to waking
+- [x] **8.** A usual waking time from Health, with its own refusal.
+- [~] **9.** ~~Offers express an hour relative to waking.~~ **Amended — not built.**
+      See §10.1.
+- [x] **10.** Never an hour before the person is up; tested.
+
+### Phase 3 — the curve
+- [ ] **11.** `RatingShape`, day-clustered, wrapped, workday-split.
+- [ ] **12.** Support weight per hour, nil below the floor.
+- [ ] **13.** Interpolator recovered; Extrapolator refused; flat hours silent.
+- [ ] **14.** No figure from the curve reaches any string.
+
+### Phase 4 — the offer
+- [ ] **15.** `ExperimentHours`, wired into `offers` in the §5 order.
+- [ ] **16.** Premise under the §9 framing rule, guard-enforced.
+- [ ] **17.** Workdays and waking respected.
+- [ ] **18.** `OfferChainTests` extended: one per priority holds, and an hour-led
+      offer never displaces a measured one.
+
+### Phase 5 — the priors table
+- [ ] **19.** Every entry sourced or coarsened; provenance beside the number.
+- [ ] **20.** The chronotype caveat recorded beside the table.
+
+### Phase 6 — confidence
+- [ ] **21.** Isotonic calibration fitted offline, shipped as a table.
+- [ ] **22.** What was calibrated against, stated in `DESIGN.md`.
+
+### Phase 7 — hygiene
+- [ ] **23.** Resamples raised; the floor re-derived.
+- [ ] **24.** Inverse-variance weighting in `Statistics.compare`.
+
+### Verification
+- [ ] **25.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.
+- [ ] **26.** `DebugFixture` reaches an hour-led proposal.

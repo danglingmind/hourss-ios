@@ -19,6 +19,27 @@ enum SyntheticCohort {
     enum Planted: Equatable, CustomStringConvertible {
         /// Sessions in `worse` are rated `delta` lower than those in `better`.
         case timeWindow(better: TimeBucket, worse: TimeBucket, delta: Double)
+        /// Sessions starting near `hour` are rated `delta` above the person's
+        /// others, tapering linearly to nothing `halfWidth` hours away.
+        ///
+        /// **Why this is not `timeWindow` with a narrower bucket.** The engine's
+        /// time resolution is four six-hour buckets, so "7am is better than 9am"
+        /// cannot be stated at all in the existing case — both are `.morning`.
+        /// That is the whole gap `PRD-HOURS.md` exists to close, and an answer key
+        /// that cannot express an effect cannot be used to check whether it was
+        /// recovered.
+        ///
+        /// **Why a taper rather than a step.** A step at an hour boundary is a
+        /// bucket by another name, and a procedure that only ever compares
+        /// adjacent blocks would recover it. A taper can only be found by reading
+        /// the hours around it against each other, which is the capability under
+        /// test. It also means a session at the edge contributes a little rather
+        /// than nothing, so the effect is not an artifact of where the boundary
+        /// was drawn.
+        ///
+        /// Distance wraps at midnight: 23:00 and 01:00 are two hours apart, not
+        /// twenty-two.
+        case hourOfDay(hour: Int, halfWidth: Double, delta: Double)
         /// This activity is rated `delta` away from the person's other activities.
         case activityEffect(named: String, delta: Double)
         /// Sessions in this duration bucket are rated `delta` above the rest.
@@ -62,6 +83,9 @@ enum SyntheticCohort {
             switch self {
             case let .timeWindow(better, worse, delta):
                 "\(worse.label) rated \(fmt(delta)) below \(better.label)"
+            case let .hourOfDay(hour, halfWidth, delta):
+                "sessions near \(hour):00 rated \(fmt(delta)) above the rest, "
+                + "fading out \(fmt(halfWidth))h away"
             case let .activityEffect(named, delta):
                 "\(named) rated \(fmt(delta)) \(delta < 0 ? "below" : "above") the rest"
             case let .durationEffect(bucket, delta):
