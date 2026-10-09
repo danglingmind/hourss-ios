@@ -272,6 +272,25 @@ run the same test on a worktree at `HEAD`; if it fails identically, the change i
 innocent. Fixing it properly means pinning the generator to a fixed reference date
 rather than `Date()`.
 
+**A third instance, and the most expensive kind.** `DayShapeTests` and
+`ExperimentVitalsTests` read `DebugFixture.seededFeed()` at `Date()`, whose sixty
+days are counted back from it — so the same weekday shift reached the physiology
+fixture. The old curve put its extremes 5.09 bpm from the middle of the day against
+a 5 bpm floor, and the weekday composition moved them by more than the margin: two
+places on a Monday, one on a Thursday, **none on a Friday**, cycling weekly.
+
+Worse than a red suite, and the reason this one is worth reading. An empty
+`DayShape` is the vitals-led offer not firing, and vitals is the one source built
+for somebody with Health and nothing logged — so on a Friday the day-one path fell
+through to the population prior, which looks exactly like the feature working. A
+date-dependent *test* announces itself; a date-dependent *feature* does not.
+
+The shape was replaced rather than the margin widened, and `DayShapeTests` now
+sweeps seven consecutive dates from a fixed Saturday, so it cannot pass by being
+run on a good day. `BACKLOG.md` and `DebugFixture.dayShapeDip` carry the account.
+**The general lesson: when a fixture is tuned until a threshold is just cleared,
+the thing being tested is the tuning.**
+
 **The activity marks are drawn, not borrowed.** `Shared/ActivityGlyph.swift` is
 eight paths on a shared 24×24 grid at one stroke weight — a target, two speech
 marks, a checklist, an open book, a spark, a dumbbell, two rings, a crescent.

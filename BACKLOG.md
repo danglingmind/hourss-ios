@@ -1072,3 +1072,55 @@ Still open:
 - **Can a settled experiment feed rung 4?** Default no. Mixing pre-registered and
   mined evidence in one correction is exactly the confusion the no-correction
   argument relies on avoiding.
+
+### `DayShape` was empty on some dates, and the vitals offer died with it
+
+**Status:** fixed. `PRD-HOURS.md` phase 1.
+
+Three tests fail on 9 October 2026 that passed on 5 October, with no change
+between them touching physiology:
+
+- `DayShapeTests` — *"The seeded feed reaches a shape, by way of the hour rather
+  than the band"*: `shape.isEmpty` is true, and the expected `[.morning, .evening]`
+  bands are an empty set.
+- `ExperimentVitalsTests` — *"What the seeded fixture reaches, and what refuses
+  it"*: same empty shape, and `ExperimentVitals.proposals` then returns nothing.
+- `OfferChainTests` — *"A Health read with nothing logged is offered the body
+  before the prior"*: the vitals-led offer is nil, so the chain falls through to
+  the prior.
+
+**Proved pre-existing** by running both suites in a worktree at `1a5b844` on the
+second simulator: identical failures, identical assertions. It is not the hour
+cohort work and not the Patterns change.
+
+**Why it matters beyond a red suite.** An empty `DayShape` is not only a test
+condition — it is the vitals-led offer not firing. That is the one offer source
+built for somebody with Health and nothing logged, so on the dates this happens
+the day-one path quietly degrades to the population prior. The symptom is a
+feature that appears to work and is answering from a weaker source.
+
+**The cause was a margin, and the engine was right throughout.** The fixture's
+curve was a half sine, `61 + 8·sin((hour−7)/16·π)`, over the recorded hours
+07:00–23:00. Its mean is `61 + 8·2/π ≈ 66.09` and its ends sit at 61 — **5.09 bpm
+from the middle of the day against a `minimumDifference` of 5.** Nine hundredths
+of a beat on the right side of a refusal. Every place the shape ever reported
+cleared the floor by between 0.13 and 2.01 bpm, and which cells cleared at all
+moved with the weekday the trailing sixty days started on.
+
+**Raising the amplitude does not fix it, and measuring that found the real
+cause.** A band is read against the *median of the other bands*, so in a smooth
+arch all four differ from one another and a taller arch lifts every one of them
+over the floor together: at amplitude 11 all four bands cleared on every weekday,
+including the afternoon peak, which is higher than the rest of the day.
+
+**Two low ends is not a stable configuration either**, and this is a fact about
+the engine worth keeping. Dipping both ends gave morning and evening places on all
+seven days *and* midday and afternoon places at `+7.6` and `+6.7` — correct, since
+a day with low ends does have a middle above the median of the rest of it, but not
+what the fixture is for, and no choice of depth removes them.
+
+Fixed by replacing the shape rather than the size: a flat middle with one dipping
+end (`DebugFixture.dayShapeDip`). Every weekday now reaches a shape, every place is
+evening and lower, and the floor is cleared by 2.6–2.9 bpm. `DayShapeTests` sweeps
+seven consecutive dates from a fixed Saturday, so it can no longer pass by being
+run on a good day.

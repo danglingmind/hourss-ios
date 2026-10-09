@@ -341,26 +341,71 @@ struct DayShapeTests {
     /// failing, the fixture's curve has flattened and nothing vitals-led is reachable
     /// on a simulator — which is not a product bug and is exactly the kind of thing
     /// that is otherwise discovered nine minutes into a UI run.
-    @Test("The seeded feed reaches a shape, by way of the hour rather than the band")
+    /// The fixture reaches a shape on **every day of the week**, not on some of them.
+    ///
+    /// **This test used to pass on a Sunday and fail on a Friday, and nobody knew.**
+    /// It took `DebugFixture.seededFeed()` at whatever `Date()` happened to be, and
+    /// the feed's sixty days are counted back from that — so which calendar days the
+    /// window held, and with them which cells cleared `minimumWindowsPerCell`, moved
+    /// with the weekday. Swept across seven consecutive dates the old fixture gave
+    /// two places on a Monday, one on a Thursday and **none at all on a Friday**.
+    ///
+    /// The cause was a margin, not a bug in the engine. The old curve was a half
+    /// sine, `61 + 8·sin((hour−7)/16·π)`, whose ends sit 5.09 bpm from the middle of
+    /// the day against a `minimumDifference` of 5 — nine hundredths of a beat on the
+    /// right side of a refusal, which the weekday composition moved by more than.
+    /// `DebugFixture.dayShapeDip` carries the whole account.
+    ///
+    /// **Why the shape has one low end rather than two.** A band is read against the
+    /// *median of the other bands*, so a day with two low ends has a middle that is
+    /// genuinely higher than the median of the rest of it — and the shape says so,
+    /// correctly. Measured: dipping both ends produced morning and evening places on
+    /// all seven days *and* midday and afternoon places reading `+7.6` and `+6.7`.
+    /// Those are three true statements and not a defect, but they are not what this
+    /// fixture is for, and no choice of depth removes them — the arithmetic of a
+    /// median of three is what puts them there. One end is the configuration whose
+    /// behaviour can be stated in advance instead of tuned until it looks right.
+    ///
+    /// So what is asserted is what the fixture must guarantee: somebody opening the
+    /// simulator on any day of any week can reach a vitals-led offer, and it is about
+    /// the end of their day.
+    @Test("The seeded feed reaches a shape on every day of the week")
     @MainActor
     func theFixtureReachesAShape() throws {
-        let feed = DebugFixture.seededFeed()
-        let shape = self.shape(feed)
-        #expect(!shape.isEmpty, Comment(rawValue:
-            "the seeded feed produced no shape, so nothing vitals-led is reachable "
-            + "on a simulator"))
+        let calendar = Calendar.current
+        // A fixed Saturday, so the sweep covers all seven weekdays and the test
+        // itself does not depend on the day it is run — which is the whole bug.
+        let start = Date(timeIntervalSince1970: 1_791_000_000)
 
-        // Both ends of the sine, and both resolved to an hour rather than a band.
-        // Hoisted out of the macro: `allSatisfy` is `rethrows`, and inside `#expect`
-        // with a `Comment` the expansion will not compile.
-        let everyPlaceHasAnHour = shape.places.allSatisfy { $0.hour != nil }
-        let everyPlaceIsLower = shape.places.allSatisfy(\.isLower)
-        #expect(everyPlaceHasAnHour, Comment(rawValue:
-            "the fixture reached the floor at band resolution, which the sine should "
-            + "not quite manage: \(shape.places)"))
-        #expect(everyPlaceIsLower, Comment(rawValue:
-            "the sine's extremes sit below the middle of the day, not above it: \(shape.places)"))
-        #expect(Set(shape.places.map(\.band)) == [.morning, .evening], Comment(rawValue:
-            "expected the two ends of the recorded day, got \(shape.places.map(\.band))"))
+        for offset in 0..<7 {
+            let now = try #require(calendar.date(byAdding: .day, value: offset, to: start))
+            let shape = self.shape(DebugFixture.seededFeed(now: now))
+            let weekday = calendar.component(.weekday, from: now)
+
+            #expect(!shape.isEmpty, Comment(rawValue:
+                "weekday \(weekday): the seeded feed produced no shape, so nothing "
+                + "vitals-led is reachable on a simulator opened on that day"))
+
+            // Hoisted out of the macro: `allSatisfy` is `rethrows`, and inside
+            // `#expect` with a `Comment` the expansion will not compile.
+            let everyPlaceIsEvening = shape.places.allSatisfy { $0.band == .evening }
+            let everyPlaceIsLower = shape.places.allSatisfy(\.isLower)
+            let someplaceHasAnHour = shape.places.contains { $0.hour != nil }
+
+            #expect(everyPlaceIsEvening, Comment(rawValue:
+                "weekday \(weekday): only the evening dips, so only the evening may "
+                + "stand apart: \(shape.places)"))
+            #expect(everyPlaceIsLower, Comment(rawValue:
+                "weekday \(weekday): the dip sits below the rest of the day, not "
+                + "above it: \(shape.places)"))
+            // `contains` rather than `allSatisfy`: the non-workday cell has only the
+            // weekend days of the window to draw on, so on some starts no single hour
+            // of it earns `minimumDaysPerHour` and it reports at band resolution.
+            // That is the floor working. What matters is that the hourly refinement
+            // is reached at all, since a version of phase 1 that stopped at the band
+            // would read this fixture as a flat day.
+            #expect(someplaceHasAnHour, Comment(rawValue:
+                "weekday \(weekday): nothing resolved to an hour: \(shape.places)"))
+        }
     }
 }

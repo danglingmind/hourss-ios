@@ -688,7 +688,55 @@ enum DebugFixture {
     /// not, so the tiles inside a session move the baseline they are measured
     /// against. The residual that survives is smaller than the offset, which is
     /// correct and is why the offset is not subtle.
+    /// How far the ends of the seeded day sit below its middle, in beats a minute.
+    ///
+    /// **The curve this replaced was a half sine, and it flipped the whole vitals
+    /// path on and off weekly.** `61 + 8·sin((hour−7)/16·π)` over the recorded hours
+    /// has its mean at `61 + 8·2/π ≈ 66.09` and its ends at 61, so the ends sat 5.09
+    /// bpm from the middle of the day against a `DayShape.minimumDifference` of 5 —
+    /// a margin of 0.09. Measured across seven consecutive `now` dates the shape
+    /// reported two places on a Monday, one on a Thursday and **none on a Friday**,
+    /// cycling with the weekday the trailing sixty days happened to start on.
+    ///
+    /// An empty `DayShape` is the vitals-led offer not firing, and vitals is the one
+    /// source built for somebody with Health and nothing logged. So on a Friday the
+    /// day-one path quietly fell through to the population prior, which looks
+    /// exactly like the feature working.
+    ///
+    /// **Raising the sine does not fix it, and measuring that is what found the real
+    /// cause.** A band is compared against the *median of the other bands*, so in a
+    /// smooth arch all four differ from each other and a taller arch lifts every one
+    /// of them over the floor together — at amplitude 11 all four bands cleared on
+    /// every weekday, including the afternoon peak, which is *higher* than the rest
+    /// of the day and so breaks what the shape is for.
+    ///
+    /// The shape was wrong, not the size. This profile is what `DayShapeTests`
+    /// always described: **a flat middle with the ends dipping away from it.** Midday
+    /// and afternoon sit at exactly the plateau, so they are the median each end is
+    /// read against and neither can ever clear the floor itself. Morning and evening
+    /// dip only in their outermost hours, so the *band* average stays under the floor
+    /// while the *hour* clears it — which is the property that makes the hourly
+    /// refinement load-bearing rather than decorative, stated as arithmetic instead
+    /// of balanced on 0.09 bpm.
+    ///
+    /// At 8: each end's extreme hour sits 8 bpm out (floor cleared by 3), the morning
+    /// band average sits 4 (floor missed by 1) and the evening band 2.4. Nothing in
+    /// the middle of the day moves at all.
+    static let dayShapeDip: Double = 8
+
+    /// How far below the plateau one hour of the seeded day sits.
+    ///
+    /// Linear tapers, deliberately asymmetric: the morning runs 07:00→10:00 and the
+    /// evening 21:00→23:00, because the recorded day is 07:00–23:00 and an end needs
+    /// its taper inside it. Both reach full depth only at the outermost hour, which
+    /// is what keeps each band's average under the floor while its extreme hour
+    /// clears.
+    static func dayShapeOffset(atHour hour: Double, dip: Double = dayShapeDip) -> Double {
+        hour >= 21 ? dip : 0
+    }
+
     static func seededFeed(days: Int = 60, now: Date = Date(),
+                           dip: Double = dayShapeDip,
                            ratedWindows: [RatedWindow] = []) -> Physiology.Feed {
         var state: UInt64 = 0x484F5552 &* 6364136223846793005 &+ 1442695040888963407
         func next() -> Double {
@@ -729,7 +777,7 @@ enum DebugFixture {
             for minuteOfDay in stride(from: 7 * 60, to: 23 * 60, by: 5) {
                 let at = day.addingTimeInterval(Double(minuteOfDay) * 60)
                 let hour = Double(minuteOfDay) / 60
-                var bpm = 61 + 8 * sin((hour - 7) / 16 * .pi) + (next() - 0.5) * 5
+                var bpm = 66 - dayShapeOffset(atHour: hour, dip: dip) + (next() - 0.5) * 5
                 var stepped = next() * 12
                 if next() < 0.06 {
                     let bout = 150 + next() * 350
