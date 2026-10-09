@@ -276,9 +276,45 @@ enum ExperimentCopy {
     /// morning hours" to somebody who is at work every weekday morning is the app
     /// not paying attention; naming the days off says which mornings are meant.
     static func vitalsChange(_ place: Physiology.DayShape.Place) -> String {
-        "Log one session in the \(place.band.label.lowercased()) "
-            + (place.isWorkday ? "on most workdays" : "on your days off")
+        bandChange(place.band, isWorkday: place.isWorkday)
+    }
+
+    /// Asking for a band on one kind of day.
+    ///
+    /// Shared by the vitals-led and hour-led sources because both settle against the
+    /// same registry row, and two wordings for one request would let the card and the
+    /// adherence count drift apart.
+    static func bandChange(_ band: TimeBucket, isWorkday: Bool) -> String {
+        "Log one session in the \(band.label.lowercased()) "
+            + (isWorkday ? "on most workdays" : "on your days off")
             + ", for two weeks."
+    }
+
+    // MARK: - The hour-led premise
+
+    /// What an hour-led proposal rests on: a gap in their own day, and what is still
+    /// unread.
+    ///
+    /// **The first sentence states a gap, not a finding.** `RatingShape` is a
+    /// smoother over observational data — nothing in it survived a correction and
+    /// nothing carries an interval — so it may say which question is worth asking and
+    /// may not answer it. "have felt better so far" is hedged on purpose and is a
+    /// statement about what this person's own record holds; the sentence after it
+    /// says plainly that nothing logged settles the question. That is the same two-part
+    /// shape `vitalsPremise` uses and the same reason: a reason sitting alone above a
+    /// change reads as evidence for it.
+    ///
+    /// **The hour is named here and nowhere else.** The change asks for the band,
+    /// because that is what the fortnight measures — see `bandChange`. Naming the
+    /// hour in the premise costs nothing and is the whole of what this source adds
+    /// over the band-level ones.
+    static func hoursPremise(hour: Int, band: TimeBucket, isWorkday: Bool) -> String {
+        "\(dayType(isWorkday)), the hours either side of \(clockHour(hour)) have felt "
+            + "better so far, and you have never logged one at \(clockHour(hour)). "
+            + starterUnknown(type: .bestTimeWindow,
+                             focusLabel: band.label,
+                             baselineLabel: "Rest of the day",
+                             metric: nil)
     }
 
     /// The registry's own limit on a time-of-day claim, plus the one that travels

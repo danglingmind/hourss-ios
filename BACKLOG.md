@@ -1124,3 +1124,20 @@ end (`DebugFixture.dayShapeDip`). Every weekday now reaches a shape, every place
 evening and lower, and the floor is cleared by 2.6–2.9 bpm. `DayShapeTests` sweeps
 seven consecutive dates from a fixed Saturday, so it can no longer pass by being
 run on a good day.
+
+
+### The hour-led offer is built and cannot reach anybody
+
+**Status:** blocking `PRD-HOURS.md` phase 4. Needs a scope decision, not a fix.
+
+`ExperimentHours` picks the best hour somebody does not already log, from their own
+ratings at the hours either side of it. It works and is tested. It never fires,
+because it carries its hour's *band* row and a record dense enough for the curve to
+read has every band measured already — so the chain correctly refuses it as a
+question already answered.
+
+The change has to ask for what the fortnight measures, or adherence counts the wrong
+sessions. The fortnight measures a band. The band is taken. The only way out is an
+hour-level hypothesis that exists as an experiment target and never enters the
+registry, so it costs nobody power under the correction. That reaches the correction,
+adherence and outcome resolution. `PRD-HOURS.md` §10.3 has the full account.

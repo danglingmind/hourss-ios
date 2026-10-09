@@ -1,6 +1,6 @@
 # Offering an hour nobody has logged
 
-**Status:** phases 0–3 built. Phases 4–7 proposed.
+**Status:** phases 0–3 built. **Phase 4 is built and blocked — see §10.3.** Phases 5–7 proposed.
 **Date:** 9 October 2026
 
 ---
@@ -381,6 +381,59 @@ Bandwidth 1.5 and total floor 6. At that bandwidth the interpolator's support at
 what makes the exact value of the floor uncritical and the existence of one
 essential. `RatingShapeTests` is the record and fails if either moves.
 
+### 10.3 The hour-led offer cannot reach anybody — **blocking, needs a decision**
+
+**What was built.** `ExperimentHours` reads `RatingShape`, picks the best hour the
+person does not already use, respects waking and workdays, and writes a premise
+that names the hour and says plainly that nothing logged settles it. Nine tests,
+all passing. The source works.
+
+**What it cannot do.** Fire. Measured on `interpolator`, through the real chain:
+
+```
+measured time ids: time.{morning,midday,afternoon,evening}.vs.rest.feeling   — all four
+candidates:        07:00, 10:00, 18:00, 11:00
+band for top:      Morning  → already measured → excluded
+```
+
+**Why, and it is not a bug.** Two constraints meet and leave no room:
+
+1. **The change must ask for what the fortnight measures.** `ExperimentCopy.vitalsChange`
+   records this: the experiment settles against `time.<band>.vs.rest.feeling`, whose
+   focus side is every session in the band, so a change asking for an hour would have
+   adherence counting mornings while the card said seven o'clock — somebody logging at
+   eleven every day would clear adherence without doing the thing. So the change asks
+   for the band, and the offer carries the band's row.
+2. **Anybody dense enough for a curve has their bands measured already.** The curve
+   needs ten days of ratings spread across hours; a record that dense carries six days
+   either side of every band. So the row the offer carries is a question already
+   answered, and the chain correctly refuses to ask it again.
+
+Widening either is wrong. Letting a measured question be re-offered would spend
+somebody's fortnight on a settled question. Loosening the band tie would break
+adherence, which is the thing that makes a result mean anything.
+
+**The only way out is an hour of its own.** The experiment would target "sessions
+within the kernel's reach of 07:00, against the rest", which:
+
+- makes the change honestly hour-level, so adherence counts the thing asked for;
+- is a genuinely different question from the band, so offering it is not a repeat;
+- **must never enter `HypothesisRegistry.hypotheses`**, or every person pays power
+  under the correction for an hour only one person was offered. It would exist as an
+  experiment target only — which the system already half-supports, since `BACKLOG.md`
+  records a randomised experiment whose hypothesis has left the registry falling
+  through to the chosen-window copy.
+
+**Why this is not being built unasked.** It reaches the correction, adherence and
+outcome resolution — three places where a mistake is a wrong answer rather than a
+missing one — and it is materially more than §5 budgeted for phase 4. It is a scope
+decision, not an implementation detail.
+
+**Until it is settled**, `ExperimentHours` is dead code behind a live wiring: it runs
+on every offer build, returns nothing, and costs one `RatingShape.fit`. It is left in
+place rather than removed because the source is correct and tested, and the thing
+missing from it is a row.
+
 ---
 
 ## 9. Checklist
@@ -413,11 +466,14 @@ essential. `RatingShapeTests` is the record and fails if either moves.
       test against today.
 
 ### Phase 4 — the offer
-- [ ] **15.** `ExperimentHours`, wired into `offers` in the §5 order.
-- [ ] **16.** Premise under the §9 framing rule, guard-enforced.
-- [ ] **17.** Workdays and waking respected.
-- [ ] **18.** `OfferChainTests` extended: one per priority holds, and an hour-led
-      offer never displaces a measured one.
+- [x] **15.** `ExperimentHours`, wired into `offers` in the §5 order. **Built, and
+      unreachable through the chain — §10.3.**
+- [x] **16.** Premise under the §9 framing rule, guard-enforced.
+- [x] **17.** Workdays and waking respected.
+- [x] **18.** `OfferChainTests` extended. The ordering is asserted at the source
+      rather than through `experimentProposals`, because of §10.3.
+- [x] **14.** No figure from the curve reaches any string. *(Deferred here from
+      phase 3; the first strings now exist.)*
 
 ### Phase 5 — the priors table
 - [ ] **19.** Every entry sourced or coarsened; provenance beside the number.

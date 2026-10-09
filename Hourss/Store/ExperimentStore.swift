@@ -153,8 +153,29 @@ extension HourssStore {
         // own heart rate sits five beats apart is a fact about them, which every
         // source below this line is not. `completing` skips a priority already served
         // above it, so this never puts a second offer on one focus area.
-        let withVitals = ExperimentVitals.completing(
+        // First among the unmeasured sources, because it is the only one that reads
+        // the thing the app is actually about. Vitals reads heart rate, which is a
+        // proxy for how a session felt; the prior reads what is true of people in
+        // general, which is not about this person at all. This reads their own
+        // ratings. `PRD-HOURS.md` §5 and open decision 1.
+        //
+        // It has nothing to say to most records, by construction: `RatingShape`
+        // refuses any hour without evidence on both sides of it, so somebody who logs
+        // only in the evening falls straight through to the sources below — which is
+        // what those sources are for.
+        let wake = WakeShape.usualWake(from: sessions)
+        let withHours = ExperimentHours.completing(
             proposals,
+            priorities: input.priorities,
+            shape: RatingShape.fit(input.observations),
+            observations: input.observations,
+            wake: wake,
+            measured: measured,
+            excluding: experimentKeysToExclude
+        )
+
+        let withVitals = ExperimentVitals.completing(
+            withHours,
             priorities: input.priorities,
             shape: dayShape,
             // Calibrated where the person's own residual has been resolved, which is
@@ -168,7 +189,7 @@ extension HourssStore {
             // offline, needs no permission the person has not given, and costs a pass
             // over sessions. `WakeShape` refuses rather than guesses when somebody
             // has no usual waking time, and the gate opens when it does.
-            wake: WakeShape.usualWake(from: sessions),
+            wake: wake,
             measured: measured,
             excluding: experimentKeysToExclude
         )

@@ -33,6 +33,33 @@ struct OfferChainTests {
         proposal.premise.contains("heart rate")
     }
 
+    /// An hour-led premise is the only one that names a specific hour of the clock.
+    ///
+    /// Identified by the shape of the sentence rather than its wording, as
+    /// `isPriorLed` is: the wording belongs to `ExperimentHoursTests`, and a test
+    /// here that pinned it would fail for a copy change rather than for an ordering
+    /// one.
+    private func isHourLed(_ proposal: ExperimentDesign.Proposal) -> Bool {
+        proposal.premise.contains("the hours either side of")
+    }
+
+    /// Somebody with a record dense enough for the hour curve to read.
+    ///
+    /// `dayOneStore` cannot test this source at all — it has Health and nothing
+    /// logged, and the curve is built from ratings. That asymmetry is the point:
+    /// the two sources answer different people, which is why both exist.
+    private func interpolatorStore() -> HourssStore {
+        let person = SyntheticCohort.interpolator
+        let store = HourssStore(repository: InMemoryRecordRepository())
+        store.profile.priorities = [.focus, .energy, .balance]
+        store.activities = person.activities
+        store.sessions = person.sessions
+        store.reflections = person.reflections
+        store.applyHealthContext(person.healthByDay)
+        store.rebuildInsights()
+        return store
+    }
+
     private func isPriorLed(_ proposal: ExperimentDesign.Proposal) -> Bool {
         // The one kind of premise in this app that names people in general, so the
         // ordinary sweep refuses it and the exempt one passes it. Identified by that
@@ -122,5 +149,64 @@ struct OfferChainTests {
                 }
             }
         }
+    }
+
+    // MARK: - Where the hour-led source sits
+
+    /// Their own ratings outrank a reading of their body — at the source, because
+    /// the chain cannot currently reach this source at all.
+    ///
+    /// **`PRD-HOURS.md` §10.3 is the account and this is the evidence for it.** The
+    /// hour-led offer settles against its hour's *band* row, because a change asking
+    /// for an hour while the fortnight measures a band would let somebody logging at
+    /// eleven clear adherence without doing the thing. But a record dense enough for
+    /// the curve to read — ten days of ratings spread across hours — almost always
+    /// carries six days either side of every band, so every band is already measured
+    /// and every hour-led candidate is correctly excluded as a question already
+    /// answered. Measured on `interpolator`: all four of `time.{morning,midday,
+    /// afternoon,evening}.vs.rest.feeling` are measured, and the top candidates are
+    /// 07:00, 10:00, 18:00 and 11:00.
+    ///
+    /// So the ordering is asserted where it can be: with nothing measured, which is
+    /// the state the chain would be in if the hour had a row of its own. When §10.3
+    /// is settled this test should move back onto `experimentProposals`.
+    @Test("An hour read from their own ratings outranks one read from their body")
+    func hoursOutrankVitals() throws {
+        let store = interpolatorStore()
+        let input = EngineInput(observations: store.engineObservations,
+                                priorities: store.profile.priorities)
+
+        let hourLed = ExperimentHours.proposals(
+            for: store.profile.priorities,
+            shape: RatingShape.fit(input.observations),
+            observations: input.observations)
+        try #require(!hourLed.isEmpty, "the interpolator should reach the hour curve")
+
+        let chained = ExperimentVitals.completing(
+            hourLed,
+            priorities: store.profile.priorities,
+            shape: store.dayShape,
+            observations: input.observations)
+
+        for proposal in chained.filter(isHourLed) {
+            let sameArea = chained.filter { $0.priority == proposal.priority }
+            let hourIndex = try #require(sameArea.firstIndex(where: isHourLed))
+            if let vitalsIndex = sameArea.firstIndex(where: isVitalsLed) {
+                #expect(hourIndex < vitalsIndex,
+                        "the body was offered above their own ratings")
+            }
+        }
+    }
+
+    /// The source that reads ratings has nothing to say to somebody with none.
+    ///
+    /// Asserted because it is the half that could silently break: an hour-led offer
+    /// appearing on a day-one record would mean the curve had invented a reading from
+    /// an empty record, which is the one failure `RatingShape` exists to prevent.
+    @Test("A record with nothing logged reaches no hour-led offer")
+    func dayOneReachesNoHourOffer() {
+        let proposals = dayOneStore().experimentProposals(resamples: 200)
+        #expect(!proposals.contains(where: isHourLed),
+                "the hour curve spoke about a record with no ratings in it")
     }
 }
