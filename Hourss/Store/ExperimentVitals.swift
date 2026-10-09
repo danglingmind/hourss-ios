@@ -91,6 +91,7 @@ enum ExperimentVitals {
         shape: Physiology.DayShape?,
         direction: OutcomeDirection = .uncalibrated,
         observations: [EngineObservation] = [],
+        wake: Int? = nil,
         measured: Set<String> = [],
         excluding: Set<String> = [],
         skipping: Set<Priority> = []
@@ -101,7 +102,7 @@ enum ExperimentVitals {
         guard !priorities.isEmpty else { return [] }
         guard let shape, !shape.isEmpty else { return [] }
 
-        let candidates = ranked(shape, direction: direction, observations: observations)
+        let candidates = ranked(shape, direction: direction, observations: observations, wake: wake)
         guard !candidates.isEmpty else { return [] }
 
         var out: [ExperimentDesign.Proposal] = []
@@ -146,6 +147,7 @@ enum ExperimentVitals {
         shape: Physiology.DayShape?,
         direction: OutcomeDirection = .uncalibrated,
         observations: [EngineObservation] = [],
+        wake: Int? = nil,
         measured: Set<String> = [],
         excluding: Set<String> = []
     ) -> [ExperimentDesign.Proposal] {
@@ -154,6 +156,7 @@ enum ExperimentVitals {
             shape: shape,
             direction: direction,
             observations: observations,
+            wake: wake,
             measured: measured,
             excluding: excluding.union(proposals.map(\.hypothesisId)),
             skipping: Set(proposals.map(\.priority))
@@ -215,13 +218,34 @@ enum ExperimentVitals {
     /// are respected *for free*, because the cell already carries the distinction and
     /// `ExperimentCopy` names it in both sentences; the record is a second opinion on
     /// top of that, and a second opinion should reorder a list rather than empty it.
+    ///
+    /// **Waking is a gate, where the workday is only a preference.** The paragraph
+    /// above records why the record had to stop emptying this list; an hour somebody
+    /// is asleep for is a different case and does gate. "Put a block at 6am" to
+    /// somebody who gets up at eight is not a suggestion about their day — it is an
+    /// instruction to get up earlier wearing the costume of one, and `PRD-LOCKS.md`
+    /// §6 refuses to ask anybody to do something they did not come here to do.
+    ///
+    /// It is safe as a gate only because `WakeShape.isAwake` is true whenever the
+    /// waking time is unknown. Somebody whose sleep Health never recorded loses
+    /// nothing, which is the same escape the workday preference needed and did not
+    /// have. A place reported at band resolution carries no hour to judge and is
+    /// always kept — a band spans hours on both sides of most people's waking, and
+    /// refusing the whole of somebody's morning because its first hour is early
+    /// would throw away the part of it they are up for.
     static func ranked(
         _ shape: Physiology.DayShape,
         direction: OutcomeDirection,
-        observations: [EngineObservation]
+        observations: [EngineObservation],
+        wake: Int? = nil
     ) -> [Physiology.DayShape.Place] {
         let dominant = dominantBands(in: observations)
-        let allowed = shape.places.filter { dominant[$0.isWorkday] != $0.band }
+        let allowed = shape.places
+            .filter { dominant[$0.isWorkday] != $0.band }
+            .filter { place in
+                guard let hour = place.hour else { return true }
+                return WakeShape.isAwake(at: hour, wake: wake)
+            }
 
         let ends: [Physiology.DayShape.Place]
         switch direction.residualHigherIsBetter {

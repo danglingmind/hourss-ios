@@ -163,6 +163,12 @@ extension HourssStore {
             // value that separates them.
             direction: OutcomeDirection.resolved(from: findings),
             observations: input.observations,
+            // From the nights already on the record rather than a fresh Health read:
+            // `importFromHealth` writes each one with its real end, so this is
+            // offline, needs no permission the person has not given, and costs a pass
+            // over sessions. `WakeShape` refuses rather than guesses when somebody
+            // has no usual waking time, and the gate opens when it does.
+            wake: WakeShape.usualWake(from: sessions),
             measured: measured,
             excluding: experimentKeysToExclude
         )
