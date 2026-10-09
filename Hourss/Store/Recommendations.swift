@@ -239,8 +239,42 @@ enum Surprise {
     private struct Prior: Sendable {
         /// The direction the pattern ordinarily runs.
         let raised: Bool
-        /// The share of people it ordinarily holds for, in that direction.
+        /// Roughly how widely it is believed, in that direction. One of `Belief`.
         let share: Double
+    }
+
+    /// Three levels, because two decimals were a lie about where these came from.
+    ///
+    /// **Every number in this table was hand-set from intuition.** They were
+    /// plausible and they were not measured — the engine document says so in its own
+    /// §10.7, and the table carried values like 0.68 and 0.66 beside each other as
+    /// though the difference between them meant something. It did not. Nothing was
+    /// ever measured that could distinguish them, and a reader coming to this file
+    /// could not tell an invented precision from a recorded one.
+    ///
+    /// **Sourced or coarsened, and this is coarsened** — `PRD-HOURS.md` phase 5. The
+    /// other branch would be a citation beside every row, and a citation that has not
+    /// been checked is worse than an honest shrug: it moves the number from "somebody
+    /// guessed" to "somebody measured" without anybody having measured. Where real
+    /// sources are found later, a row may graduate to carrying one; until then three
+    /// levels are what intuition can actually support, which is the engine document's
+    /// own candidate for closing §10.7.
+    ///
+    /// **Collapsing creates ties on purpose.** Two rows that used to differ by two
+    /// hundredths now score identically and are separated by specificity and evidence
+    /// instead — the terms that rest on this person's own record. That is the right
+    /// order of authority and it was obscured by a precision nobody had.
+    ///
+    /// The levels keep the old range's ends, so the ordering of the table as a whole
+    /// is unchanged and only the invented distinctions inside it are gone.
+    private enum Belief {
+        /// Almost everybody believes it and there is a plain mechanism behind it.
+        static let wide = 0.82
+        /// Generally believed, and nothing about it is surprising.
+        static let common = 0.68
+        /// Believed by many and genuinely contested, or resting on evidence that is
+        /// thin, lab-bound, or measuring something adjacent to what is claimed.
+        static let leaning = 0.58
     }
 
     // MARK: The prior
@@ -262,35 +296,54 @@ enum Surprise {
     // key. An absent key means no expectation either way, which scores exactly one
     // bit: unusual activities are never penalised for being unusual, they are
     // merely not credited with violating an expectation nobody had.
+    //
+    // CHRONOTYPE — the caveat over every time-of-day row below, not only the
+    // pairings.
+    //
+    // Between-person spread in when people are at their best is larger than the
+    // average time-of-day effect itself. So a row saying afternoons read low is a
+    // statement about a population whose two halves point opposite ways, and for any
+    // one person it may well be backwards — a morning type and an evening type
+    // differ by more than the row is worth. `PRD-VITALS.md` item 15 records the same
+    // thing where the pairings were added.
+    //
+    // This is survivable only because of the boundary above: a prior chooses which
+    // question gets asked, and the person's own fortnight answers it. A row that was
+    // wrong about somebody costs them a question they did not need, which is cheap.
+    // The same row quoted as a reason would cost them a wrong belief about
+    // themselves, which is why it may never be quoted.
+    //
+    // It is also why no time-of-day row sits above `Belief.common`, and why the
+    // pairings sit at `leaning`.
     private static let priors: [String: Prior] = [
         // Days off feel better than working days. As close to universal as
         // anything in this file.
-        "workday.non": Prior(raised: true, share: 0.85),
+        "workday.non": Prior(raised: true, share: Belief.wide),
         // The sleep association is the single most predictable finding the engine
         // can produce, and the one people quote at each other.
-        "bodyAssociation.sleepHours": Prior(raised: true, share: 0.82),
-        "bodyAssociation.steps": Prior(raised: true, share: 0.70),
-        "bodyAssociation.activeEnergy": Prior(raised: true, share: 0.68),
-        "bodyAssociation.exerciseMinutes": Prior(raised: true, share: 0.68),
-        "bodyAssociation.hrv": Prior(raised: true, share: 0.66),
-        "bodyAssociation.restingHeartRate": Prior(raised: false, share: 0.68),
-        "bodyAssociation.daylightMinutes": Prior(raised: true, share: 0.62),
+        "bodyAssociation.sleepHours": Prior(raised: true, share: Belief.wide),
+        "bodyAssociation.steps": Prior(raised: true, share: Belief.common),
+        "bodyAssociation.activeEnergy": Prior(raised: true, share: Belief.common),
+        "bodyAssociation.exerciseMinutes": Prior(raised: true, share: Belief.common),
+        "bodyAssociation.hrv": Prior(raised: true, share: Belief.common),
+        "bodyAssociation.restingHeartRate": Prior(raised: false, share: Belief.common),
+        "bodyAssociation.daylightMinutes": Prior(raised: true, share: Belief.leaning),
         // The post-lunch dip, and the morning it is measured against.
-        "timeOfDay.afternoon": Prior(raised: false, share: 0.70),
-        "timeOfDay.morning": Prior(raised: true, share: 0.66),
-        "timeOfDay.evening": Prior(raised: false, share: 0.60),
+        "timeOfDay.afternoon": Prior(raised: false, share: Belief.common),
+        "timeOfDay.morning": Prior(raised: true, share: Belief.common),
+        "timeOfDay.evening": Prior(raised: false, share: Belief.leaning),
         // Long blocks tire people out. Short ones are a coin toss, and midday has
         // no folk expectation at all, so both are left absent.
-        "duration.extended": Prior(raised: false, share: 0.74),
-        "duration.long": Prior(raised: false, share: 0.60),
+        "duration.extended": Prior(raised: false, share: Belief.common),
+        "duration.long": Prior(raised: false, share: Belief.leaning),
         // Priors over the default activity names only. A person's own activity is
         // absent from this table and therefore neutral — the table is a list of
         // things everybody already believes, not a list of things that count.
-        "activity.meetings": Prior(raised: false, share: 0.78),
-        "activity.admin": Prior(raised: false, share: 0.76),
-        "activity.exercise": Prior(raised: true, share: 0.78),
-        "activity.personal-rest": Prior(raised: true, share: 0.70),
-        "activity.social": Prior(raised: true, share: 0.60),
+        "activity.meetings": Prior(raised: false, share: Belief.common),
+        "activity.admin": Prior(raised: false, share: Belief.common),
+        "activity.exercise": Prior(raised: true, share: Belief.common),
+        "activity.personal-rest": Prior(raised: true, share: Belief.common),
+        "activity.social": Prior(raised: true, share: Belief.leaning),
 
         // MARK: Pairings — one activity inside one band
         //
@@ -317,9 +370,10 @@ enum Surprise {
         // and never answer one. And the alertness work behind it is mostly small,
         // lab-based, and measuring reaction time rather than anything resembling
         // focused work. So these sit at the bottom of the range this table uses,
-        // 0.56 to 0.62 against 0.85 for days off: that is the table saying out loud
-        // that it lists what everybody believes rather than what has been shown. Two
-        // weeks of somebody's own ratings outranks every one of them.
+        // `Belief.leaning`, every one of them, against `wide` for days off: that is
+        // the table saying out loud that it lists what everybody believes rather than
+        // what has been shown. Two weeks of somebody's own ratings outranks all of
+        // them.
         //
         // **Two deliberate absences, because this table cannot say what the belief
         // actually is.** Every row here means "the focus side reads above, or below,
@@ -332,21 +386,23 @@ enum Surprise {
         //
         // Midday has no pairing for the same reason it has no row of its own. There
         // is no folk expectation about the middle of the day to record.
-        "activity.deep-work.timeOfDay.morning": Prior(raised: true, share: 0.62),
-        "activity.deep-work.timeOfDay.afternoon": Prior(raised: false, share: 0.60),
-        // Believed, and barely. "I work better at night" is a thing a great many
-        // people say about themselves, so this is a coin toss with a lean.
-        "activity.deep-work.timeOfDay.evening": Prior(raised: false, share: 0.56),
+        "activity.deep-work.timeOfDay.morning": Prior(raised: true, share: Belief.leaning),
+        "activity.deep-work.timeOfDay.afternoon": Prior(raised: false, share: Belief.leaning),
+        // Believed, and barely — "I work better at night" is a thing a great many
+        // people say about themselves. It used to sit two hundredths below its
+        // neighbours to record that; it now ties with them, which is the honest
+        // reading, since nothing was ever measured that could separate the two.
+        "activity.deep-work.timeOfDay.evening": Prior(raised: false, share: Belief.leaning),
         // The one pairing that points where its own band does not: `timeOfDay.evening`
         // expects a session to read below, and the belief about creative work in an
         // evening runs the other way. A pairing that could only ever agree with its
         // band would not be worth a key.
-        "activity.creative.timeOfDay.evening": Prior(raised: true, share: 0.58),
-        "activity.exercise.timeOfDay.morning": Prior(raised: true, share: 0.60),
+        "activity.creative.timeOfDay.evening": Prior(raised: true, share: Belief.leaning),
+        "activity.exercise.timeOfDay.morning": Prior(raised: true, share: Belief.leaning),
         // Not "meetings are draining" — that is the row above, and it stands on its
         // own. This is the narrower belief that a meeting in a morning costs the
         // hours people most want for something else.
-        "activity.meetings.timeOfDay.morning": Prior(raised: false, share: 0.60),
+        "activity.meetings.timeOfDay.morning": Prior(raised: false, share: Belief.leaning),
     ]
 
     /// What a finding is about, read off the hypothesis rather than the copy.

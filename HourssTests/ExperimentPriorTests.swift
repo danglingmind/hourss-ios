@@ -478,8 +478,16 @@ struct ExperimentPriorTests {
     func pairingsAreUnreachableFromAFinding() {
         let deepWork = Surprise.Pattern(family: .activity, subject: "deep-work", raised: true)
         #expect(Surprise.expectedness(of: deepWork) == 0.5)
+        // The band row is reached and the pairing is not. Asserted as "more ordinary
+        // than neutral" rather than against a literal: the table's values were
+        // coarsened to three levels in `PRD-HOURS.md` phase 5, because two decimals
+        // claimed a precision nobody had measured, and a test pinned to the old
+        // hundredth would fail for that honesty rather than for a change of
+        // behaviour. What this test is about is which row is found, not what is in it.
         let morning = Surprise.Pattern(family: .timeOfDay, subject: "morning", raised: true)
-        #expect(Surprise.expectedness(of: morning) == 0.66)
+        let score = Surprise.expectedness(of: morning)
+        #expect(score > 0.5, Comment(rawValue: "the band row was not reached: \(score)"))
+        #expect(score < 1)
     }
 
     // MARK: The offer

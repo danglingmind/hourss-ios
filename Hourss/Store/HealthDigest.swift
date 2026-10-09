@@ -246,26 +246,49 @@ struct HealthDigest {
         let share: Double
     }
 
+    /// Three levels, for the reason `Surprise.Belief` gives at length.
+    ///
+    /// Every number in both tables was hand-set from intuition, and two decimals
+    /// implied a measurement nobody made. Sourced or coarsened — `PRD-HOURS.md` phase
+    /// 5 — and this is coarsened, because an unchecked citation moves a number from
+    /// "somebody guessed" to "somebody measured" without anybody having measured.
+    ///
+    /// Deliberately the same three values as `Surprise.Belief` rather than a second
+    /// scale. The two tables answer different questions — one about an association,
+    /// one about a shape in a single signal — but "how widely is this believed" means
+    /// the same thing in both, and two vocabularies for one idea is how they would
+    /// drift apart.
+    private enum Belief {
+        /// Almost everybody believes it and there is a plain mechanism behind it.
+        static let wide = 0.82
+        /// Generally believed, and nothing about it is surprising.
+        static let common = 0.68
+        /// Believed by many and genuinely contested, or resting on thin evidence.
+        static let leaning = 0.58
+    }
+
     /// Keyed by metric and kind, since the same signal is banal in one shape and
     /// interesting in another: everyone knows they sleep in at weekends, and
     /// almost nobody knows their sleep has drifted since spring.
     private static let priors: [String: Prior] = [
         // The single most predictable thing an app can tell somebody.
-        "sleepHours.contrast": Prior(raised: true, share: 0.88),
-        "steps.contrast": Prior(raised: true, share: 0.70),
-        "activeEnergy.contrast": Prior(raised: true, share: 0.68),
-        "exerciseMinutes.contrast": Prior(raised: true, share: 0.66),
-        "daylightMinutes.contrast": Prior(raised: true, share: 0.64),
-        "restingHeartRate.contrast": Prior(raised: false, share: 0.62),
-        "hrv.contrast": Prior(raised: true, share: 0.60),
+        "sleepHours.contrast": Prior(raised: true, share: Belief.wide),
+        "steps.contrast": Prior(raised: true, share: Belief.common),
+        "activeEnergy.contrast": Prior(raised: true, share: Belief.common),
+        "exerciseMinutes.contrast": Prior(raised: true, share: Belief.common),
+        "daylightMinutes.contrast": Prior(raised: true, share: Belief.leaning),
+        "restingHeartRate.contrast": Prior(raised: false, share: Belief.leaning),
+        "hrv.contrast": Prior(raised: true, share: Belief.leaning),
 
         // A week having a shape is genuinely not common knowledge, but sleep is
         // the one people have noticed about themselves.
-        "sleepHours.rhythm": Prior(raised: true, share: 0.55),
+        "sleepHours.rhythm": Prior(raised: true, share: Belief.leaning),
 
         // `sleepHours.scale` and `steps.scale` sat here, at 0.80 and 0.78 — the
-        // highest shares in the table, because a total is the one thing nobody is
-        // surprised by. Scoring a card as banal is a weaker remedy than not
+        // highest shares the table then held, because a total is the one thing
+        // nobody is surprised by. The figures are kept as they were written rather
+        // than restated in levels, since they are a record of an argument made at
+        // the time and not live values. Scoring a card as banal is a weaker remedy than not
         // building it, so the generator went and these went with it. Left named
         // rather than silently deleted: the numbers are the argument for the
         // removal, and the next person to propose a totals card should see that

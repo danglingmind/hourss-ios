@@ -1,6 +1,6 @@
 # Offering an hour nobody has logged
 
-**Status:** phases 0–3 built. **Phase 4 is built and blocked — see §10.3.** Phases 5–7 proposed.
+**Status:** phases 0–3 and 5 built. **Phase 4 is built and blocked — see §10.3.** Phases 6–7 proposed.
 **Date:** 9 October 2026
 
 ---
@@ -434,6 +434,54 @@ on every offer build, returns nothing, and costs one `RatingShape.fit`. It is le
 place rather than removed because the source is correct and tested, and the thing
 missing from it is a row.
 
+### 10.4 The priors were coarsened, not sourced — and that was the honest branch
+
+Item 19 offered two routes: a citation beside every row, or three levels intuition
+can defend. Taken: **three levels.**
+
+**Why not citations.** A citation that has not been checked is worse than an honest
+shrug — it moves a number from "somebody guessed" to "somebody measured" without
+anybody having measured, and it makes the next reader trust a row more rather than
+less. Verifying twenty-four rows against real literature is a piece of research, not
+a coding task, and half-doing it would leave the table in the worst state of the
+three: some rows sourced, some not, and nothing on the page saying which.
+
+**What was wrong with the numbers.** Every value in both tables was hand-set from
+intuition — the engine document says so in its own §10.7 — and they sat at two
+decimals beside each other as though 0.68 and 0.66 differed for a reason. Nothing
+was ever measured that could separate them, and a reader could not tell invented
+precision from recorded precision.
+
+**The levels.** `Belief.wide` (0.82) — almost everybody believes it and there is a
+plain mechanism. `Belief.common` (0.68) — generally believed, nothing surprising.
+`Belief.leaning` (0.58) — believed by many and genuinely contested, or resting on
+evidence that is thin, lab-bound, or measuring something adjacent to what is
+claimed. The ends of the old range are kept, so the table's overall ordering is
+unchanged and only the invented distinctions inside it are gone.
+
+**Ties are the point.** Rows that differed by two hundredths now score identically
+and are separated by specificity and evidence instead — the terms that rest on this
+person's own record. That is the right order of authority and the old precision
+obscured it.
+
+Both tables took the same three values rather than a second scale, since "how widely
+is this believed" means the same thing in each and two vocabularies for one idea is
+how they drift apart.
+
+**One test moved.** `pairingsAreUnreachableFromAFinding` pinned `0.66`. Its subject
+is which row a finding reaches, not what is in it, so it now asserts that the band
+row was found rather than a literal — which is what it was always about.
+
+**Item 20.** The chronotype caveat already sat beside the pairings. It now sits in
+the table's own boundary note, where it covers every time-of-day row: between-person
+spread in when people are at their best exceeds the average time-of-day effect, so
+such a row describes a population whose two halves point opposite ways and may be
+backwards for any individual. Survivable only because a prior chooses a question and
+the fortnight answers it — a wrong row costs somebody a question they did not need,
+where the same row quoted as a reason would cost them a wrong belief about
+themselves. It is also why no time-of-day row sits above `common` and every pairing
+sits at `leaning`.
+
 ---
 
 ## 9. Checklist
@@ -476,8 +524,10 @@ missing from it is a row.
       phase 3; the first strings now exist.)*
 
 ### Phase 5 — the priors table
-- [ ] **19.** Every entry sourced or coarsened; provenance beside the number.
-- [ ] **20.** The chronotype caveat recorded beside the table.
+- [x] **19.** Every entry sourced or coarsened; provenance beside the number.
+      **Coarsened** — see §10.4 for why, and why not sourced.
+- [x] **20.** The chronotype caveat recorded beside the table, over every
+      time-of-day row rather than only the pairings.
 
 ### Phase 6 — confidence
 - [ ] **21.** Isotonic calibration fitted offline, shipped as a table.
