@@ -237,7 +237,7 @@ enum ExperimentDesign {
     static func proposals(
         for input: EngineInput,
         excluding declined: Set<String> = [],
-        resamples: Int = 2000
+        resamples: Int = Statistics.resamples
     ) -> [Proposal] {
         let findings = Engine.applyingCorrection(to: Engine.findings(for: input, resamples: resamples))
         return proposals(from: findings, input: input, excluding: declined)
@@ -310,7 +310,7 @@ enum ExperimentDesign {
     static func headline(
         for input: EngineInput,
         excluding declined: Set<String> = [],
-        resamples: Int = 2000
+        resamples: Int = Statistics.resamples
     ) -> Proposal? {
         proposals(for: input, excluding: declined, resamples: resamples).first
     }

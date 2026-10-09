@@ -54,8 +54,17 @@ enum ObservationBuilder {
                 feeling: reflections[session.id]?.feelingScore.map(Double.init),
                 performance: reflections[session.id]?.performanceScore.map(Double.init),
                 dayHealth: dayHealth,
-                heartRateResidual: reading?.residual,
-                cadence: reading?.cadence
+                // Only readings measured finely enough to be compared. A residual
+                // carried with a 12 bpm error bar counted the same as one carried
+                // with 5 once it reached layer 2, which is the engine document's
+                // §10.8 — `Physiology.Reading.isPreciseEnough` has the argument and
+                // the reason it is a filter rather than a weighting.
+                //
+                // The cadence travels with it. It is the movement context a claim
+                // quotes beside the residual, so a row keeping one without the other
+                // would let a sentence describe a reading the engine refused.
+                heartRateResidual: reading.flatMap { $0.isPreciseEnough ? $0.residual : nil },
+                cadence: reading.flatMap { $0.isPreciseEnough ? $0.cadence : nil }
             )
         }
     }

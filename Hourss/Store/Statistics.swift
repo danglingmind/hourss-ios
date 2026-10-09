@@ -149,10 +149,44 @@ enum Statistics {
     /// from a drawn day travels with it, into whichever side it belongs to, so a
     /// day where someone logged six sessions contributes one draw of evidence and
     /// not six.
+    /// How many times a comparison is resampled.
+    ///
+    /// **One constant rather than fifteen literals, and that is the part of this
+    /// worth keeping.** The figure appeared as a bare `2000` in fifteen signatures
+    /// across seven files, so changing it meant finding all fifteen and the compiler
+    /// could not help. Spelled once, it can be argued with in one place.
+    ///
+    /// **Why it is still two thousand, after being raised to ten and measured.**
+    /// The engine document's §10.3 says the floor blunts the correction: the
+    /// bootstrap p is floored at one resample — `max(1 / Double(deltas.count), …)`
+    /// below — so at two thousand the smallest p any comparison can report is
+    /// 0.0005, and every genuinely planted effect in the cohort reports exactly
+    /// that. The compression is real. It does not change what survives.
+    ///
+    /// Benjamini–Hochberg keeps the largest *k* whose p sits under `(k/m)·q`. A
+    /// floored p only blocks a finding when the floor exceeds its own threshold:
+    ///
+    /// ```
+    /// 1/R > q/m   ⟺   m > q·R   =   0.10 × 2000   =   200
+    /// ```
+    ///
+    /// So the floor binds only when more than two hundred hypotheses are tested in
+    /// one run. The registry mints roughly twenty testable main effects and
+    /// `InteractionBudget.maximumCandidates` caps the rest at thirty. Ties at the
+    /// bottom of a step-up procedure do not move its cutoff, so nothing changes.
+    ///
+    /// **Measured, not assumed.** At ten thousand the unit suite ran 1050 seconds
+    /// against 310, a 3.4× tax on every run, for headroom at a registry size four
+    /// times the current one. `BACKLOG.md` records the condition that would make it
+    /// worth paying: if `m` ever approaches two hundred — adding outcomes is the
+    /// likely route, which the engine document raises as §10.9 — raise this and
+    /// expect the suite to cost accordingly.
+    static let resamples = 2000
+
     static func compare(
         focus: [Observation],
         baseline: [Observation],
-        resamples: Int = 2000,
+        resamples: Int = Statistics.resamples,
         seed: UInt64 = 0x484F_5552
     ) -> Comparison {
         let focusValues = focus.map(\.value)
@@ -237,7 +271,7 @@ enum Statistics {
             while d < dayCount {
                 // Multiply-and-take-the-high-word draws a day in one multiply.
                 // Its bias is on the order of one part in 2^64, which no bootstrap
-                // of two thousand resamples could notice.
+                // at any resample count this app would run could notice.
                 times[Int(rng.next().multipliedFullWidth(by: UInt64(dayCount)).high)] += 1
                 d += 1
             }

@@ -1141,3 +1141,28 @@ sessions. The fortnight measures a band. The band is taken. The only way out is 
 hour-level hypothesis that exists as an experiment target and never enters the
 registry, so it costs nobody power under the correction. That reaches the correction,
 adherence and outcome resolution. `PRD-HOURS.md` §10.3 has the full account.
+
+### When to raise the resample count
+
+**Status:** decided for now, with the condition that reverses it written down.
+
+`Statistics.resamples` is 2000 and the bootstrap p is floored at `1/resamples` =
+0.0005, so every planted effect in the cohort reports exactly that. The engine
+document raises this as §10.3 — the correction only discriminates in 0.005–0.05.
+
+Raised to 10,000 and measured: **the unit suite went from 310 to 1050 seconds**, a
+3.4× tax on every run, and nothing else changed. Benjamini–Hochberg keeps the
+largest *k* with `p(k) ≤ (k/m)·q`, so a floored p only blocks a finding when
+`1/R > q/m`, which is `m > q·R` = 0.10 × 2000 = **200 hypotheses in one run**. The
+registry mints about twenty testable main effects and `InteractionBudget` caps
+candidates at thirty. Ties at the bottom of a step-up procedure do not move its
+cutoff.
+
+So the compression is real and costs nothing today. **Raise it when `m` approaches
+two hundred**, and expect the suite to cost proportionally. The likely route there
+is adding outcomes, which the engine document raises as §10.9 — `performance` and
+`heartRateResidual` already reach the same machinery while only `feeling` and
+per-activity residual hypotheses are registered.
+
+The constant itself is now spelled once rather than as a bare `2000` in fifteen
+signatures across seven files, so the change is a one-line edit when it is time.

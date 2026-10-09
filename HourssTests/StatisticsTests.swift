@@ -184,8 +184,11 @@ struct StatisticsTests {
         let p = Statistics.compare(focus: focus, baseline: baseline).pValue
         #expect(p < 0.01, Comment(rawValue: "separated groups gave p = \(p)"))
         // The bootstrap cannot resolve below its own resolution, and must not
-        // pretend it can.
-        #expect(p >= 1.0 / 2000.0)
+        // pretend it can. Derived from the resample count rather than written as
+        // `1/2000`: the literal made this test fail when the count was raised to ten
+        // thousand, which is the floor moving correctly rather than a regression, and
+        // a test that cannot tell those apart is worse than no test.
+        #expect(p >= 1.0 / Double(Statistics.resamples))
     }
 
     // MARK: - What a phone can afford

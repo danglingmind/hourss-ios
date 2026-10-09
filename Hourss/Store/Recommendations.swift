@@ -585,7 +585,7 @@ enum Recommendations {
     ///
     /// Runs the same two steps the feed runs and then stops: no comparison is
     /// computed here that a published insight would not already rest on.
-    static func build(for input: EngineInput, resamples: Int = 2000) -> [Recommendation] {
+    static func build(for input: EngineInput, resamples: Int = Statistics.resamples) -> [Recommendation] {
         let findings = Engine.applyingCorrection(to: Engine.findings(for: input, resamples: resamples))
         return build(from: findings, input: input)
     }
@@ -648,7 +648,7 @@ enum Recommendations {
     }
 
     /// The one to lead with. Nil is a real answer and the common one early on.
-    static func headline(for input: EngineInput, resamples: Int = 2000) -> Recommendation? {
+    static func headline(for input: EngineInput, resamples: Int = Statistics.resamples) -> Recommendation? {
         build(for: input, resamples: resamples).first
     }
 

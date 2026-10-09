@@ -137,7 +137,7 @@ enum ExperimentOutcome {
         _ experiment: Experiment,
         hypothesis: Hypothesis?,
         observations: [EngineObservation],
-        resamples: Int = 2000,
+        resamples: Int = Statistics.resamples,
         calendar: Calendar = .current
     ) -> Reading {
         guard let hypothesis else { return unreadable() }
@@ -340,7 +340,7 @@ enum ExperimentOutcome {
         hypothesis: Hypothesis?,
         observations: [EngineObservation],
         now: Date,
-        resamples: Int = 2000,
+        resamples: Int = Statistics.resamples,
         calendar: Calendar = .current
     ) -> Experiment {
         guard experiment.phase == .active,

@@ -306,7 +306,7 @@ enum InteractionCandidates {
     static func screen(
         _ conjunction: Conjunction,
         in observations: [EngineObservation],
-        resamples: Int = 2000,
+        resamples: Int = Statistics.resamples,
         minimumDays: Int = InteractionBudget.minimumDaysPerCell
     ) -> Screening {
         let cells = partition(conjunction, in: observations)
@@ -367,7 +367,7 @@ enum InteractionCandidates {
         for input: EngineInput,
         mainEffects: [String: MainEffect],
         outcome: Outcome = .feeling,
-        resamples: Int = 2000,
+        resamples: Int = Statistics.resamples,
         budget: Int = InteractionBudget.maximumCandidates
     ) -> [InteractionFinding] {
         let observations = input.observations

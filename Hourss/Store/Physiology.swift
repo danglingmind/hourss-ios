@@ -678,7 +678,51 @@ enum Physiology {
 
         /// Whether the residual clears its own error bar. Anything that does not
         /// is a number, not a finding, and must not be shown as one.
+        ///
+        /// **A display gate, and it must never become an entry gate.** Filtering the
+        /// rows that reach layer 2 on this would be selection on the outcome: it
+        /// keeps the large residuals on both sides of every comparison and discards
+        /// the small ones, which inflates every effect size the engine then measures.
+        /// `isPreciseEnough` is the gate that may be applied before the statistic,
+        /// because it reads nothing about the residual's value.
         var exceedsUncertainty: Bool { abs(residual) > uncertainty }
+
+        /// Whether this reading is measured finely enough to be compared at all.
+        ///
+        /// **The gap this closes.** `uncertainty` widens with cadence and with how
+        /// few samples a window held, and until now it gated only what could be
+        /// *shown*. The residual then entered layer 2 as a plain number, so a
+        /// reading carried with a 12 bpm error bar and one carried with 5 counted
+        /// exactly the same in the comparison. The engine document raises it as
+        /// §10.8 and offers two remedies; this is the second of them.
+        ///
+        /// **Why a filter and not inverse-variance weighting.** Weighting is the
+        /// statistically richer answer and it was the one `PRD-HOURS.md` phase 7
+        /// asked for. It cannot be had cheaply here. The statistic is Cliff's delta,
+        /// a rank statistic over *pairs*, so a weighted version is a different
+        /// estimator — and the measured false-positive behaviour that the engine's
+        /// whole silence budget rests on (0/300 at ninety days, 16/300 at twenty)
+        /// was measured for the unweighted one. Swapping the estimator invalidates
+        /// that table until it is measured again, which is a piece of work in its own
+        /// right rather than a line in this one. A filter removes rows and leaves the
+        /// estimator exactly as it was measured.
+        ///
+        /// **Where the number comes from, and it is not a new scale.**
+        /// `DayShape.minimumDifference` is five beats — the smallest difference this
+        /// app will say anything about. A reading whose error bar is wider than twice
+        /// that cannot support a statement about a difference of that size, whatever
+        /// else is true of it. So the bar is ten, derived from a constant the app
+        /// already committed to rather than invented beside it.
+        ///
+        /// **Selection on a covariate, not on the outcome.** `uncertainty` is built
+        /// from cadence, sample count and the curve's own scatter — see
+        /// `Analyzer.uncertainty` — and none of those reads the residual. So dropping
+        /// rows on it thins the data without tilting the comparison, which is exactly
+        /// what the sibling property above may not claim.
+        var isPreciseEnough: Bool { uncertainty <= Reading.maximumUncertainty }
+
+        /// The widest error bar a residual may carry and still be compared.
+        static let maximumUncertainty: Double = 2 * DayShape.minimumDifference
 
         /// The movement half of the output, in words. Descriptive by construction:
         /// there is deliberately no property here that names a cause, because

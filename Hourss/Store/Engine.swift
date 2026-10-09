@@ -23,7 +23,7 @@ enum Engine {
 
     // MARK: - Entry point
 
-    static func run(_ input: EngineInput, resamples: Int = 2000) -> [Insight] {
+    static func run(_ input: EngineInput, resamples: Int = Statistics.resamples) -> [Insight] {
         let tested = findings(for: input, resamples: resamples)
         let corrected = applyingCorrection(to: tested)
         return corrected
@@ -43,7 +43,7 @@ enum Engine {
     /// enters the correction. This is the difference between a question asked and
     /// a question skipped, and conflating them would make the engine quieter every
     /// time someone added an activity they rarely log.
-    static func findings(for input: EngineInput, resamples: Int = 2000) -> [Finding] {
+    static func findings(for input: EngineInput, resamples: Int = Statistics.resamples) -> [Finding] {
         let observations = input.observations
         return HypothesisRegistry.hypotheses(for: observations).compactMap { hypothesis in
             let focus = side(hypothesis.focus, of: hypothesis, in: observations)

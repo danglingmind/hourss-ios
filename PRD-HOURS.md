@@ -1,6 +1,6 @@
 # Offering an hour nobody has logged
 
-**Status:** phases 0–3 and 5 built. **Phase 4 is built and blocked — see §10.3.** Phases 6–7 proposed.
+**Status:** phases 0–3, 5 and 7 built. **Phase 4 is built and blocked — see §10.3.** Phase 6 remains.
 **Date:** 9 October 2026
 
 ---
@@ -482,6 +482,67 @@ where the same row quoted as a reason would cost them a wrong belief about
 themselves. It is also why no time-of-day row sits above `common` and every pairing
 sits at `leaning`.
 
+### 10.5 Resamples raised to ten thousand, measured, and put back
+
+**What §10.3 of the engine document says.** The bootstrap p is floored at one
+resample, so at two thousand the smallest p any comparison can report is 0.0005 and
+every planted effect in the cohort reports exactly that, leaving BH to discriminate
+only in 0.005–0.05.
+
+**The compression is real. It changes nothing.** BH keeps the largest *k* with
+`p(k) ≤ (k/m)·q`, so a floored p only blocks a finding when `1/R > q/m` — that is,
+when `m > q·R` = 0.10 × 2000 = **two hundred hypotheses in one run**. The registry
+mints about twenty testable main effects and `InteractionBudget` caps candidates at
+thirty. Ties at the bottom of a step-up procedure do not move its cutoff.
+
+**Measured rather than reasoned at.** At ten thousand the unit suite ran **1050
+seconds against 310** — a 3.4× tax on every run — and the only test that changed
+behaviour was one asserting the old floor as a literal. So the raise buys headroom
+for a registry four times the current size and nothing else.
+
+**Put back to two thousand, with three things kept:** the count is now one named
+constant instead of a bare `2000` in fifteen signatures across seven files, so the
+change is a one-line edit when it is due; `StatisticsTests` derives the floor from
+the count rather than pinning `1/2000`, since a test that cannot tell a moved floor
+from a regression is worse than no test; and `BACKLOG.md` records the condition that
+reverses the decision — `m` approaching two hundred, most likely by adding outcomes,
+which the engine document raises as its own §10.9.
+
+### 10.6 A filter, not inverse-variance weighting
+
+**The gap.** `Reading.uncertainty` widens with cadence and with how few samples a
+window held, and gated only what could be *shown*. The residual then entered layer 2
+as a plain number, so a reading carried with a 12 bpm error bar counted exactly the
+same as one carried with 5. The engine document's §10.8, which offers two remedies.
+
+**Why not the weighting this phase asked for.** The statistic is Cliff's delta, a
+rank statistic over *pairs*, so a weighted version is a different estimator — and the
+measured false-positive behaviour the whole silence budget rests on (0/300 at ninety
+days, 16/300 at twenty) was measured for the unweighted one. Swapping estimators
+invalidates that table until it is measured again, which is a piece of work rather
+than a line. A filter removes rows and leaves the estimator exactly as measured.
+
+**The bar is derived, not invented.** `DayShape.minimumDifference` is five beats —
+the smallest difference this app will say anything about. An error bar wider than
+twice it cannot support a statement about a difference that size. So ten, from a
+constant the app already committed to.
+
+**It is selection on a covariate, not on the outcome, and that distinction is the
+whole safety argument.** `uncertainty` is built from cadence, sample count and the
+curve's own scatter; none of them reads the residual. Filtering on
+`exceedsUncertainty` instead — which was the tempting one, since it already exists —
+would keep the large residuals on both sides of every comparison and drop the small
+ones, inflating every effect size measured afterwards. `ResidualPrecisionTests` pins
+that the entry gate ignores the residual's value, because the hazard is that somebody
+later swaps one for the other.
+
+**What it costs, measured.** Sitting still loses nothing (100% kept, uncertainty
+4.4–5.7). Walking through most of a day loses a good deal — `walksEverywhere` keeps
+51%, `walksAndStrains` 39%. Those are the people the residual layer was built for, so
+a test pins that a walker keeps enough readings to still be compared; a bar set too
+high would remove the whole case the layer exists to find, and the suite would stay
+green because the claim would simply stop being made.
+
 ---
 
 ## 9. Checklist
@@ -534,8 +595,11 @@ sits at `leaning`.
 - [ ] **22.** What was calibrated against, stated in `DESIGN.md`.
 
 ### Phase 7 — hygiene
-- [ ] **23.** Resamples raised; the floor re-derived.
-- [ ] **24.** Inverse-variance weighting in `Statistics.compare`.
+- [~] **23.** ~~Resamples raised~~; **raised, measured, reverted — §10.5.** The
+      floor is now derived from the count in both the code and the test, and the
+      count is one constant rather than fifteen literals.
+- [~] **24.** ~~Inverse-variance weighting in `Statistics.compare`~~ — **a filter
+      instead, §10.6.** The gap §10.8 names is closed.
 
 ### Verification
 - [ ] **25.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.

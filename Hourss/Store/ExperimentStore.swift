@@ -81,7 +81,7 @@ extension HourssStore {
     /// a single engine run. This is kept for callers that want only one of the two —
     /// `InsightDetailView` is one, and running the engine once there is the whole
     /// cost of opening a screen rather than a cost paid on every refresh.
-    func experimentProposals(resamples: Int = 2000) -> [ExperimentDesign.Proposal] {
+    func experimentProposals(resamples: Int = Statistics.resamples) -> [ExperimentDesign.Proposal] {
         guard activeExperiment == nil else { return [] }
         let input = EngineInput(observations: engineObservations, priorities: profile.priorities)
         let findings = Engine.applyingCorrection(to: Engine.findings(for: input, resamples: resamples))
@@ -100,7 +100,7 @@ extension HourssStore {
     /// findings to either would silently promote claims the feed refused to make —
     /// `ExperimentDesign` would read every lead as confirmed — which is why the
     /// correction happens at this level rather than being left to the callers.
-    func slotOutput(resamples: Int = 2000)
+    func slotOutput(resamples: Int = Statistics.resamples)
         -> (recommendations: [Recommendation], proposals: [ExperimentDesign.Proposal]) {
         let rows = ObservationBuilder.rows(
             sessions: sessions,
@@ -251,7 +251,7 @@ extension HourssStore {
     ///
     /// Reads the window without writing anything — `settle` is the only call that
     /// freezes a figure, and it is deliberately not this one.
-    func reading(for experiment: Experiment, resamples: Int = 2000) -> ExperimentOutcome.Reading {
+    func reading(for experiment: Experiment, resamples: Int = Statistics.resamples) -> ExperimentOutcome.Reading {
         ExperimentOutcome.read(
             experiment,
             hypothesis: hypothesis(for: experiment.hypothesisId),
@@ -361,7 +361,7 @@ extension HourssStore {
     ///   codebase has already shipped once, in the slot picker.
     /// - Returns: whether anything settled, so a caller can decide to refresh.
     @discardableResult
-    func settleClosedExperiments(now: Date = Date(), resamples: Int = 2000) -> Bool {
+    func settleClosedExperiments(now: Date = Date(), resamples: Int = Statistics.resamples) -> Bool {
         var settledAny = false
         for index in experiments.indices where experiments[index].phase == .active {
             let experiment = experiments[index]
