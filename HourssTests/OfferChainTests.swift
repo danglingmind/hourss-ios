@@ -161,30 +161,21 @@ struct OfferChainTests {
     /// outcome goes first. Nothing inside either source can see this; it is a
     /// property of the chain.
     ///
-    /// **Asserted with nothing measured, which is the state this source is for.**
-    /// `completing` skips any focus area an earlier source already served, and
-    /// `ExperimentHours` serves only priorities carrying `.bestTimeWindow` — which is
-    /// `focus` alone. `ExperimentDesign` serves focus for almost everybody, if only
-    /// with a starter, so through the whole chain the hour-led offer is skipped
-    /// before it is reached. `PRD-HOURS.md` §10.7 records that and why it is a
-    /// ranking question rather than a bug.
+    /// **Through the whole chain, which it could not survive until the hollow-ask
+    /// rule landed.** `ExperimentHours` serves only priorities carrying
+    /// `.bestTimeWindow` — `focus` alone — and `completing` skips a focus area an
+    /// earlier source already served. The interpolator logs mornings daily, so the
+    /// measured source served focus with "log one session in your morning", which
+    /// asks them for what they already do, and the hour-led offer was skipped behind
+    /// it. `ExperimentDesign.isHollow` drops that offer before the chain runs, which
+    /// is what lets this one through. `PRD-HOURS.md` §10.7.
     @Test("An hour read from their own ratings outranks one read from their body")
     func hoursOutrankVitals() throws {
         let store = interpolatorStore()
-        let input = EngineInput(observations: store.engineObservations,
-                                priorities: store.profile.priorities)
-
-        let chained = ExperimentVitals.completing(
-            ExperimentHours.proposals(
-                for: store.profile.priorities,
-                shape: RatingShape.fit(input.observations),
-                observations: input.observations),
-            priorities: store.profile.priorities,
-            shape: store.dayShape,
-            observations: input.observations)
+        let chained = store.experimentProposals(resamples: 200)
 
         try #require(chained.contains(where: isHourLed),
-                     "the interpolator should reach the hour curve")
+                     "the hour-led offer did not survive the chain")
 
         for proposal in chained.filter(isHourLed) {
             let sameArea = chained.filter { $0.priority == proposal.priority }

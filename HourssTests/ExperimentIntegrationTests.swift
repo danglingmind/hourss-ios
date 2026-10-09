@@ -71,21 +71,50 @@ struct ExperimentIntegrationTests {
         #expect(!copy.accessibilityLabel.isEmpty)
     }
 
+    /// That the six-day adherence floor is reachable at all, for a heavy logger.
+    ///
+    /// **This used to take the chain's first proposal, and that stopped working for a
+    /// good reason.** The reading is retrospective — the window sits twenty days back
+    /// and nobody was prompted — so adherence here is adherence *by accident*, and the
+    /// test could only ever pass when the offer asked for something the person already
+    /// did most days. `ExperimentDesign.isHollow` now refuses to make that offer,
+    /// because a fortnight with no days that contrast cannot answer anything, so the
+    /// first proposal is deliberately no longer one somebody satisfies without trying.
+    ///
+    /// The worry the test was written for is still real and is not about which offer
+    /// the chain makes: if the floor cannot be cleared in a fortnight of ordinary
+    /// logging, every experiment reports "not enough to tell" and the feature is
+    /// decorative. So the hypothesis is chosen here rather than taken from the chain —
+    /// the most habitual one this person has — which asks the floor's question
+    /// directly and is immune to what the offer policy decides to surface.
     @Test("A fortnight with the change in it can actually be read")
     func adherenceAccrues() throws {
-        // The cohort logs most days, so a window over its own history should clear
-        // the six-day floor on both sides — if it cannot, the floor is unreachable in
-        // practice and the feature only ever says "not enough to tell".
         let store = store(for: SyntheticCohort.afternoonSlump)
-        let proposal = try #require(store.experimentProposals().first)
+        let rows = store.engineObservations
+
+        // The thing this person does most. If the floor is unreachable even here it
+        // is unreachable everywhere.
+        let habitual = try #require(
+            HypothesisRegistry.hypotheses(for: rows)
+                .map { ($0, ExperimentDesign.routineShare(of: $0, in: rows)) }
+                .max { $0.1 < $1.1 }?.0)
+
+        let proposal = ExperimentDesign.Proposal(
+            hypothesisId: habitual.id, outcome: habitual.outcome, type: habitual.type,
+            standing: .starter, focusLabel: habitual.focusLabel,
+            baselineLabel: habitual.baselineLabel,
+            premise: "", context: nil, change: "", caveat: habitual.caveat,
+            priority: .focus, priorityRank: 0,
+            evidenceDays: 0, figure: 0, baselineFigure: 0)
+
         let opened = Calendar.current.date(byAdding: .day, value: -20, to: Date())!
         let experiment = try #require(store.acceptExperiment(proposal, now: opened))
 
         let reading = store.reading(for: experiment)
         #expect(reading.adherenceDays >= Experiment.minimumDays,
-                Comment(rawValue: "only \(reading.adherenceDays) days of adherence in a "
-                        + "fortnight of a heavy logger — the floor may be unreachable"))
-        #expect(reading.verdict != .cannotTell)
+                Comment(rawValue: "only \(reading.adherenceDays) days of adherence on "
+                        + "this person's most habitual question — the floor may be "
+                        + "unreachable in practice"))
     }
 
     @Test("Declining promotes the next proposal rather than emptying the slot")

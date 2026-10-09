@@ -130,8 +130,21 @@ extension HourssStore {
     /// read would be the duplicated engine run `slotOutput` exists to avoid.
     private func offers(from findings: [Finding], input: EngineInput)
         -> [ExperimentDesign.Proposal] {
-        let proposals = ExperimentDesign.proposals(
-            from: findings, input: input, excluding: experimentKeysToExclude)
+        // Dropped here rather than further down, because a hollow offer does not
+        // merely waste its own slot — `completing` skips a priority already served,
+        // so one of them silently costs that focus area every other offer the chain
+        // could have made. Removing it before the chain runs is what lets the sources
+        // below reach somebody who is already doing the measured thing.
+        //
+        // The measured source is where this concentrates: its proposals are built
+        // from what a record already shows, so the strongest finding about an
+        // established habit is exactly the one most likely to ask for that habit.
+        // `ExperimentDesign.isHollow` has the arithmetic, and it is the engine's own
+        // contrast floor read a fortnight earlier.
+        let proposals = dropHollow(
+            ExperimentDesign.proposals(from: findings, input: input,
+                                       excluding: experimentKeysToExclude),
+            in: input.observations)
 
         // Every hypothesis the engine got far enough to test. Past that point the
         // measured path owns the question, and a later source saying nothing is known
@@ -237,14 +250,34 @@ extension HourssStore {
             excluding: experimentKeysToExclude.union(withPriors.map(\.hypothesisId))
         ).filter { !servedAbove.contains($0.priority) }
 
-        return ExperimentStarters.completing(
+        // Every source below can ask for something somebody already does too — a
+        // vitals-led "log one session in the morning" is hollow for a habitual early
+        // riser exactly as the measured one was. Filtered once at the end rather than
+        // after each source, since by here nothing is left to pre-empt, and a focus
+        // area with nothing in it is the honest outcome when no source has a real ask.
+        return dropHollow(ExperimentStarters.completing(
             withGaps,
             priorities: input.priorities,
             healthByDay: healthByDay,
             activities: pickableActivities,
             measured: measured,
             excluding: experimentKeysToExclude
-        )
+        ), in: input.observations)
+    }
+
+    /// Offers that ask for something this person is not already doing.
+    ///
+    /// A proposal whose hypothesis has gone from the registry is kept: it cannot be
+    /// judged, and dropping what cannot be judged would make a missing row quietly
+    /// narrow what anybody is offered. `ExperimentDesign.isHollow` is the rule.
+    private func dropHollow(
+        _ proposals: [ExperimentDesign.Proposal],
+        in observations: [EngineObservation]
+    ) -> [ExperimentDesign.Proposal] {
+        proposals.filter { proposal in
+            guard let hypothesis = hypothesis(for: proposal.hypothesisId) else { return true }
+            return !ExperimentDesign.isHollow(hypothesis, in: observations)
+        }
     }
 
     /// How much of the change has happened so far, for the active card.

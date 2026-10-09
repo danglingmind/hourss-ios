@@ -1,6 +1,6 @@
 # Offering an hour nobody has logged
 
-**Status:** phases 0–3, 5 and 7 built. **Phase 4's blocker is gone; a second one is in its place — §10.3, §10.7.** Phase 6 remains.
+**Status:** phases 0–5 and 7 built. Phase 6 remains.
 **Date:** 9 October 2026
 
 ---
@@ -583,15 +583,52 @@ while the hour-led offer is "try 07:00, which you never have". The second is wor
 more to that person and the chain has no way to say so, because it compares sources
 rather than what a proposal would actually ask somebody to change.
 
-Closing it means a rule about **how much a proposal asks for**, not about where its
-evidence came from — and that reaches `ExperimentDesign`, which is the most
-load-bearing source in the chain. Left for a decision rather than taken at the end of
-a long session.
+**Closed — §10.8.** The rule is about how much a proposal asks for, not where its
+evidence came from, and with it the hour-led offer survives the whole chain.
 
-**What is reachable today.** The source, its row and its copy are correct and
-tested, and the offer appears wherever focus is unserved. `OfferChainTests` asserts
-the ordering and the registry rule at that level and says in its own comment why not
-through `experimentProposals`.
+### 10.8 The size of the ask
+
+**The rule.** A proposal is *hollow* when the person already does what it asks on so
+many days that its fortnight could not produce the contrast a verdict needs. Hollow
+offers are dropped before the chain runs and again at its end.
+
+**It is the engine's own floor, read a fortnight earlier.** `ExperimentOutcome`
+already refuses a window carrying fewer than `Experiment.minimumDays` days that
+contrast with the change. Days somebody would have had anyway are not contrast. So
+over `Experiment.defaultWindowDays`:
+
+```
+windowDays · (1 − r) ≥ minimumDays   ⟺   r ≤ 1 − 6/14 ≈ 0.57
+```
+
+Nothing is invented: both constants were already committed to, and the bound is the
+generous end of them. `r` is measured unprompted and being asked can only raise it,
+so the real contrast will be thinner than this predicts — the bound refuses only what
+is hopeless before compliance is accounted for at all. Guessing how much a prompt
+lifts adherence would be inventing a number; refusing only the provable cases needs
+none. Measured over two windows, because one is too short to be stable and the whole
+record would judge somebody on a habit they dropped a year ago.
+
+**Why it had to be dropped before the chain and not after.** `completing` skips a
+focus area an earlier source already served, so a hollow offer does not merely waste
+its own slot — it silently costs that area every other offer the chain could have
+made. That is precisely what happened to `ExperimentHours`: the interpolator logs
+mornings daily, the measured source served their focus with *"log one session in your
+morning"*, and *"try 07:00, which you have never logged"* was skipped behind a request
+to keep doing what they already do.
+
+**One test moved, and it was measuring the wrong thing.**
+`ExperimentIntegrationTests.adherenceAccrues` took the chain's first proposal and read
+adherence retrospectively, over a window where nobody was prompted — so it was
+measuring adherence *by accident*, and could only ever pass while the app offered
+something the person already did. Its worry is real and is not about the offer policy,
+so it now chooses the most habitual hypothesis directly. That asks the floor's
+question — is six days reachable in a fortnight of ordinary logging — without being
+coupled to what the chain decides to surface.
+
+**What this does not settle.** There is a band between asking for too much and asking
+for too little: a change nobody would make unprompted may fail the adherence floor
+from the other side, and nothing here predicts compliance. `BACKLOG.md` carries it.
 
 ---
 

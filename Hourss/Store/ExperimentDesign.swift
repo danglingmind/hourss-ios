@@ -234,6 +234,74 @@ enum ExperimentDesign {
     /// - Parameter declined: hypothesis keys this person has already said no to,
     ///   and keys they have already tested. Both are excluded for the same reason:
     ///   re-offering either is the app having forgotten, which is not a defence.
+    // MARK: - Asking for something somebody already does
+
+    /// How much of a change a proposal actually asks for, and when it asks for none.
+    ///
+    /// **The case this exists for.** Somebody who logs a session every morning and
+    /// whose mornings read well is offered *"log one session in your morning on most
+    /// days, for two weeks"*. That is a request to keep doing exactly what they
+    /// already do. They would clear adherence without changing anything, spend a
+    /// fortnight on it, and get back the one verdict the engine can already predict.
+    ///
+    /// **It is not a taste judgement — the arithmetic is already in the engine.**
+    /// `ExperimentOutcome` refuses to read a window carrying fewer than
+    /// `Experiment.minimumDays` days that contrast with the change. Days somebody
+    /// would have done anyway are not contrast. So over a window of
+    /// `Experiment.defaultWindowDays`, a change they already make on share *r* of
+    /// days leaves about `windowDays · (1 − r)` days to contrast with, and the
+    /// verdict needs six of them:
+    ///
+    /// ```
+    /// windowDays · (1 − r) ≥ minimumDays   ⟺   r ≤ 1 − 6/14 ≈ 0.57
+    /// ```
+    ///
+    /// **Deliberately the generous end of that.** `r` is measured unprompted, and
+    /// being asked can only raise it — so the real contrast will be thinner than this
+    /// predicts, and the bound refuses only what is hopeless before compliance is
+    /// even accounted for. Guessing at how much a prompt lifts adherence would be
+    /// inventing a number; refusing only the provable cases needs none.
+    static let maximumRoutineShare =
+        1 - Double(Experiment.minimumDays) / Double(Experiment.defaultWindowDays)
+
+    /// How recently "already does it" is measured over.
+    ///
+    /// Two windows. One is the length of the thing being proposed and too short to
+    /// be stable; the whole record would judge somebody on a habit they dropped a
+    /// year ago. Two says what they have been doing lately.
+    static let routineWindowDays = 2 * Experiment.defaultWindowDays
+
+    /// The share of recent days on which this person already does what a hypothesis
+    /// asks about.
+    ///
+    /// Days, not sessions, like every other count in this engine: three morning
+    /// sessions on one Tuesday are one Tuesday of doing it.
+    static func routineShare(
+        of hypothesis: Hypothesis,
+        in observations: [EngineObservation],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Double {
+        guard let start = calendar.date(byAdding: .day, value: -routineWindowDays,
+                                        to: calendar.startOfDay(for: now)) else { return 0 }
+        let recent = observations.filter { $0.day >= start }
+        let days = Set(recent.map(\.day))
+        guard !days.isEmpty else { return 0 }
+        let doing = Set(recent.filter { hypothesis.focus($0) }.map(\.day))
+        return Double(doing.count) / Double(days.count)
+    }
+
+    /// Whether a proposal asks for so little that its fortnight could not answer.
+    static func isHollow(
+        _ hypothesis: Hypothesis,
+        in observations: [EngineObservation],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        routineShare(of: hypothesis, in: observations, now: now, calendar: calendar)
+            > maximumRoutineShare
+    }
+
     static func proposals(
         for input: EngineInput,
         excluding declined: Set<String> = [],

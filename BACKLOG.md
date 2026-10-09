@@ -1182,3 +1182,26 @@ per-activity residual hypotheses are registered.
 
 The constant itself is now spelled once rather than as a bare `2000` in fifteen
 signatures across seven files, so the change is a one-line edit when it is time.
+
+### The band between too much to ask and too little
+
+**Status:** opened by the hollow-ask rule. Not a defect; an unmeasured risk.
+
+`ExperimentDesign.isHollow` refuses to offer a change somebody already makes on more
+than about 57% of days, because the fortnight would carry fewer than six contrasting
+days and could not answer. That bound is derived and conservative.
+
+It has a mirror nobody has measured. A change somebody would *never* make unprompted
+can fail the same floor from the other side: if they comply on fewer than six of the
+fourteen days, the window is unreadable for want of adherence rather than for want of
+contrast. The hollow rule pushes every offer toward the novel end of that band, so it
+makes the second failure more likely by construction.
+
+Nothing in the app predicts compliance, and guessing at it would be inventing a
+number. What would settle it is real adherence data from accepted experiments —
+which is also what `PRD-EXPERIMENTS` wanted before fixing the fourteen-day window,
+and the same measurement answers both.
+
+Until then the asymmetry is deliberate: an unreadable window costs somebody a
+fortnight, and so does a hollow one, but only the hollow one is predictable in
+advance.
