@@ -1,6 +1,6 @@
 # Offering an hour nobody has logged
 
-**Status:** phases 0–5 and 7 built. Phase 6 remains.
+**Status:** all phases built. Phase 4's second gate closed by §10.8; phase 6 amended by §10.9.
 **Date:** 9 October 2026
 
 ---
@@ -630,6 +630,36 @@ coupled to what the chain decides to surface.
 for too little: a change nobody would make unprompted may fail the adherence floor
 from the other side, and nothing here predicts compliance. `BACKLOG.md` carries it.
 
+### 10.9 Measured, not fitted — and no table ships
+
+**What the phase asked for.** Isotonic regression mapping
+`[edge, width, days, dayCount]` to an empirical hit rate, fitted offline against the
+cohort and shipped as a table, so the confidence number itself became calibrated.
+
+**Why that is the wrong object.** A calibrated number is a probability in all but
+name, and `Confidence` is documented in its own source as "not a probability, and
+never described as one". Worse, it would be a probability about *the generator* —
+the harness draws ratings from a clamped normal with a planted shift, which is not
+how anybody's week works. Shipping it would move a presentation device into the
+register of a claim, on evidence that cannot support a claim about the world.
+
+**What §10.4 actually asks** is whether *a stated band corresponds to a measured hit
+rate*. That is answerable without changing the number: measure what each band is
+worth and record it. So the harness exists, the measurement is in `DESIGN.md`, and
+nothing ships at runtime.
+
+**What the measurement found.** The ordering holds in every regime, which is the only
+claim the number makes about itself and had never been checked. No claim points the
+wrong way, in over four thousand trials — the exact failure the old engine shipped.
+And "Still watching" is where every mistake lives, running from 93% right down to 45%
+as the share of questions with a real answer falls. All three are tests, so a later
+change that gives the weakest band a more confident voice has to argue with a number.
+
+**The boundaries were left where they are.** Moving 80, 65 and 50 on a simulated
+prior would be substituting one invented number for another: whether dropping "Still
+watching" is a good trade depends on how often a person's questions have answers,
+which is exactly what the simulation assumes rather than measures.
+
 ---
 
 ## 9. Checklist
@@ -679,8 +709,10 @@ from the other side, and nothing here predicts compliance. `BACKLOG.md` carries 
       time-of-day row rather than only the pairings.
 
 ### Phase 6 — confidence
-- [ ] **21.** Isotonic calibration fitted offline, shipped as a table.
-- [ ] **22.** What was calibrated against, stated in `DESIGN.md`.
+- [~] **21.** ~~Isotonic calibration fitted offline, shipped as a table.~~
+      **Measured instead of fitted — §10.9.** Nothing ships at runtime.
+- [x] **22.** What was calibrated against, stated in `DESIGN.md`, including the
+      three limits on every figure.
 
 ### Phase 7 — hygiene
 - [~] **23.** ~~Resamples raised~~; **raised, measured, reverted — §10.5.** The

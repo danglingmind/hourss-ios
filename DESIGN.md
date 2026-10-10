@@ -794,3 +794,75 @@ rule weight, no colour, no type size — the same inventory the settled-test car
 the tests list both came in under. The one rule below the fold line is the house 1pt
 `HRule`, drawn open or closed so the section still finishes on a rule like every
 other section on the screen.
+
+---
+
+## What a confidence band is worth
+
+`Engine.confidence` turns an interval into a number between 28 and 96, and
+`Confidence.band` cuts it at 80, 65 and 50 into **Strong pattern**, **Emerging
+pattern** and **Still watching**. The ordering was always defensible — a tighter
+interval further from zero should score higher — but until now **nothing had been
+measured about what those three words are worth**. The weights and the boundaries
+were chosen, not derived; the engine document raises it as §10.4.
+
+`ConfidenceCalibration` measures it. Trials are generated with a known answer, half
+of them carrying a real difference and half pure noise, compared by the real
+statistic and scored by the real confidence function. A band's *hit rate* is the
+share of its visible claims that were both real and pointed the right way.
+
+**Measured, over 800 trials per regime:**
+
+| Regime | Strong | Emerging | Still watching |
+| ------ | ------ | ------ | ------ |
+| Ordinary effects, half the questions real | 100% | 100% | 93% |
+| Tiny effects, half real | 100% | 100% | 93% |
+| Tiny effects, one in five real | 100% | 80% | 78% |
+| Tiny effects, one in ten real | 100% | 100% | 45% |
+| Small effects, thin record | 90% | 100% | 85% |
+| Mostly noise | 100% | 100% | 77% |
+
+**Three things follow, and all three are now tests.**
+
+**The ordering holds.** A stronger band is at least as often right as a weaker one,
+in every regime. That is the whole claim the number makes about itself and it had
+never been checked.
+
+**No claim points the wrong way.** Not one, in over four thousand trials across
+every regime. This is the failure the old engine shipped — *"on days after a shorter
+night, your sessions have felt better"*, computed from eight days against ten in a
+person where the opposite was planted — and it is the one that matters most, because
+a person can discount "no pattern here" and cannot discount being told the opposite
+of their own truth.
+
+**"Still watching" is where the mistakes live.** It runs from 93% right when half
+the questions have an answer down to 45% when one in ten does, and essentially every
+false claim the engine makes lands in it. That is not a defect: it is the weakest
+thing the app is willing to show and it says so in its own name. It is pinned as a
+test so that any later change giving this band a more confident voice, or folding it
+into "Emerging", has to argue with a number first.
+
+### What these figures are not
+
+Three limits, and they belong beside any of the numbers above.
+
+**They measure the generator's world.** Ratings in the harness are a clamped normal
+with a planted shift. Real ratings are not, and a hit rate here is "how often the
+engine recovers an effect of the kind we chose to plant".
+
+**They are conditional on the mix.** A hit rate is `P(real | band)`, which depends on
+how many of the simulated questions had an answer at all. That is why the table has a
+row per mix rather than a single figure: at one-in-ten the weakest band halves.
+
+**They say nothing about one claim.** A band is a property of a population of claims.
+Nobody's own morning is 93% true.
+
+### Why no lookup table ships
+
+`PRD-HOURS.md` phase 6 proposed isotonic regression fitted offline and shipped as a
+table, so that the number itself became calibrated. That was not done, and §10.9
+records why: a calibrated number is a probability in all but name, it would be a
+probability about the generator rather than about the world, and `Confidence` is
+documented as "not a probability, and never described as one". Measuring what the
+existing bands are worth answers §10.4's question — *does a stated band correspond to
+a measured hit rate* — without turning a presentation device into a claim.
