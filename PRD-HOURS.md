@@ -723,4 +723,7 @@ which is exactly what the simulation assumes rather than measures.
 
 ### Verification
 - [ ] **25.** Full unit suite on iPhone 17 Pro by UDID, then the UI suite.
-- [ ] **26.** `DebugFixture` reaches an hour-led proposal.
+- [x] **26.** `DebugFixture` reaches an hour-led proposal, behind
+      `hourOfferArgument`. Two things must be true at once and the default fixture
+      has neither: an hour with ratings either side and none of its own, and a focus
+      area whose measured proposal is hollow so it does not take the slot first.

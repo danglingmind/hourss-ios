@@ -98,6 +98,33 @@ enum DebugFixture {
     /// Needs `skipOnboardingArgument` with it: the announcement is deliberately
     /// silent until onboarding is finished, since a sheet behind that gate is a
     /// sheet nobody sees.
+    /// A record that reaches an hour-led offer — the one state the whole of
+    /// `PRD-HOURS.md` exists to produce.
+    ///
+    /// **It cannot be reached by running the app, and the default fixture cannot
+    /// reach it either.** Two things have to be true at once and the ordinary fixture
+    /// has neither. There must be an hour with ratings on both sides of it and none
+    /// in it, so `RatingShape` has something to interpolate to — the default logs
+    /// every hour from eight to seven and leaves no gap. And the person's `focus`
+    /// area must not already be served by a measured proposal, because `completing`
+    /// skips a focus area that is; the only honest way that happens is if the
+    /// measured proposal is one `ExperimentDesign.isHollow` refuses, which means the
+    /// person must already be doing the measured thing nearly every day.
+    ///
+    /// So this is somebody who works at the same two hours every single workday,
+    /// never at the hour between them. Their mornings are their strongest measured
+    /// finding *and* a daily habit, so the measured offer is hollow and drops; the
+    /// hour between is what the curve proposes in its place.
+    ///
+    /// Behind its own argument rather than folded into the default, for the reason
+    /// `randomisedArgument` gives: the default fixture is what the whole UI suite
+    /// walks, and a record this lopsided would change what a dozen screens show.
+    static let hourOfferArgument = "-hourss-fixture-hour-offer"
+
+    static var seedsHourOffer: Bool {
+        ProcessInfo.processInfo.arguments.contains(hourOfferArgument)
+    }
+
     static let questionOpenedArgument = "-hourss-fixture-question-opened"
 
     /// The same, for a question the engine did have something to say about.
@@ -268,7 +295,21 @@ enum DebugFixture {
             if Int.random(in: 0...9, using: &rng) < 2 { continue }
 
             var plan: [(String, Int, Int)] = []  // activity, start hour, minutes
-            if isWorkday {
+            if seedsHourOffer {
+                // Every workday at eight and at ten, never at nine, and rated well
+                // both times — so nine has evidence on both sides and none of its
+                // own, which is exactly what `RatingShape` can interpolate to and
+                // what `ExperimentHours` may then offer. The afternoon session keeps
+                // the day plausible and gives the morning something to read against.
+                if isWorkday {
+                    plan.append(("Deep work", 8, 60))
+                    plan.append(("Deep work", 10, 60))
+                    plan.append(("Meetings", 14, 45))
+                } else {
+                    plan.append(("Personal / Rest", 11, 60))
+                    plan.append(("Social", 17, 90))
+                }
+            } else if isWorkday {
                 plan.append(("Deep work", Int.random(in: 8...10, using: &rng), [50, 75, 95, 120].randomElement(using: &rng)!))
                 plan.append(("Meetings", Int.random(in: 11...16, using: &rng), [30, 45, 60].randomElement(using: &rng)!))
                 if Bool.random(using: &rng) {
