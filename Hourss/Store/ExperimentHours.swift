@@ -165,6 +165,9 @@ enum ExperimentHours {
             outcome: hypothesis.outcome,
             type: hypothesis.type,
             standing: .starter,
+            // Their own ratings, at the hours either side of this one. Never compared,
+                        // so not measured — but it is about them, which the three below are not.
+            basis: .theirRecord,
             focusLabel: hypothesis.focusLabel,
             baselineLabel: hypothesis.baselineLabel,
             premise: ExperimentCopy.hoursPremise(hour: hour.hour, band: band,

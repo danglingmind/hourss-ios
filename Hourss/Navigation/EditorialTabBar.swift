@@ -1,7 +1,20 @@
 import SwiftUI
 
 enum Tab: String, CaseIterable, Identifiable {
-    case today, patterns, journal, you
+    /// **Tests is a tab, and it took the slot the `+` used to hold.**
+    ///
+    /// A test is the only thing this app does that answers a question rather than
+    /// describing one: every unmeasured source ends in a fortnight, and the verdict
+    /// at the end of it is the product. It lived two taps down, behind a row at the
+    /// foot of Patterns, which was right while a test was a thing you did *about* a
+    /// claim and wrong the moment it became the point.
+    ///
+    /// Five even slots now, and the `+` moved to the corner of every screen's
+    /// header — see `ScreenHeader`. That corner was already judged "the most
+    /// valuable position on the screen" when Today took its date out of it, and the
+    /// other three were still spending it on the page's own name, which the bar
+    /// below announces with an orange rule at the same moment.
+    case today, patterns, tests, journal, you
 
     var id: String { rawValue }
     var title: String { rawValue.uppercased() }
@@ -20,12 +33,9 @@ enum Tab: String, CaseIterable, Identifiable {
 /// bar is still what makes that a choice rather than a default.
 struct EditorialTabBar: View {
     @Binding var selection: Tab
-    let onLog: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The `+` is the one slot that does not grow: four tabs share what is left.
-    private static let logSlot: CGFloat = 60
     /// Thick enough to be a mark rather than a second hairline, thin enough that
     /// it is still a rule. The gutter mark in `DayTimeline` is 3pt because it is
     /// vertical and short; the same weight run across a whole tab reads as a bar.
@@ -35,11 +45,7 @@ struct EditorialTabBar: View {
         VStack(spacing: 0) {
             HRule(color: .rule)
             HStack(spacing: 0) {
-                tabButton(.today)
-                tabButton(.patterns)
-                logButton
-                tabButton(.journal)
-                tabButton(.you)
+                ForEach(Tab.allCases) { tabButton($0) }
             }
             .frame(height: 54)
             // Inside the frame and outside the padding, so the overlay measures
@@ -49,7 +55,9 @@ struct EditorialTabBar: View {
         }
         .background(Color.canvas)
         // Five fixed slots cannot grow indefinitely: past this size the labels
-        // truncate to "PATT…". Content still scales all the way up — only the
+        // truncate to "PATT…". Narrower than it was, since the five now divide the
+        // whole bar rather than what a 60pt `+` left them — the cap is the same and
+        // matters a little more. Content still scales all the way up; only the
         // chrome is capped, and VoiceOver reads the full name regardless.
         .dynamicTypeSize(...DynamicTypeSize.xLarge)
     }
@@ -67,7 +75,7 @@ struct EditorialTabBar: View {
     /// a dimmed screen can still lose.
     private var selectionRule: some View {
         GeometryReader { proxy in
-            let tabWidth = max(0, (proxy.size.width - Self.logSlot) / 4)
+            let tabWidth = proxy.size.width / CGFloat(Tab.allCases.count)
             Rectangle()
                 .fill(Color.orange)
                 .frame(width: tabWidth, height: Self.underline)
@@ -84,27 +92,17 @@ struct EditorialTabBar: View {
     }
 
     /// Distance from the bar's leading edge to the leading edge of `selection`'s
-    /// slot. Journal and You sit one `+` further along than their index suggests.
+    /// slot.
     ///
-    /// Travel is continuous in x, including across the middle — Patterns to
-    /// Journal takes the rule straight through the region the `+` occupies. That
-    /// is allowed because the two never share any pixels: the lime square is 38pt
-    /// tall inside a 44pt button inside a 54pt row, so its lower edge is 8pt above
-    /// the row's, and the rule lives in the 2pt at the very bottom. The line
-    /// passes below the `+`, not behind it or through it.
-    ///
-    /// The alternatives both cost more than they save. Skipping the middle — the
-    /// rule jumping the 60pt gap — puts a discontinuity in the one motion whose
-    /// whole job is to be followed by the eye. Fading or contracting while
-    /// crossing means the mark is absent at the exact moment the reader is looking
-    /// for where it went. A rule in flight is not read as underlining whatever it
-    /// is momentarily over: it is read as being on its way, which is precisely the
-    /// thing the animation exists to say. Nothing ever comes to rest there,
-    /// because the `+` opens a sheet and is never a selection.
+    /// **This used to be four paragraphs.** The `+` sat in the middle and the rule
+    /// had to travel straight through the region it occupied, which was allowed only
+    /// because the lime block's lower edge cleared the bottom 2pt the rule lives in —
+    /// and the alternatives, jumping the gap or fading across it, both put a
+    /// discontinuity in the one motion whose job is to be followed by the eye. With
+    /// the `+` in the header there is no gap, no exception and no argument: five even
+    /// slots, and the rule moves by one of them.
     private func offset(tabWidth: CGFloat) -> CGFloat {
-        let index = CGFloat(Tab.allCases.firstIndex(of: selection) ?? 0)
-        let crossedTheMiddle = selection == .journal || selection == .you
-        return index * tabWidth + (crossedTheMiddle ? Self.logSlot : 0)
+        CGFloat(Tab.allCases.firstIndex(of: selection) ?? 0) * tabWidth
     }
 
     private func tabButton(_ tab: Tab) -> some View {
@@ -127,25 +125,4 @@ struct EditorialTabBar: View {
         .accessibilityAddTraits(selection == tab ? [.isSelected] : [])
     }
 
-    /// The persistent log action. A filled lime block rather than a floating
-    /// circle — this is a block on `Radius.block`, not a circular FAB, and the
-    /// difference is the whole reason it does not read as borrowed iOS chrome.
-    ///
-    /// The travelling rule below it is unaffected: it still lives in the bottom 2pt
-    /// of the row and this block's lower edge is still 8pt above that, so rounding
-    /// the corners does not bring the two into contact.
-    private var logButton: some View {
-        Button(action: onLog) {
-            Text("+")
-                .font(.custom("DMSans-Medium", fixedSize: 26))
-                .foregroundStyle(Color.ink)
-                .frame(width: 46, height: 38)
-                .blockSurface(Color.lime)
-                .frame(width: Self.logSlot, height: Space.tapTarget)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("tab-log")
-        .accessibilityLabel("Log a session")
-    }
 }

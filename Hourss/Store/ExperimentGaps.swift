@@ -130,6 +130,9 @@ enum ExperimentGaps {
             outcome: hypothesis.outcome,
             type: hypothesis.type,
             standing: .starter,
+            // An absence in their record. About them in a sense, and the weakest thing
+                        // in this app to reason from — silence is not evidence.
+            basis: .nothingYet,
             focusLabel: hypothesis.focusLabel,
             baselineLabel: hypothesis.baselineLabel,
             premise: ExperimentCopy.gapPremise(gap),

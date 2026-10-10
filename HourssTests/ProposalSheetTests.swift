@@ -40,7 +40,7 @@ struct ProposalSheetTests {
     ) -> ExperimentDesign.Proposal {
         ExperimentDesign.Proposal(
             hypothesisId: "time.morning.vs.rest.feeling", outcome: outcome, type: type,
-            standing: standing,
+            standing: standing, basis: standing == .starter ? .nothingYet : .measured,
             focusLabel: "Morning", baselineLabel: "The rest of your day",
             premise: "Your morning sessions have felt more energizing.",
             context: context,

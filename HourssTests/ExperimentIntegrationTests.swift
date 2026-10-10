@@ -101,7 +101,7 @@ struct ExperimentIntegrationTests {
 
         let proposal = ExperimentDesign.Proposal(
             hypothesisId: habitual.id, outcome: habitual.outcome, type: habitual.type,
-            standing: .starter, focusLabel: habitual.focusLabel,
+            standing: .starter, basis: .nothingYet, focusLabel: habitual.focusLabel,
             baselineLabel: habitual.baselineLabel,
             premise: "", context: nil, change: "", caveat: habitual.caveat,
             priority: .focus, priorityRank: 0,

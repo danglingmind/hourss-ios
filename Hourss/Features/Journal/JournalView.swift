@@ -4,6 +4,9 @@ import SwiftUI
 /// filter by activity. Days with no logs are simply absent rather than rendered
 /// as empty cells; the record is a record, not a grid to fill in.
 struct JournalView: View {
+    /// Raises the log sheet from the header's `+`.
+    var onLog: () -> Void = {}
+
     @Environment(HourssStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var activityFilter: UUID?
@@ -47,7 +50,7 @@ struct JournalView: View {
         }
         .background(Color.canvas)
         .safeAreaInset(edge: .top, spacing: 0) {
-            ScreenHeader(title: "Journal")
+            ScreenHeader(title: "Journal", onLog: onLog)
         }
         .navigationDestination(for: Date.self) { DayDetailView(day: $0) }
         .navigationDestination(item: $selectedDay) { DayDetailView(day: $0) }

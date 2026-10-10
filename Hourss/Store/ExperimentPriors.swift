@@ -230,6 +230,8 @@ enum ExperimentPriors {
             // card already reads as "Worth testing", which is true and implies no
             // measurement.
             standing: .starter,
+            // What is ordinarily true of people, which is not about this person at all.
+            basis: .nothingYet,
             focusLabel: blueprint.focusLabel,
             baselineLabel: blueprint.baselineLabel,
             premise: premise,

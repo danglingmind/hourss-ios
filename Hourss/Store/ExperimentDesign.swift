@@ -61,6 +61,32 @@ enum ExperimentDesign {
     /// without giving it its own eyebrow fails the suite instead of silently
     /// borrowing another standing's word, which is the exact mistake `.starter`
     /// shipped with.
+    /// How much of an offer is about this person, in the order the chain ranks it.
+    ///
+    /// **Not a taxonomy of sources — a reader does not need to know there are six.**
+    /// What somebody deciding where to spend a fortnight needs is how much of the
+    /// reason is about *them*, and that has three answers: it was measured and held
+    /// up, it came from their own record but was never compared, or it is not about
+    /// them yet at all.
+    ///
+    /// `CaseIterable` and ordered strongest first, so a test can assert the ladder
+    /// is total and the copy for it exhaustive.
+    enum Basis: String, Equatable, CaseIterable, Comparable {
+        /// Measured from their days and survived the gates. `.confirmed` and
+        /// `.lead` both land here: the difference between them is how strong the
+        /// evidence was, which `standing` already says, and both were *measured*.
+        case measured
+        /// Built from their own record and never compared — the hour curve, and the
+        /// shape of their own day from their heart rate.
+        case theirRecord
+        /// Not about them at all: what is ordinarily true of people, a gap in what
+        /// they have logged, or a Health reading about something else.
+        case nothingYet
+
+        private var rank: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+        static func < (lhs: Basis, rhs: Basis) -> Bool { lhs.rank < rhs.rank }
+    }
+
     enum Standing: String, Equatable, CaseIterable {
         /// Cleared the interval gate and the correction. Day 12 at the earliest.
         case confirmed
@@ -109,6 +135,20 @@ enum ExperimentDesign {
         let outcome: Outcome
         let type: InsightType
         let standing: Standing
+        /// What this offer rests on, which is not the same question as `standing`.
+        ///
+        /// **Five sources all produce `.starter` and they are not equally worth a
+        /// fortnight.** `standing` says how much was *measured*, and for everything
+        /// below the measured path the answer is "nothing" — so an offer built from
+        /// this person's own ratings at the hours either side of nine and one built
+        /// from what is ordinarily true of people arrive at the screen wearing the
+        /// same word. `ExperimentStore.offers` ranks those five carefully and then
+        /// the card throws the ranking away.
+        ///
+        /// This carries it instead. No default, so a sixth source cannot be added
+        /// without saying what it rests on — the same totality `Standing`'s own
+        /// switch keeps, and for the same reason.
+        let basis: Basis
         let focusLabel: String
         let baselineLabel: String
         let premise: String
@@ -441,6 +481,8 @@ enum ExperimentDesign {
             outcome: finding.hypothesis.outcome,
             type: finding.publishedType,
             standing: standing,
+            // Measured, and survived the gates — the only source that can say so.
+            basis: .measured,
             focusLabel: finding.hypothesis.focusLabel,
             baselineLabel: finding.hypothesis.baselineLabel,
             premise: ExperimentCopy.premise(for: finding, standing: standing, days: figures.days),

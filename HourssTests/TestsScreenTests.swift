@@ -33,7 +33,7 @@ struct TestsScreenTests {
                           standing: ExperimentDesign.Standing = .lead,
                           change: String? = nil) -> ExperimentDesign.Proposal {
         ExperimentDesign.Proposal(
-            hypothesisId: id, outcome: .feeling, type: .bestTimeWindow, standing: standing,
+            hypothesisId: id, outcome: .feeling, type: .bestTimeWindow, standing: standing, basis: standing == .starter ? .nothingYet : .measured,
             focusLabel: "Morning", baselineLabel: "The rest of your day",
             premise: "Your morning sessions have felt more energizing.",
             context: nil,

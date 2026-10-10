@@ -45,36 +45,31 @@ enum TestsScreen {
 
     // MARK: - On offer
 
-    /// Where an offer is taken on.
+    /// The one-at-a-time rule, said where somebody is looking at a list.
     ///
-    /// **This is the whole of what the section adds, and it is deliberately a place
-    /// rather than a control.** The decision belongs to the card and the sheet it
-    /// raises, where the premise, the caveat and the randomised option have room to
-    /// be read; a second "Start this" here would be the same commitment offered
-    /// twice, in less context, by a screen that cannot show the reasoning. Naming the
-    /// tab is the link — this screen is pushed onto another tab's stack and has no
-    /// route into Today's, and inventing one so a record could change tabs under
-    /// somebody is a worse answer than a sentence.
+    /// **This used to send people to Today, and both reasons for that have gone.**
+    /// It read "Today is where you take one of these on", and the argument was in two
+    /// halves. The first: a second "Start this" here would be the same commitment
+    /// offered twice, in less context, by a screen that cannot show the reasoning.
+    /// The second: this screen was *pushed onto Patterns' stack* and had no route
+    /// into Today's, so inventing one meant a record changing tabs under somebody.
     ///
-    /// **It still names Today now that the push comes from Patterns.** Patterns also
-    /// raises the sheet, but only for the one offer that matches a priority group and
-    /// only once there are groups at all, so it is not the place every offer can be
-    /// taken on. Today is, for all of them and on every day — which is what makes it
-    /// the one place worth naming to somebody looking at a list of three.
+    /// The second half expired when Tests became a tab — it is pushed onto nothing
+    /// now. And the first half was answering a question nobody asked: tapping a row
+    /// does not offer the commitment twice, it opens the same `TestProposalSheet`
+    /// Patterns and Today both raise, which is exactly where the premise, the caveat
+    /// and the randomised option are read. The decision never leaves the sheet.
     ///
-    /// Two forms because only one test runs at a time, which the plural says in
-    /// passing: a list of three offers with "you can start one of these" is the
-    /// one-at-a-time rule stated where somebody is looking at three of them.
+    /// What is left is worth saying on its own: only one test runs at a time, and a
+    /// list of three is where somebody needs to know that. So the line states the
+    /// rule and points at nothing.
+    ///
+    /// Still deliberately not the card's own button word — a line on a list that
+    /// echoes the control it sits above reads as a second control. The test pins it.
     static func offerDirection(count: Int) -> String {
-        // Worded to point rather than to offer, and that is not fussiness: the
-        // earlier version read "You can start this one from Today", which is fine
-        // English and contains the card's own button word for word. A line on an
-        // index that echoes the control it is pointing at reads as a control, and
-        // this screen deliberately has none — the decision is made on the card,
-        // where the premise and the caveat are. The test pins it.
         count == 1
-            ? "Today is where you take this one on."
-            : "Today is where you take one of these on."
+            ? "Only one test runs at a time."
+            : "Only one test runs at a time, so pick the one worth a fortnight."
     }
 
     /// Nothing on offer, and no test running either.
@@ -117,6 +112,19 @@ enum TestsScreen {
         /// to a row later has somewhere to go that is behind the change rather than
         /// in front of it.
         let accessibilityLabel: String
+        /// What the offer rests on, in one line — `ExperimentCopy.basis`.
+        ///
+        /// **Three offers in a column with nothing to tell them apart was the
+        /// complaint that started this.** The chain ranks what it has by how much of
+        /// the reason is about this person — their own ratings above their own body
+        /// above what is true of people in general — and the list threw that away:
+        /// an hour read from somebody's own mornings and a change suggested because
+        /// it suits people generally were the same sentence in the same weight, one
+        /// under the other.
+        ///
+        /// It matters more here than anywhere. On Today there is one card and
+        /// nothing to compare it against; this screen is where somebody chooses.
+        let basis: String
     }
 
     /// What could be started now, in the order the engine ranked it.
@@ -142,7 +150,11 @@ enum TestsScreen {
             .filter { isEntitled || !$0.requiresMembership }
             .map { Offer(id: $0.id,
                          subject: $0.change,
-                         accessibilityLabel: $0.change) }
+                         // Behind the change, not in front of it — the field above
+                         // says why the label is its own value, and this is the
+                         // thing it was kept open for.
+                         accessibilityLabel: "\($0.change) \(ExperimentCopy.basis($0.basis))",
+                         basis: ExperimentCopy.basis($0.basis)) }
     }
 
     // MARK: - Running

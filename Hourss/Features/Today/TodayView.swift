@@ -187,13 +187,19 @@ struct TodayView: View {
 
     private var header: some View {
         VStack(spacing: 0) {
-            // Wordmark alone. The date used to sit opposite it and was the second
-            // of two: the heading below already names the day, in full and in
-            // words, so the corner was spending the most valuable position on the
-            // screen on a thing the reader meets again four lines later.
+            // The date used to sit opposite the wordmark and was the second of two:
+            // the heading below already names the day, in full and in words, so the
+            // corner was spending the most valuable position on the screen on a
+            // thing the reader meets again four lines later.
+            //
+            // It holds the log action now. That argument is why this corner was
+            // empty and free to take it — and the three other tabs have since given
+            // up their own duplicate for the same reason, so every screen's `+` is
+            // in the same place.
             HStack {
                 Wordmark()
                 Spacer()
+                LogButton(action: onLog)
             }
             .pageGutter()
             .padding(.vertical, Space.gutter)

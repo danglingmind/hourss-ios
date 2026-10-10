@@ -420,7 +420,7 @@ struct SlotTests {
         let sessionId = UUID()
         let proposal = ExperimentDesign.Proposal(
             hypothesisId: "time.morning.vs.rest.feeling", outcome: .feeling,
-            type: .bestTimeWindow, standing: .confirmed,
+            type: .bestTimeWindow, standing: .confirmed, basis: .measured,
             focusLabel: "Morning", baselineLabel: "The rest of your day",
             premise: "Your morning sessions have felt more energizing.",
             context: nil,
@@ -430,7 +430,7 @@ struct SlotTests {
             figure: 4.1, baselineFigure: 3.5)
         let lead = ExperimentDesign.Proposal(
             hypothesisId: "duration.long.vs.rest.feeling", outcome: .feeling,
-            type: .durationSweetSpot, standing: .lead,
+            type: .durationSweetSpot, standing: .lead, basis: .measured,
             focusLabel: "90–179 min", baselineLabel: "Your other lengths",
             premise: "90–179 min has read higher so far, across 4 days.",
             context: nil,

@@ -458,6 +458,8 @@ enum ExperimentStarters {
             outcome: blueprint.outcome,
             type: blueprint.type,
             standing: .starter,
+            // A Health reading about something other than the change being proposed.
+            basis: .nothingYet,
             focusLabel: blueprint.focusLabel,
             baselineLabel: blueprint.baselineLabel,
             // The disclaimer leads and the Health reading follows it, rather than

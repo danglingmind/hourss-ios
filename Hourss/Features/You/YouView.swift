@@ -24,6 +24,9 @@ enum YouRoute: Hashable {
 /// the part of the old one that is still true, which is about the record and not
 /// about the feature.
 struct YouView: View {
+    /// Raises the log sheet from the header's `+`.
+    var onLog: () -> Void = {}
+
     @Environment(HourssStore.self) private var store
     @Environment(HealthService.self) private var health
     @Environment(AccountService.self) private var account
@@ -107,7 +110,7 @@ struct YouView: View {
             .padding(.bottom, Space.xl)
         }
         .background(Color.canvas)
-        .safeAreaInset(edge: .top, spacing: 0) { ScreenHeader(title: "You") }
+        .safeAreaInset(edge: .top, spacing: 0) { ScreenHeader(title: "You", onLog: onLog) }
         .navigationDestination(for: YouRoute.self) { route in
             switch route {
             case .profile: ProfileView()

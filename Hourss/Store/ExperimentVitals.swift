@@ -368,6 +368,9 @@ enum ExperimentVitals {
             outcome: hypothesis.outcome,
             type: hypothesis.type,
             standing: .starter,
+            // Their own heart rate, at the very hour being proposed. A fact about them
+                        // that no comparison has been run on.
+            basis: .theirRecord,
             focusLabel: hypothesis.focusLabel,
             baselineLabel: hypothesis.baselineLabel,
             premise: ExperimentCopy.vitalsPremise(place),

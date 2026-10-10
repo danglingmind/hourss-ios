@@ -62,6 +62,9 @@ import SwiftUI
 /// a number whose only use is a reproach does not get computed. A list that totals
 /// its own verdicts is that number assembled by the reader instead.
 struct TestsView: View {
+    /// Raises the log sheet from the header's `+`.
+    var onLog: () -> Void = {}
+
     @Environment(HourssStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -71,6 +74,12 @@ struct TestsView: View {
     /// opened, and the comment there is the one that applies: a view body
     /// re-evaluates far more often than the engine should.
     @State private var proposals: [ExperimentDesign.Proposal] = []
+
+    /// The offer whose sheet is up, if one is.
+    ///
+    /// The same sheet Today and Patterns raise, so agreeing here is one act with the
+    /// same four answers read before it, and cannot produce a second experiment.
+    @State private var sheetProposal: ExperimentDesign.Proposal?
 
     /// Whether the engine has answered yet.
     ///
@@ -116,15 +125,25 @@ struct TestsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.lg) {
+                // One line, not two. `DisplayHeadline` puts each element of its
+                // array on its own row, so the two runs are concatenated into a
+                // single `Text` rather than passed as a pair — the emphasis still
+                // changes mid-phrase, the line break does not.
+                //
+                // Short enough to hold at one line where the other display headings
+                // are not: "Still listening." and "Nothing stands apart." both need
+                // the stack at `.emphasis(42)`, and this is seven characters shorter
+                // than either.
                 DisplayHeadline([
-                    Text("Your").styled(.sectionTitle),
-                    Text("tests.").styled(.emphasis(42)),
+                    Text("Your ").styled(.sectionTitle)
+                        + Text("tests.").styled(.emphasis(42)),
                 ], style: .sectionTitle)
                 .padding(.top, Space.md)
 
                 onOffer
                 inProgress
                 finished
+                whatYouGet
             }
             .pageGutter()
             .padding(.bottom, Space.xl)
@@ -133,7 +152,11 @@ struct TestsView: View {
         // Names the screen this was pushed from, which is now Patterns. A back
         // button that said "You" after a push from Patterns is the one thing on a
         // pushed screen a reader cannot talk themselves out of believing.
-        .safeAreaInset(edge: .top, spacing: 0) { BackHeader(title: "Patterns") }
+        // `ScreenHeader`, not `BackHeader`. This was a screen pushed from the foot
+        // of Patterns and carried a back arrow to it; it is a root tab now, and
+        // there is nothing behind it to go back to.
+        .safeAreaInset(edge: .top, spacing: 0) { ScreenHeader(title: "Tests", onLog: onLog) }
+        .sheet(item: $sheetProposal) { TestProposalSheet(proposal: $0) }
         .navigationBarBackButtonHidden()
         .task(id: offerInputs) {
             now = Date()
@@ -200,14 +223,86 @@ struct TestsView: View {
     /// an offer and a finished test read as the same kind of thing at two ends of one
     /// life — which is the whole argument for them sharing a screen.
     private func offerRow(_ offer: TestsScreen.Offer) -> some View {
-        Text(offer.subject)
-            .textStyle(.body)
-            .fixedSize(horizontal: false, vertical: true)
+        Button {
+            sheetProposal = proposals.first { $0.id == offer.id }
+        } label: {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(offer.subject)
+                    .textStyle(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                // What it rests on, in the idiom the Patterns insight rows already
+                // use: `.label` in orange, under the sentence it qualifies.
+                Text(offer.basis)
+                    .textStyle(.label)
+                    .foregroundStyle(Color.orange)
+            }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Space.md)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(offer.accessibilityLabel)
-            .accessibilityIdentifier("offer-row")
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(offer.accessibilityLabel)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("offer-row")
+    }
+
+    // MARK: - What a test gets you
+
+    /// The three verdicts, once, for every test on this screen.
+    ///
+    /// **It used to sit inside each proposal sheet and it is the same words every
+    /// time.** Nothing about which change is being offered alters what comes back at
+    /// the end — "it held up", "it did not hold up", "not enough to tell" are fixed
+    /// — so a reader who opened three sheets read them three times, and the sheet
+    /// that is supposed to be about *one* decision spent a third of itself on
+    /// something true of all of them.
+    ///
+    /// **At the foot, below everything it describes.** The same position and the
+    /// same job as Patterns' "Not rules. Hourss only speaks up when the same thing
+    /// keeps happening." — a standing note that qualifies the whole screen, placed
+    /// where it cannot push the thing somebody came for down the page.
+    ///
+    /// The strings are `ExperimentCopy`'s, untouched, so the sweep that owns every
+    /// experiment sentence still sees them and the verdict wording here cannot drift
+    /// from the wording a result will actually use.
+    private var whatYouGet: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Eyebrow(ExperimentCopy.whatYouGetHeading)
+                .padding(.bottom, Space.xs)
+            HRule()
+
+            VStack(alignment: .leading, spacing: Space.sm) {
+                ForEach(Array(ExperimentCopy.whatYouGetParts.enumerated()), id: \.offset) { _, part in
+                    switch part {
+                    case let .line(text):
+                        Text(text)
+                            .textStyle(.body)
+                            .fixedSize(horizontal: false, vertical: true)
+                    case let .quiet(text):
+                        Text(text)
+                            .textStyle(.label)
+                            .foregroundStyle(Color.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    case let .titled(title, detail):
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(title).textStyle(.action)
+                            Text(detail)
+                                .textStyle(.body)
+                                .foregroundStyle(Color.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    // Neither shape appears in `whatYouGetParts`; the switch is total
+                    // so a later addition to it has to be drawn rather than dropped.
+                    case .span, .stages:
+                        EmptyView()
+                    }
+                }
+            }
+            .padding(.top, Space.sm)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("tests-what-you-get")
     }
 
     // MARK: - Running

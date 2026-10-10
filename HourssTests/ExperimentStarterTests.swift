@@ -401,7 +401,7 @@ struct ExperimentStarterTests {
         var real = Self.proposal(priority: .energy, rank: 1)
         real = ExperimentDesign.Proposal(
             hypothesisId: "workday.non.vs.work.feeling", outcome: .feeling,
-            type: .workdayContrast, standing: .lead,
+            type: .workdayContrast, standing: .lead, basis: .measured,
             focusLabel: "Non-workdays", baselineLabel: "Workdays",
             premise: real.premise, context: nil, change: real.change, caveat: real.caveat,
             priority: .energy, priorityRank: 1, evidenceDays: 4,
@@ -510,7 +510,7 @@ struct ExperimentStarterTests {
     private static func proposal(priority: Priority, rank: Int) -> ExperimentDesign.Proposal {
         ExperimentDesign.Proposal(
             hypothesisId: "duration.medium.vs.rest.feeling", outcome: .feeling,
-            type: .durationSweetSpot, standing: .lead,
+            type: .durationSweetSpot, standing: .lead, basis: .measured,
             focusLabel: "30–89 min", baselineLabel: "Other lengths",
             premise: "30–89 min has read higher so far, across 4 days.",
             context: nil,

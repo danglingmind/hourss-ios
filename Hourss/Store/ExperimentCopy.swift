@@ -809,6 +809,40 @@ enum ExperimentCopy {
     /// else. Telling somebody those are the same kind of offer is the quiet half of
     /// overclaiming — nothing false is said, and the weaker card borrows the
     /// stronger one's standing.
+    /// What an offer rests on, in one short line beside it.
+    ///
+    /// **The gap this closes.** `Insight` carries `band.label` — "Strong pattern",
+    /// "Emerging pattern", "Still watching" — under every row on Patterns, so a
+    /// claim says how much the app knows about it. An offer said nothing at all, so
+    /// an hour read from this person's own ratings and a change suggested because it
+    /// suits people in general sat on one screen looking identical, and the ordering
+    /// `ExperimentStore.offers` works so hard to get right was thrown away at the
+    /// last step.
+    ///
+    /// **Deliberately the same register and the same three-ness as the bands**, so
+    /// the two ladders read as one idea rather than two vocabularies. A reader
+    /// learning what "Still watching" means has learnt what this column is for.
+    ///
+    /// **It describes the evidence, never the person and never the odds.** "Worth
+    /// doing" would be the app ranking somebody's life for them; "most people" would
+    /// be the population comparison the whole product refuses. What is left is what
+    /// is true: where the reason came from.
+    static func basis(_ basis: ExperimentDesign.Basis) -> String {
+        switch basis {
+        // Not "proven". The measured path cleared the interval gate and the
+        // correction, which is the strongest thing this app says, and it still says
+        // it about a fortnight rather than about a life.
+        case .measured: "From what held up"
+        // Their own record, never compared. "So far" carries the whole difference
+        // from the line above and is why it is not dropped for being shorter.
+        case .theirRecord: "From your own days so far"
+        // The honest one, and the one most likely to be softened later. Nothing has
+        // been measured about this person on this question — not a little, none —
+        // and a reader deciding where to spend a fortnight is owed that plainly.
+        case .nothingYet: "Nothing measured yet"
+        }
+    }
+
     static func eyebrow(for standing: ExperimentDesign.Standing) -> String {
         switch standing {
         case .confirmed: "Test what held up"
@@ -1028,18 +1062,10 @@ enum ExperimentCopy {
         let whatYouWouldDo: Section
         /// Section 2. What the app saw, with its numbers and its day count.
         let whyThisOne: Section
-        /// Section 3. Which gates the reading cleared, and what the uncleared one
-        /// means for this standing.
-        let howItDecided: Section
-        /// Section 4. All three verdicts, in the words the result will use.
-        let whatYouGet: Section
-
         let howLong: Section
         /// Nil for the one outcome whose measurement the change already names. See
         /// `ExperimentCopy.whatIsMeasured(_:)`.
         let whatIsMeasured: Section?
-        /// The hypothesis's own caveat, carried.
-        let limit: Section
 
         let startTitle: String
         /// Nil where the days cannot be drawn.
@@ -1057,9 +1083,23 @@ enum ExperimentCopy {
         /// The sections, in the order they are read. A sheet that answered them in
         /// any other order would be asking somebody to agree before saying what they
         /// get.
+        /// **Seven sections became four, and the cuts were the owner's.**
+        ///
+        /// *How it decided* went because it described the engine's own gates to
+        /// somebody who has not agreed to anything yet — machinery, in the one place
+        /// meant for a decision. *Bear in mind* went with it: the BRD's "every claim
+        /// carries its limit" governs claims, and a proposal makes none. Its premise
+        /// is hedged and its second sentence already says nothing has been checked.
+        ///
+        /// *What you get at the end* moved rather than went. It is word for word the
+        /// same for every test ever offered, so carrying it inside each one was the
+        /// three verdicts read again on every sheet; it sits on the Tests screen now,
+        /// once, where it is true of everything above it.
+        ///
+        /// What is left is what a sheet is for: what you would do, why this one, how
+        /// long, and what gets measured.
         var orderedSections: [Section] {
-            [whatYouWouldDo, whyThisOne, howItDecided, whatYouGet, howLong]
-                + [whatIsMeasured].compactMap { $0 } + [limit]
+            [whatYouWouldDo, whyThisOne, howLong] + [whatIsMeasured].compactMap { $0 }
         }
 
         /// The words on the three controls.
@@ -1113,9 +1153,6 @@ enum ExperimentCopy {
             whatYouWouldDo: .init(heading: whatYouWouldDoHeading,
                                   parts: [.line(proposal.change)]),
             whyThisOne: .init(heading: whyThisOneHeading, parts: why),
-            howItDecided: .init(heading: howItDecidedHeading,
-                                parts: howItDecidedParts(proposal.standing)),
-            whatYouGet: .init(heading: whatYouGetHeading, parts: whatYouGetParts),
             howLong: .init(heading: howLongHeading,
                            parts: [.line(howLong(windowDays: windowDays)),
                                    .span(start: spanStart,
@@ -1124,7 +1161,6 @@ enum ExperimentCopy {
             whatIsMeasured: whatIsMeasured(proposal.outcome).map {
                 .init(heading: whatIsMeasuredHeading, parts: [.line($0)])
             },
-            limit: .init(heading: limitHeading, parts: [.line(proposal.caveat)]),
             startTitle: startTitle,
             randomised: proposal.randomisedAsk.map {
                 .init(title: randomiseTitle, ask: $0)

@@ -36,6 +36,9 @@ enum PatternsRoute: Hashable {
 /// fake charts and premature observations, so before there is evidence the screen
 /// says so plainly.
 struct PatternsView: View {
+    /// Raises the log sheet from the header's `+`.
+    var onLog: () -> Void = {}
+
     @Environment(HourssStore.self) private var store
 
     /// What the engine is watching but cannot yet claim.
@@ -131,7 +134,7 @@ struct PatternsView: View {
         }
         .background(Color.canvas)
         .safeAreaInset(edge: .top, spacing: 0) {
-            ScreenHeader(title: "Patterns")
+            ScreenHeader(title: "Patterns", onLog: onLog)
         }
         .navigationDestination(for: Insight.self) { InsightDetailView(insight: $0) }
         .navigationDestination(for: PatternsRoute.self) { _ in TestsView() }
@@ -573,6 +576,27 @@ struct PatternsView: View {
                     Text(proposal.change)
                         .textStyle(.body)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    // What it rests on, in the row idiom the insights above already
+                    // use: `.label` in orange, under the sentence it qualifies.
+                    //
+                    // **Without it every offer on this screen looked identical.** An
+                    // hour read from this person's own ratings and a change suggested
+                    // because it suits people in general are the same two lines and
+                    // the same link, so the ranking `ExperimentStore.offers` builds
+                    // was invisible at the one moment it mattered — somebody deciding
+                    // which fortnight to spend. The claims directly below carried
+                    // their band and the offers carried nothing, which is the
+                    // asymmetry this closes.
+                    //
+                    // Not a badge, a colour or a type size. `DESIGN.md` and
+                    // `PRD-EXPERIMENTS.md` item 22 both say space and words are the
+                    // levers here, and this is the words.
+                    Text(ExperimentCopy.basis(proposal.basis))
+                        .textStyle(.label)
+                        .foregroundStyle(Color.orange)
+                        .accessibilityIdentifier("proposal-basis")
+
                     DirectionalLink(title: ExperimentCopy.openTitle, arrow: "→") {
                         sheetProposal = proposal
                     }
@@ -743,21 +767,68 @@ private struct InsightRow: View {
 }
 
 /// Shared top bar for the tabbed screens.
+///
+/// **The corner holds the log action, not the page's name.** It used to carry the
+/// title a second time — "PATTERNS" opposite the wordmark, on the Patterns tab,
+/// directly above a bar announcing Patterns with an orange rule under it. Today's
+/// header had already reclaimed the same corner from its date, on the grounds that
+/// it was "spending the most valuable position on the screen on a thing the reader
+/// meets again four lines later"; the other three kept theirs, and theirs was
+/// weaker still, because the duplicate was not four lines later but in the reader's
+/// peripheral vision at that moment.
+///
+/// `title` survives for VoiceOver, which has no orange rule to read.
+///
+/// **A block in the corner, not a circle floating over the content.** The `+` moved
+/// here from the middle of the tab bar when Tests took that slot, and it kept its
+/// shape on the way: `Radius.block`, lime, flat. A round button hovering above the
+/// bar was the obvious alternative and it needs a shadow to read as floating, which
+/// `DESIGN.md` refuses twice in as many words — "There are no shadows", "Still no
+/// shadows. Only radius moved."
 struct ScreenHeader: View {
     let title: String
-    var trailing: String?
+    /// What the `+` does. Nil on a screen with nothing to log into.
+    var onLog: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Wordmark()
                 Spacer()
-                Eyebrow(trailing ?? title, tone: .quiet)
+                if let onLog { LogButton(action: onLog) }
             }
             .pageGutter()
             .padding(.vertical, Space.gutter)
             HRule()
         }
         .background(Color.canvas)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+    }
+}
+
+/// The persistent log action, in the corner of every screen's header.
+///
+/// A filled lime block on `Radius.block` rather than a circular FAB, which is the
+/// whole reason it does not read as borrowed iOS chrome — the same argument it
+/// carried in the tab bar, and the reason it could move without being redrawn.
+struct LogButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text("+")
+                .font(.custom("DMSans-Medium", fixedSize: 26))
+                .foregroundStyle(Color.ink)
+                .frame(width: 46, height: 38)
+                .blockSurface(Color.lime)
+                .frame(minWidth: Space.tapTarget, minHeight: Space.tapTarget)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        // Unchanged from the tab bar, so every test and every VoiceOver habit that
+        // knew how to reach it still does.
+        .accessibilityIdentifier("tab-log")
+        .accessibilityLabel("Log a session")
     }
 }

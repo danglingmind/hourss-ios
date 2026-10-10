@@ -16,7 +16,7 @@ struct ExperimentStoreTests {
 
     private func proposal(_ id: String = "time.morning.vs.rest.feeling") -> ExperimentDesign.Proposal {
         ExperimentDesign.Proposal(
-            hypothesisId: id, outcome: .feeling, type: .bestTimeWindow, standing: .confirmed,
+            hypothesisId: id, outcome: .feeling, type: .bestTimeWindow, standing: .confirmed, basis: .measured,
             focusLabel: "Morning", baselineLabel: "The rest of your day",
             premise: "Your morning sessions have felt more energizing.",
             context: nil,
@@ -123,7 +123,7 @@ struct ExperimentStoreTests {
         // result would wear a randomised test's clothes with none of its content.
         let sleep = ExperimentDesign.Proposal(
             hypothesisId: "health.sleepHours.higher.vs.lower.feeling", outcome: .feeling,
-            type: .sleepContext, standing: .confirmed,
+            type: .sleepContext, standing: .confirmed, basis: .measured,
             focusLabel: "Longer nights", baselineLabel: "Shorter nights",
             premise: "p", context: nil,
             change: "On a day after a longer night, put your bigger block in.",

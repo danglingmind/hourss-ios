@@ -135,7 +135,7 @@ struct ExperimentSlotTests {
     func standingIsStated() {
         func copy(_ standing: ExperimentDesign.Standing) -> SlotCopy {
             let p = ExperimentDesign.Proposal(
-                hypothesisId: "h", outcome: .feeling, type: .bestTimeWindow, standing: standing,
+                hypothesisId: "h", outcome: .feeling, type: .bestTimeWindow, standing: standing, basis: standing == .starter ? .nothingYet : .measured,
                 focusLabel: "Morning", baselineLabel: "Rest",
                 premise: "Morning has read higher so far, across 4 days.",
                 context: nil,

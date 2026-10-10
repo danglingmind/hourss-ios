@@ -57,9 +57,15 @@ struct RootView: View {
             ZStack {
                 switch selection {
                 case .today: NavigationStack { TodayView(onLog: startLogging).enablesSwipeBack() }
-                case .patterns: NavigationStack { PatternsView().enablesSwipeBack() }
-                case .journal: NavigationStack { JournalView().enablesSwipeBack() }
-                case .you: NavigationStack { YouView().enablesSwipeBack() }
+                case .patterns: NavigationStack { PatternsView(onLog: startLogging).enablesSwipeBack() }
+                // Its own tab now, rather than a row at the foot of Patterns. The
+                // argument that put it there — a test is a thing you do *about* a
+                // claim, and claims live on Patterns — held while a test was a
+                // feature of the feed. It stopped holding when the fortnight became
+                // the thing the app is for.
+                case .tests: NavigationStack { TestsView(onLog: startLogging).enablesSwipeBack() }
+                case .journal: NavigationStack { JournalView(onLog: startLogging).enablesSwipeBack() }
+                case .you: NavigationStack { YouView(onLog: startLogging).enablesSwipeBack() }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -76,7 +82,7 @@ struct RootView: View {
             // tab you moved to while the content tells you it changed.
             .animation(Motion.content(reduced: reduceMotion), value: selection)
 
-            EditorialTabBar(selection: $selection, onLog: startLogging)
+            EditorialTabBar(selection: $selection)
         }
         .background(Color.canvas)
         .onOpenURL { url in
